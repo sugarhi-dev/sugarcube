@@ -1,0 +1,26 @@
+{
+  "name": "sugarcube",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server",
+    "server-core"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "local-up": "docker compose -f server/docker/local/docker-compose.yml up -d --wait",
+    "local-down": "docker compose -f server/docker/local/docker-compose.yml down",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  }
+}

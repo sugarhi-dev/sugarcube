@@ -1,0 +1,28 @@
+{
+  "name": "@sugarcube/server-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "jose": "^6.2.13",
+    "pg": "^8.23.1",
+    "tslog": "^5.4.0",
+    "ulidx": "^2.4.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/pg": "^8.23.1"
+  }
+}

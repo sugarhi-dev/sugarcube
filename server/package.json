@@ -1,0 +1,21 @@
+{
+  "name": "@sugarcube/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "node --watch dist/index.js",
+    "migrate": "node dist/migrate.js",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@sugarcube/server-core": "0.0.0",
+    "express": "^5.3.0",
+    "jose": "^6.2.13"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6"
+  }
+}
