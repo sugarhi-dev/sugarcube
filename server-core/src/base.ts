@@ -6,4 +6,5 @@ export class Base {
     constructor() {
         this.log = new Logger<ILogObj>();
     }
-}   
+}
+

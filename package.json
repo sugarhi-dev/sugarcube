@@ -8,11 +8,12 @@
     "server-core"
   ],
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && npm run build -w @sugarcube/client",
     "clean": "tsc -b --clean",
+    "dev:client": "npm run dev -w @sugarcube/client",
     "local-up": "docker compose -f server/docker/local/docker-compose.yml up -d --wait",
     "local-down": "docker compose -f server/docker/local/docker-compose.yml down",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false && npm run typecheck -w @sugarcube/client"
   },
   "engines": {
     "node": ">=24"
