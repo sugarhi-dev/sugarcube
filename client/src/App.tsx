@@ -1,19 +1,27 @@
 import { App as AntdApp, ConfigProvider } from 'antd';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { RequireSession } from './components/RequireSession.tsx';
+import { SignedIn } from './components/SignedIn.tsx';
 import { CallbackPage } from './pages/CallbackPage.tsx';
 import { HomePage } from './pages/HomePage.tsx';
+import { OnboardingAccountType, onboardingAccountTypePath } from './pages/onboarding/OnboardingAccountType.tsx';
+import { OnboardingProfile, onboardingProfilePath } from './pages/onboarding/OnboardingProfile.tsx';
 import { SignInPage } from './pages/SignInPage.tsx';
+import { copyThatTheme } from './theme.ts';
 
 const basename = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 export function App() {
     return (
-        <ConfigProvider>
+        <ConfigProvider theme={copyThatTheme}>
             <AntdApp>
                 <BrowserRouter basename={basename}>
                     <Routes>
-                        <Route path="/" element={<RequireSession><HomePage /></RequireSession>} />
+                        <Route element={<RequireSession><SignedIn /></RequireSession>}>
+                            <Route path="/" element={<HomePage />} />
+                            <Route path={onboardingAccountTypePath} element={<OnboardingAccountType />} />
+                            <Route path={onboardingProfilePath} element={<OnboardingProfile />} />
+                        </Route>
                         <Route path="/sign-in" element={<SignInPage />} />
                         <Route path="/auth/callback" element={<CallbackPage />} />
                         <Route path="*" element={<Navigate to="/" replace />} />

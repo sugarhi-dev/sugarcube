@@ -1,5 +1,10 @@
 import { Database, Repository, type Context } from '@sugarcube/server-core';
-import { UserSchema, type User } from '../entities/user.js';
+import { UserSchema, type AccountType, type User } from '../entities/user.js';
+import type { UserLocale } from '../entities/userLocale.js';
+import type { UnionStatus } from '../entities/userWorkProfile.js';
+import type { WorkProfile } from '../entities/workProfile.js';
+
+const userColumns = 'id, first_name, last_name, email, phone, keycloak_id, status, account_type';
 
 type UserRow = {
     id: string;
@@ -9,6 +14,7 @@ type UserRow = {
     phone: string | null;
     keycloak_id: string;
     status: string;
+    account_type: string | null;
 };
 
 export class UserRepo extends Repository {
@@ -33,7 +39,7 @@ export class UserRepo extends Repository {
     async findUserByKeycloakId(ctx: Context, keycloakId: string): Promise<User | null> {
         this.log.trace(`${ctx.traceId} select user_profile ${keycloakId}`);
         const result = await this.database.query<UserRow>(
-            `SELECT id, first_name, last_name, email, phone, keycloak_id, status
+            `SELECT ${userColumns}
              FROM user_profile
              WHERE keycloak_id = $1`,
             [keycloakId],
@@ -41,4 +47,116 @@ export class UserRepo extends Repository {
         const row = result.rows[0];
         return row ? UserSchema.parse(row) : null;
     }
+
+    async chooseAccountType(ctx: Context, userId: string, accountType: AccountType): Promise<User | null> {
+        this.log.trace(`${ctx.traceId} choose account type ${userId} ${accountType}`);
+        const result = await this.database.query<UserRow>(
+            `UPDATE user_profile
+             SET account_type = $2,
+                 status = 'setup',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status = 'new'
+             RETURNING ${userColumns}`,
+            [userId, accountType],
+        );
+        const row = result.rows[0];
+        return row ? UserSchema.parse(row) : null;
+    }
+
+    async completeSetup(ctx: Context, input: SetupWrite): Promise<User | null> {
+        const userId = input.workProfile.user_profile_id;
+        this.log.trace(`${ctx.traceId} complete setup ${userId}`);
+        if (input.locales.some((locale) => locale.user_profile_id !== userId)) {
+            throw new Error('Locale does not belong to the profile.');
+        }
+
+        return this.database.transaction(async (query) => {
+            const locked = await query<{ id: string }>(
+                `SELECT id
+                 FROM user_profile
+                 WHERE id = $1 AND status = 'setup'
+                 FOR UPDATE`,
+                [userId],
+            );
+            if (!locked.rows[0]) {
+                return null;
+            }
+
+            await query(
+                `DELETE FROM work_profile
+                 WHERE user_profile_id = $1`,
+                [userId],
+            );
+            await query(
+                `INSERT INTO work_profile (id, user_profile_id, discipline_id, position_id)
+                 VALUES ($1, $2, $3, $4)`,
+                [
+                    input.workProfile.id,
+                    userId,
+                    input.workProfile.discipline_id,
+                    input.workProfile.position_id,
+                ],
+            );
+
+            const existingRate = await query<{ id: string }>(
+                `SELECT id FROM user_work_profile WHERE user_profile_id = $1`,
+                [userId],
+            );
+            const rateId = existingRate.rows[0]?.id;
+            if (rateId) {
+                await query(
+                    `UPDATE user_work_profile
+                     SET day_rate = $2,
+                         currency_id = $3,
+                         union_status = $4,
+                         flat_fee = $5,
+                         updated_at = CURRENT_TIMESTAMP
+                     WHERE id = $1`,
+                    [rateId, input.day_rate, input.currency_id, input.union_status, input.flat_fee],
+                );
+            } else {
+                await query(
+                    `INSERT INTO user_work_profile (id, user_profile_id, day_rate, currency_id, union_status, flat_fee)
+                     VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [input.rate_id, userId, input.day_rate, input.currency_id, input.union_status, input.flat_fee],
+                );
+            }
+
+            await query(
+                `DELETE FROM user_locale
+                 WHERE user_profile_id = $1`,
+                [userId],
+            );
+            for (const locale of input.locales) {
+                await query(
+                    `INSERT INTO user_locale (id, user_profile_id, production_city_id, home_city)
+                     VALUES ($1, $2, $3, $4)`,
+                    [locale.id, locale.user_profile_id, locale.production_city_id, locale.home_city],
+                );
+            }
+
+            const updated = await query<UserRow>(
+                `UPDATE user_profile
+                 SET phone = $2,
+                     status = 'experience',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1 AND status = 'setup'
+                 RETURNING ${userColumns}`,
+                [userId, input.phone],
+            );
+            const row = updated.rows[0];
+            return row ? UserSchema.parse(row) : null;
+        });
+    }
 }
+
+export type SetupWrite = {
+    phone: string;
+    workProfile: WorkProfile;
+    day_rate: number;
+    currency_id: string;
+    union_status: UnionStatus;
+    flat_fee: boolean;
+    rate_id: string;
+    locales: UserLocale[];
+};

@@ -1,3 +1,152 @@
 body {
     margin: 0;
+    font-family: Inter, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+.onboarding-role-card:focus-visible {
+    outline: 2px solid #e2186c;
+    outline-offset: 3px;
+}
+
+.onboarding-shell {
+    min-height: 100vh;
+    background: #faf7f5;
+}
+
+.onboarding-sider.ant-layout-sider {
+    background: #171412 !important;
+}
+
+.onboarding-sider .ant-layout-sider-children {
+    height: 100%;
+}
+
+.profile-form .ant-form-item-label > label {
+    font-weight: 650;
+}
+
+.profile-choice.ant-radio-group {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+}
+
+.profile-choice .ant-radio-button-wrapper {
+    flex: 1;
+    height: 52px;
+    line-height: 50px;
+    text-align: center;
+    border-radius: 12px !important;
+    border: 1px solid #efeae6 !important;
+    background: #f4f0eb;
+    color: #6d675f;
+    font-weight: 650;
+    box-shadow: none !important;
+}
+
+.profile-choice .ant-radio-button-wrapper::before {
+    display: none !important;
+}
+
+.profile-choice .ant-radio-button-wrapper-checked,
+.profile-choice .ant-radio-button-wrapper-checked:hover {
+    background: #fff !important;
+    border-color: #e2186c !important;
+    color: #e2186c !important;
+}
+
+.profile-choice-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.union-choice.ant-radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.union-choice .ant-radio-button-wrapper {
+    height: 38px;
+    line-height: 36px;
+    border-radius: 999px !important;
+    border: 1px solid #e4ddd6 !important;
+    background: #fff;
+    color: #3a3a3a;
+    padding-inline: 16px;
+    font-weight: 650;
+    box-shadow: none !important;
+}
+
+.union-choice .ant-radio-button-wrapper::before {
+    display: none !important;
+}
+
+.union-choice .ant-radio-button-wrapper-checked,
+.union-choice .ant-radio-button-wrapper-checked:hover {
+    background: #fff !important;
+    border-color: #e2186c !important;
+    color: #e2186c !important;
+}
+
+.flat-fee-card {
+    border: 1px solid #efeae6;
+    border-radius: 14px;
+    background: #fff;
+    padding: 16px 18px;
+}
+
+.flat-fee-switch.ant-switch-checked {
+    background: #34c759;
+}
+
+.city-tag.ant-tag {
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border-color: #f3a0c0;
+    color: #e2186c;
+    background: #fff;
+    font-weight: 650;
+}
+
+.city-tag-home.ant-tag {
+    background: #fff1f6;
+    border-color: #e2186c;
+}
+
+.city-home-hit {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 650;
+    padding: 0;
+    cursor: pointer;
+}
+
+.add-city.ant-btn {
+    border-color: #e4ddd6;
+    color: #6d675f;
+}
+
+@media (max-width: 860px) {
+    .onboarding-shell.ant-layout {
+        flex-direction: column;
+    }
+
+    .onboarding-sider.ant-layout-sider {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: none !important;
+        min-width: 0 !important;
+    }
+
+    .onboarding-shell > .ant-layout-content {
+        padding: 28px 20px 40px !important;
+    }
 }

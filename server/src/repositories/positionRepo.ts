@@ -3,6 +3,7 @@ import { PositionSchema, type Position } from '../entities/position.js';
 
 type PositionRow = {
     id: string;
+    discipline_id: string;
     name: string;
 };
 
@@ -14,7 +15,7 @@ export class PositionRepo extends Repository {
     async listPositions(ctx: Context): Promise<Position[]> {
         this.log.trace(`${ctx.traceId} select positions`);
         const result = await this.database.query<PositionRow>(
-            `SELECT id, name
+            `SELECT id, discipline_id, name
              FROM positions
              ORDER BY name`,
         );
@@ -24,7 +25,7 @@ export class PositionRepo extends Repository {
     async findPositionById(ctx: Context, id: string): Promise<Position | null> {
         this.log.trace(`${ctx.traceId} select positions ${id}`);
         const result = await this.database.query<PositionRow>(
-            `SELECT id, name
+            `SELECT id, discipline_id, name
              FROM positions
              WHERE id = $1`,
             [id],
