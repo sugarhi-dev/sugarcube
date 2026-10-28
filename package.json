@@ -5,12 +5,14 @@
   "workspaces": [
     "client",
     "server",
-    "server-core"
+    "server-core",
+    "tests"
   ],
   "scripts": {
     "build": "tsc -b && npm run build -w @sugarcube/client",
     "clean": "tsc -b --clean",
     "dev:client": "npm run dev -w @sugarcube/client",
+    "client-tests": "npm run test -w @sugarcube/tests",
     "local-up": "docker compose -f server/docker/local/docker-compose.yml up -d --wait",
     "local-down": "docker compose -f server/docker/local/docker-compose.yml down",
     "typecheck": "tsc -b --pretty false && npm run typecheck -w @sugarcube/client"

@@ -22,29 +22,29 @@ type OnboardingFrameProps = {
 export function OnboardingFrame({ step, accountLabel, children }: OnboardingFrameProps) {
     return (
         <Layout className="onboarding-shell">
-            <Sider width={280} theme="dark" className="onboarding-sider">
-                <Flex vertical style={{ height: '100%', padding: '28px 22px 24px' }}>
+            <Sider width={248} theme="dark" className="onboarding-sider">
+                <Flex vertical style={{ height: '100%', padding: '22px 18px 20px' }}>
                     <Typography.Title level={4} style={{ margin: 0, color: '#fff', fontSize: 18, fontWeight: 800, letterSpacing: '0.08em' }}>
                         COPY
                         <Typography.Text style={{ color: copyThat.accent, fontSize: 18, fontWeight: 800, letterSpacing: '0.08em' }}>
                             THAT
                         </Typography.Text>
                     </Typography.Title>
-                    <Typography.Text style={{ display: 'block', marginTop: 22, color: '#8d8680', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em' }}>
+                    <Typography.Text style={{ display: 'block', marginTop: 18, color: '#8d8680', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em' }}>
                         {accountLabel}
                     </Typography.Text>
-                    <Flex vertical gap={18} style={{ marginTop: 28 }} role="list" aria-label="Setup steps">
+                    <Flex vertical gap={14} style={{ marginTop: 22 }} role="list" aria-label="Setup steps">
                         {steps.map((item, index) => (
                             <StepRow key={item.title} index={index} title={item.title} current={step} />
                         ))}
                     </Flex>
-                    <Typography.Paragraph style={{ marginTop: 'auto', marginBottom: 0, color: '#6f6964', fontSize: 13, lineHeight: 1.45 }}>
+                    <Typography.Paragraph style={{ marginTop: 'auto', marginBottom: 0, color: '#6f6964', fontSize: 12, lineHeight: 1.45 }}>
                         One account, many hats — you can add more positions and cities after you go live.
                     </Typography.Paragraph>
                 </Flex>
             </Sider>
-            <Content style={{ background: copyThat.canvas, padding: '48px 56px 64px' }}>
-                <div style={{ width: 'min(680px, 100%)' }}>{children}</div>
+            <Content style={{ background: copyThat.canvas, padding: '32px 40px 48px' }}>
+                <div style={{ width: 'min(560px, 100%)' }}>{children}</div>
             </Content>
         </Layout>
     );
@@ -63,21 +63,21 @@ function StepRow({ index, title, current }: { index: number; title: string; curr
                 align="center"
                 justify="center"
                 style={{
-                    width: 28,
-                    height: 28,
-                    flex: '0 0 28px',
+                    width: 24,
+                    height: 24,
+                    flex: '0 0 24px',
                     borderRadius: '50%',
                     background: markerColor,
                     border: done || active ? 'none' : '1px solid #4a453f',
                     color: '#fff',
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: 700,
                 }}
             >
                 {done ? <CheckOutlined /> : number}
             </Flex>
             <Flex vertical gap={2}>
-                <Typography.Text style={{ color: titleColor, fontWeight: active ? 700 : 600, lineHeight: '28px' }}>
+                <Typography.Text style={{ color: titleColor, fontWeight: active ? 700 : 600, fontSize: 14, lineHeight: '24px' }}>
                     {title}
                 </Typography.Text>
                 <Typography.Text style={{ color: '#6f6964', fontSize: 12 }}>

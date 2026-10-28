@@ -140,10 +140,10 @@ VALUES
     ('01M60CTKE88E3848HQ0WB1SCE6', 'Script Supervisor'),
     ('01M60CTKE84JFFYAY62W1KMD6P', 'Director''s Assistant'),
     ('01M60CTKE7DNHCK3Q7HGRBFFZS', 'Set Production Assistant'),
-    -- Locations
+    -- Locationsx`z
     ('01M60CTKE8CA0FHJR5XNWWTD1T', 'Location Manager'),
     ('01M60CTKE83M5GMSN9HQXPZ22E', 'Assistant Location Manager'),
-    ('01M60CTKE8A5BJVFC4NP2R0QA4', 'Location Assistant'),
+    ('01M60CTKE8A5BJVFC4NP2R0QA4', 'Location Assistantz'),
     -- Camera
     ('01M60CTKE8SMJY0DW9TCHXJTYF', 'Director of Photography'),
     ('01M60CTKE8S2FXS071FJ8R04ZX', 'Camera Operator'),

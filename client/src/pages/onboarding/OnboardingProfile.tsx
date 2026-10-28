@@ -65,7 +65,8 @@ export function OnboardingProfile() {
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const session = useSession();
-    const accountType = useAppSelector((state) => state.profile.user?.account_type);
+    const user = useAppSelector((state) => state.profile.user);
+    const accountType = user?.account_type;
     const { message } = AntdApp.useApp();
     const [form] = Form.useForm<ProfileFormValues>();
     const currencyId = Form.useWatch('currency_id', form);
@@ -176,10 +177,10 @@ export function OnboardingProfile() {
             <Typography.Text style={{ color: copyThat.pink, fontSize: 12, fontWeight: 700, letterSpacing: '0.12em' }}>
                 STEP 2 OF 5
             </Typography.Text>
-            <Typography.Title level={2} style={{ margin: '8px 0 0', fontWeight: 700, letterSpacing: '-0.02em' }}>
+            <Typography.Title level={3} style={{ margin: '4px 0 0', fontWeight: 700, letterSpacing: '-0.02em' }}>
                 Set up your profile
             </Typography.Title>
-            <Typography.Paragraph type="secondary" style={{ margin: '8px 0 28px' }}>
+            <Typography.Paragraph type="secondary" style={{ margin: '4px 0 18px', fontSize: 14 }}>
                 Your discipline, position and rate — this is what clients see and book.
             </Typography.Paragraph>
 
@@ -205,6 +206,18 @@ export function OnboardingProfile() {
                     initialValues={{ flat_fee: false, locales: [] }}
                     onFinish={(values) => void onFinish(values)}
                 >
+                    <Flex gap={12} align="flex-start">
+                        <Form.Item label="First name" style={{ flex: 1 }}>
+                            <Input readOnly className="profile-readonly" value={user?.first_name ?? ''} />
+                        </Form.Item>
+                        <Form.Item label="Last name" style={{ flex: 1 }}>
+                            <Input readOnly className="profile-readonly" value={user?.last_name ?? ''} />
+                        </Form.Item>
+                    </Flex>
+                    <Form.Item label="Email">
+                        <Input readOnly className="profile-readonly" value={user?.email ?? ''} />
+                    </Form.Item>
+
                     <Form.Item
                         label="Discipline"
                         name="discipline_id"
@@ -229,7 +242,6 @@ export function OnboardingProfile() {
                     >
                         <Select
                             showSearch
-                            size="large"
                             disabled={!disciplineId}
                             placeholder={disciplineId ? 'Select a position' : 'Choose a discipline first'}
                             optionFilterProp="label"
@@ -244,19 +256,18 @@ export function OnboardingProfile() {
                         name="phone"
                         rules={[{ validator: validatePhone }]}
                     >
-                        <Input size="large" inputMode="tel" autoComplete="tel" prefix={<PhoneOutlined />} placeholder="+1 213 555 0100" />
+                        <Input inputMode="tel" autoComplete="tel" prefix={<PhoneOutlined />} placeholder="+1 213 555 0100" />
                     </Form.Item>
 
-                    <Flex gap={16} align="flex-start" wrap="wrap">
+                    <Flex gap={12} align="flex-start" wrap="wrap">
                         <Form.Item
                             label="Day rate"
                             name="day_rate"
-                            style={{ flex: '1.4 1 220px' }}
+                            style={{ flex: '1.4 1 180px' }}
                             rules={[{ validator: validateRate }]}
                         >
                             <InputNumber<string>
                                 stringMode
-                                size="large"
                                 min="0"
                                 precision={2}
                                 controls={false}
@@ -270,11 +281,10 @@ export function OnboardingProfile() {
                         <Form.Item
                             label="Currency"
                             name="currency_id"
-                            style={{ flex: '1 1 180px' }}
+                            style={{ flex: '1 1 140px' }}
                             rules={[{ required: true, message: 'Choose a currency.' }]}
                         >
                             <Select
-                                size="large"
                                 placeholder="Currency"
                                 options={catalog.currencies.map((currency) => ({
                                     value: currency.id,
@@ -315,7 +325,7 @@ export function OnboardingProfile() {
                     <Form.Item
                         label="Working as a local in"
                         name="locales"
-                        style={{ marginTop: 22 }}
+                        style={{ marginTop: 8 }}
                         rules={[{ validator: validateLocales }]}
                     >
                         <LocaleField cities={catalog.cities} />
@@ -328,12 +338,11 @@ export function OnboardingProfile() {
                         <Button
                             type="primary"
                             htmlType="submit"
-                            size="large"
+                            className="profile-continue"
                             loading={saving}
                             icon={<ArrowRightOutlined />}
                             iconPlacement="end"
                             style={{
-                                minWidth: 240,
                                 background: `linear-gradient(90deg, ${copyThat.pinkHot} 0%, ${copyThat.pink} 100%)`,
                                 border: 'none',
                             }}
@@ -401,7 +410,6 @@ function LocaleField({
                     id={id}
                     key={pickerKey}
                     showSearch
-                    size="large"
                     prefix={<EnvironmentOutlined />}
                     placeholder="Search cities..."
                     optionFilterProp="label"
@@ -445,7 +453,7 @@ function LocaleField({
                     Add city
                 </Button>
             </Flex>
-            <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 Choose one home city. You can work as a local in the others.
             </Typography.Text>
         </Flex>
