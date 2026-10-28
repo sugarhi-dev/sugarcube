@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { exchangeCode } from '../api/auth.ts';
 import { readCallback } from '../auth/oidc.ts';
-import { saveSession } from '../auth/session.ts';
 import { Centered } from '../components/Centered.tsx';
+import { useAppDispatch } from '../store/hooks.ts';
+import { sessionSaved } from '../store/sessionSlice.ts';
 
 export function CallbackPage() {
     const navigate = useNavigate();
+    const dispatch = useAppDispatch();
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -25,7 +27,7 @@ export function CallbackPage() {
                 if (!active) {
                     return;
                 }
-                saveSession(session);
+                dispatch(sessionSaved(session));
                 navigate('/', { replace: true });
             } catch (caught) {
                 if (!active) {
@@ -40,7 +42,7 @@ export function CallbackPage() {
         return () => {
             active = false;
         };
-    }, [navigate]);
+    }, [dispatch, navigate]);
 
     if (!error) {
         return <Spin size="large" description="Signing you in…" fullscreen />;

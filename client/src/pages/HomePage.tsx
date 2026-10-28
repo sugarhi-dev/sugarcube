@@ -2,13 +2,15 @@ import { LogoutOutlined } from '@ant-design/icons';
 import { Button, Card, Flex, Layout, Typography } from 'antd';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { clearSession, loadSession } from '../auth/session.ts';
+import { useAppDispatch, useSession } from '../store/hooks.ts';
+import { sessionCleared } from '../store/sessionSlice.ts';
 
 const { Header, Content } = Layout;
 
 export function HomePage() {
     const navigate = useNavigate();
-    const session = loadSession();
+    const dispatch = useAppDispatch();
+    const session = useSession();
 
     useEffect(() => {
         document.title = 'Sugarcube';
@@ -21,7 +23,7 @@ export function HomePage() {
     const name = [session.profile.givenName, session.profile.familyName].filter(Boolean).join(' ');
 
     function signOut(): void {
-        clearSession();
+        dispatch(sessionCleared());
         navigate('/sign-in', { replace: true });
     }
 

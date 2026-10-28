@@ -6,3 +6,4 @@ export { JwtValidator } from './jwtValidator.js';
 export { Repository } from './repository.js';
 export { Service } from './service.js';
 export { RestService } from './restService.js';
+export { Logic } from './logic.js';

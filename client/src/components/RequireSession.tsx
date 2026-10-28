@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
 import { Navigate } from 'react-router';
-import { hasJwt } from '../auth/session.ts';
+import { useSession } from '../store/hooks.ts';
 
 export function RequireSession({ children }: { children: ReactNode }) {
-    if (!hasJwt()) {
+    const session = useSession();
+    if (!session) {
         return <Navigate to="/sign-in" replace />;
     }
 

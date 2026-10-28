@@ -2,9 +2,9 @@ import { Controller, type Context } from "@sugarcube/server-core";
 import type { Express, Request, Response } from 'express';
 import { ulid } from 'ulidx';
 import { z } from 'zod';
-import { UserRepo } from '../repositories/userRepo.js';
 import { UserSchema } from '../entities/user.js';
 import { parseBody } from './httpHelpers.js';
+import { UserLogic } from "../logic/userLogic.js";
 
 const OidcCallbackRequestSchema = z.object({
     code: z.string().min(1).meta({ description: 'Authorization code from the Keycloak redirect.' }),
@@ -16,15 +16,12 @@ const OidcCallbackRequestSchema = z.object({
 export const authRequestSchemas = { OidcCallbackRequest: OidcCallbackRequestSchema };
 
 
-export class AuthController extends Controller {
-    private readonly userRepo: UserRepo;
-
-    constructor(app: Express, userRepo: UserRepo)
+export class AuthController extends Controller {    
+    private readonly userLogic: UserLogic;
+    constructor(app: Express, userLogic: UserLogic)
     {
-        super(app);
-
-        this.userRepo = userRepo;
-
+        super(app);        
+        this.userLogic = userLogic;
         this.post('/api/auth/oidc/callback', this.POST_oidc_callback.bind(this));
     }
 
@@ -95,7 +92,7 @@ export class AuthController extends Controller {
             keycloak_id: claims.sub,
         });
 
-        await this.userRepo.createUser(ctx, user);
+        await this.userLogic.createUser(ctx, user);
 
         this.checkAndRespond(ctx, res, data);
     }

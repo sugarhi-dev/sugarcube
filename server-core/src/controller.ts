@@ -4,6 +4,23 @@ import { Context } from './context.js';
 
 type Handler = (ctx: Context, req: Request, res: Response) => void | Promise<void>;
 
+function zodMessage(error: unknown): string | undefined {
+    if (typeof error !== 'object' || error === null || !('name' in error) || error.name !== 'ZodError' || !('issues' in error)) {
+        return undefined;
+    }
+
+    const issues = error.issues;
+    if (!Array.isArray(issues)) {
+        return undefined;
+    }
+
+    const first = issues[0];
+    if (typeof first === 'object' && first !== null && 'message' in first && typeof first.message === 'string' && first.message.length > 0) {
+        return first.message;
+    }
+    return 'Request is invalid.';
+}
+
 export class Controller extends Base {
     protected app: Express;
 
@@ -33,9 +50,15 @@ export class Controller extends Base {
         
         try {
             await handler(ctx, req, res);
+        } catch (error) {
+            const message = zodMessage(error);
+            if (message === undefined || res.headersSent) {
+                throw error;
+            }
+            this.log.trace(`${ctx.traceId} invalid request: ${message}`);
+            ctx.error(message, 400);
+            this.checkAndRespond(ctx, res);
         }
-        finally {            
-        }        
     }
 
     protected get(path: string, handler: Handler, requireRoles: string[] = [])

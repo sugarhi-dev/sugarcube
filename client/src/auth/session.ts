@@ -40,6 +40,10 @@ function isSession(value: unknown): value is Session {
         && isProfile(session.profile);
 }
 
+export function isLiveSession(session: Session): boolean {
+    return session.expiresAt > Date.now() && isLiveJwt(session.accessToken);
+}
+
 function isLiveJwt(token: string): boolean {
     const segments = token.split('.');
     const payload = segments[1];
@@ -72,7 +76,7 @@ export function loadSession(): Session | null {
 
     try {
         const parsed: unknown = JSON.parse(raw);
-        if (!isSession(parsed) || parsed.expiresAt <= Date.now() || !isLiveJwt(parsed.accessToken)) {
+        if (!isSession(parsed) || !isLiveSession(parsed)) {
             sessionStorage.removeItem(storageKey);
             return null;
         }
@@ -81,10 +85,6 @@ export function loadSession(): Session | null {
         sessionStorage.removeItem(storageKey);
         return null;
     }
-}
-
-export function hasJwt(): boolean {
-    return loadSession() !== null;
 }
 
 export function saveSession(session: Session): void {

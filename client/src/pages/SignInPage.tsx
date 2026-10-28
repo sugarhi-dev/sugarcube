@@ -2,11 +2,11 @@ import { Spin } from 'antd';
 import { useEffect, useRef } from 'react';
 import { Navigate } from 'react-router';
 import { beginSignIn } from '../auth/oidc.ts';
-import { hasJwt } from '../auth/session.ts';
+import { useSession } from '../store/hooks.ts';
 
 export function SignInPage() {
     const started = useRef(false);
-    const signedIn = hasJwt();
+    const signedIn = useSession() !== null;
 
     useEffect(() => {
         document.title = 'Sign in — Sugarcube';
