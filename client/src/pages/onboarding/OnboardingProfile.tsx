@@ -26,6 +26,7 @@ import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
 import { OnboardingFrame } from './OnboardingFrame.tsx';
+import { onboardingExperiencePath } from './OnboardingExperience.tsx';
 
 export const onboardingProfilePath = '/onboarding/profile';
 
@@ -162,7 +163,7 @@ export function OnboardingProfile() {
                 cities: values.locales,
             });
             dispatch(profileLoaded({ user, forSubject: session.profile.subject }));
-            navigate('/', { replace: true });
+            navigate(onboardingExperiencePath, { replace: true });
         } catch (error) {
             message.error(error instanceof Error ? error.message : 'Could not save your profile.');
         } finally {

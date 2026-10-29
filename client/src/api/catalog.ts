@@ -23,6 +23,12 @@ export type ProductionCity = {
     country_code: string;
 };
 
+export type ProjectType = {
+    id: string;
+    discipline_id: string;
+    name: string;
+};
+
 export function listDisciplines(accessToken: string): Promise<Discipline[]> {
     return readList(accessToken, '/api/disciplines', isDiscipline, 'Disciplines');
 }
@@ -37,6 +43,10 @@ export function listCurrencies(accessToken: string): Promise<Currency[]> {
 
 export function listProductionCities(accessToken: string): Promise<ProductionCity[]> {
     return readList(accessToken, '/api/production-cities', isProductionCity, 'Cities');
+}
+
+export function listProjectTypes(accessToken: string): Promise<ProjectType[]> {
+    return readList(accessToken, '/api/project-types', isProjectType, 'Project types');
 }
 
 async function readList<T>(
@@ -79,4 +89,11 @@ function isProductionCity(value: unknown): value is ProductionCity {
         && typeof value.id === 'string'
         && typeof value.name === 'string'
         && typeof value.country_code === 'string';
+}
+
+function isProjectType(value: unknown): value is ProjectType {
+    return isRecord(value)
+        && typeof value.id === 'string'
+        && typeof value.discipline_id === 'string'
+        && typeof value.name === 'string';
 }

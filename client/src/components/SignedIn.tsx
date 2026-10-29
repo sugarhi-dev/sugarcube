@@ -4,6 +4,7 @@ import { Navigate, Outlet, useLocation } from 'react-router';
 import { ApiError } from '../api/http.ts';
 import { getMe } from '../api/me.ts';
 import { onboardingAccountTypePath } from '../pages/onboarding/OnboardingAccountType.tsx';
+import { onboardingExperiencePath } from '../pages/onboarding/OnboardingExperience.tsx';
 import { onboardingProfilePath } from '../pages/onboarding/OnboardingProfile.tsx';
 import { useAppDispatch, useAppSelector, useSession } from '../store/hooks.ts';
 import { profileFailed, profileLoaded, profileRequested } from '../store/profileSlice.ts';
@@ -84,13 +85,22 @@ export function SignedIn() {
 
     const onAccountType = location.pathname === onboardingAccountTypePath;
     const onProfile = location.pathname === onboardingProfilePath;
+    const onExperience = location.pathname === onboardingExperiencePath;
     if (user.status === 'new' && !onAccountType) {
         return <Navigate to={onboardingAccountTypePath} replace />;
     }
     if (user.status === 'setup' && !onProfile) {
         return <Navigate to={onboardingProfilePath} replace />;
     }
-    if (user.status !== 'new' && user.status !== 'setup' && (onAccountType || onProfile)) {
+    if (user.status === 'experience' && !onExperience) {
+        return <Navigate to={onboardingExperiencePath} replace />;
+    }
+    if (
+        user.status !== 'new'
+        && user.status !== 'setup'
+        && user.status !== 'experience'
+        && (onAccountType || onProfile || onExperience)
+    ) {
         return <Navigate to="/" replace />;
     }
 

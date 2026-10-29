@@ -148,6 +148,20 @@ export class UserRepo extends Repository {
             return row ? UserSchema.parse(row) : null;
         });
     }
+
+    async completeExperience(ctx: Context, userId: string): Promise<User | null> {
+        this.log.trace(`${ctx.traceId} complete experience ${userId}`);
+        const result = await this.database.query<UserRow>(
+            `UPDATE user_profile
+             SET status = 'media',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status = 'experience'
+             RETURNING ${userColumns}`,
+            [userId],
+        );
+        const row = result.rows[0];
+        return row ? UserSchema.parse(row) : null;
+    }
 }
 
 export type SetupWrite = {

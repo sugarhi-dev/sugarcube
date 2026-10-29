@@ -28,6 +28,39 @@ test('logs in and completes profile setup', async ({ page }) => {
     await chooseOption(page, 'Working as a local in', 'Los Angeles, US', 'Los Angeles');
     await page.getByRole('button', { name: 'Continue — experience' }).click();
 
+    await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
+    await page.getByLabel('Project title').fill('Nike — Up In The Air');
+    await chooseOption(page, 'Position', 'Director', 'Director');
+    await page.getByLabel('Lead producer').fill('Sarah Kim');
+    await page.getByRole('button', { name: 'Add' }).click();
+    await expect(page.getByText('Nike — Up In The Air')).toBeVisible();
+    await expect(page.getByText('Lead producer: Sarah Kim')).toBeVisible();
+    await page.getByRole('button', { name: 'Edit Nike — Up In The Air' }).click();
+    await page.getByLabel('Lead producer for Nike — Up In The Air').fill('Jamie Chen');
+    await page.getByRole('button', { name: 'Save Nike — Up In The Air' }).click();
+    await expect(page.getByText('Lead producer: Jamie Chen')).toBeVisible();
+    await expect(page.getByText('Lead producer: Sarah Kim')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Remove Nike — Up In The Air' }).click();
+    await expect(page.getByText('Nike — Up In The Air')).toHaveCount(0);
+
+    await page.getByLabel('Project title').fill('Adidas — Origami Forever');
+    await chooseOption(page, 'Position', 'Director of Photography', 'Photography');
+    await page.getByLabel('Lead producer').fill('Todd Martinez');
+    await page.getByRole('button', { name: 'Add' }).click();
+    await expect(page.getByText('Adidas — Origami Forever')).toBeVisible();
+    await expect(page.getByText('Director of Photography')).toBeVisible();
+    const commercial = page.getByRole('button', { name: 'Commercial', exact: true });
+    await Promise.all([
+        page.waitForResponse((response) =>
+            response.request().method() === 'PUT' && response.url().includes('/project-types') && response.ok()),
+        commercial.click(),
+    ]);
+    await expect(commercial).toHaveAttribute('aria-pressed', 'true');
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Commercial', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Continue — upload media' }).click();
+
     await expect(page.getByRole('heading', { name: `Hello, ${devUser.firstName} ${devUser.lastName}` })).toBeVisible();
     await expect(page.getByText(devUser.email)).toBeVisible();
 });

@@ -5,6 +5,7 @@ import { SignedIn } from './components/SignedIn.tsx';
 import { CallbackPage } from './pages/CallbackPage.tsx';
 import { HomePage } from './pages/HomePage.tsx';
 import { OnboardingAccountType, onboardingAccountTypePath } from './pages/onboarding/OnboardingAccountType.tsx';
+import { OnboardingExperience, onboardingExperiencePath } from './pages/onboarding/OnboardingExperience.tsx';
 import { OnboardingProfile, onboardingProfilePath } from './pages/onboarding/OnboardingProfile.tsx';
 import { SignInPage } from './pages/SignInPage.tsx';
 import { copyThatTheme } from './theme.ts';
@@ -21,6 +22,7 @@ export function App() {
                             <Route path="/" element={<HomePage />} />
                             <Route path={onboardingAccountTypePath} element={<OnboardingAccountType />} />
                             <Route path={onboardingProfilePath} element={<OnboardingProfile />} />
+                            <Route path={onboardingExperiencePath} element={<OnboardingExperience />} />
                         </Route>
                         <Route path="/sign-in" element={<SignInPage />} />
                         <Route path="/auth/callback" element={<CallbackPage />} />

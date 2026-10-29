@@ -93,6 +93,7 @@ export class UserController extends Controller {
         this.get('/api/me', this.GET_me.bind(this));
         this.put('/api/me/account-type', this.PUT_account_type.bind(this));
         this.put('/api/me/setup', this.PUT_setup.bind(this));
+        this.put('/api/me/experience', this.PUT_experience.bind(this));
         this.get('/api/me/locales', this.GET_locales.bind(this));
         this.post('/api/me/locales', this.POST_locale.bind(this));
         this.get('/api/me/locales/:id', this.GET_locale.bind(this));
@@ -134,6 +135,17 @@ export class UserController extends Controller {
 
         const body = parseBody(SetupProfileRequestSchema, req.body);
         const updated = await this.userLogic.completeSetup(ctx, user.id, body);
+        this.checkAndRespond(ctx, res, updated);
+    }
+
+    protected async PUT_experience(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const updated = await this.userLogic.completeExperience(ctx, user.id);
         this.checkAndRespond(ctx, res, updated);
     }
 

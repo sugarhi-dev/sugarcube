@@ -160,6 +160,118 @@ body {
     color: #6d675f;
 }
 
+.credit-card {
+    border: 1px solid #efeae6;
+    border-radius: 14px;
+    background: #fff;
+    padding: 12px 14px;
+}
+
+form.credit-card {
+    width: 100%;
+}
+
+.credit-mark {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    border-radius: 6px;
+    border: 1px solid #efeae6;
+    color: #b5aea6;
+    font-size: 12px;
+}
+
+.credit-producer {
+    flex: 0 1 auto;
+    color: #8a837c;
+    font-size: 13px;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.credit-edit.ant-btn,
+.credit-remove.ant-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+}
+
+.credit-edit.ant-btn {
+    color: #3a3632;
+}
+
+.credit-remove.ant-btn {
+    color: #e24b4b;
+}
+
+.credit-form {
+    margin-bottom: 4px;
+}
+
+.experience-add.ant-btn {
+    height: 32px;
+    background: #171412;
+    border-color: #171412;
+    color: #fff;
+    border-radius: 10px;
+    font-weight: 650;
+}
+
+.experience-add.ant-btn:hover,
+.experience-add.ant-btn:focus {
+    background: #2a2623 !important;
+    border-color: #2a2623 !important;
+    color: #fff !important;
+}
+
+.project-type-also {
+    display: block;
+    margin-top: 32px;
+    color: #849ebb;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.project-type-chip {
+    border: 1px solid #f3a0c0;
+    background: #fff;
+    color: #e2186c;
+    border-radius: 999px;
+    padding: 5px 12px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+.project-type-chip.is-selected {
+    background: #e2186c;
+    border-color: #e2186c;
+    color: #fff;
+}
+
+.project-type-chip.is-post {
+    border-color: #c5d6ea;
+    color: #5c7fa6;
+}
+
+.project-type-chip.is-post.is-selected {
+    background: #5c7fa6;
+    border-color: #5c7fa6;
+    color: #fff;
+}
+
+.project-type-chip:focus-visible {
+    outline: 2px solid #e2186c;
+    outline-offset: 2px;
+}
+
+.project-type-chip.is-post:focus-visible {
+    outline-color: #5c7fa6;
+}
+
 @media (max-width: 860px) {
     .onboarding-shell.ant-layout {
         flex-direction: column;

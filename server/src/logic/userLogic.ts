@@ -120,6 +120,15 @@ export class UserLogic extends Logic {
             return null;
         }
     }
+
+    async completeExperience(ctx: Context, userId: string): Promise<User | null> {
+        const user = await this.userRepo.completeExperience(ctx, userId);
+        if (!user) {
+            ctx.error('Experience can only be completed while your account is in experience.', 409);
+            return null;
+        }
+        return user;
+    }
 }
 
 function roundMoney(value: number): number {

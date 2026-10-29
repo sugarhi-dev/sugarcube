@@ -17,9 +17,17 @@ type OnboardingFrameProps = {
     step: number;
     accountLabel: string;
     children: ReactNode;
+    note?: string;
+    contentWidth?: number;
 };
 
-export function OnboardingFrame({ step, accountLabel, children }: OnboardingFrameProps) {
+export function OnboardingFrame({
+    step,
+    accountLabel,
+    children,
+    note = 'One account, many hats — you can add more positions and cities after you go live.',
+    contentWidth = 560,
+}: OnboardingFrameProps) {
     return (
         <Layout className="onboarding-shell">
             <Sider width={248} theme="dark" className="onboarding-sider">
@@ -39,12 +47,12 @@ export function OnboardingFrame({ step, accountLabel, children }: OnboardingFram
                         ))}
                     </Flex>
                     <Typography.Paragraph style={{ marginTop: 'auto', marginBottom: 0, color: '#6f6964', fontSize: 12, lineHeight: 1.45 }}>
-                        One account, many hats — you can add more positions and cities after you go live.
+                        {note}
                     </Typography.Paragraph>
                 </Flex>
             </Sider>
             <Content style={{ background: copyThat.canvas, padding: '32px 40px 48px' }}>
-                <div style={{ width: 'min(560px, 100%)' }}>{children}</div>
+                <div style={{ width: `min(${contentWidth}px, 100%)` }}>{children}</div>
             </Content>
         </Layout>
     );

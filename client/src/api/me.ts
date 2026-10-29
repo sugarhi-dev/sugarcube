@@ -52,6 +52,10 @@ export function saveSetup(accessToken: string, input: SetupProfileInput): Promis
     });
 }
 
+export function completeExperience(accessToken: string): Promise<CurrentUser> {
+    return readUser(accessToken, '/api/me/experience', { method: 'PUT' });
+}
+
 async function readUser(accessToken: string, path: string, init?: RequestInit): Promise<CurrentUser> {
     const body = await apiJson(accessToken, path, init);
     if (!isCurrentUser(body)) {
