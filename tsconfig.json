@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "schema" },
     { "path": "server-core" },
     { "path": "server" }
   ]

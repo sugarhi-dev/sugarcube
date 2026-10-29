@@ -1,99 +1,47 @@
-import { ApiError, apiJson } from './http.ts';
+import {
+    CurrencySchema,
+    DisciplineSchema,
+    PositionSchema,
+    ProductionCitySchema,
+    ProjectTypeSchema,
+    type Currency,
+    type Discipline,
+    type Position,
+    type ProductionCity,
+    type ProjectType,
+} from '@sugarcube/schema';
+import { z } from 'zod';
+import { apiJson } from './http.ts';
+import { parseResponseList } from './parse.ts';
 
-export type Discipline = {
-    id: string;
-    name: string;
-};
-
-export type Position = {
-    id: string;
-    discipline_id: string;
-    name: string;
-};
-
-export type Currency = {
-    id: string;
-    code: string;
-    name: string;
-};
-
-export type ProductionCity = {
-    id: string;
-    name: string;
-    country_code: string;
-};
-
-export type ProjectType = {
-    id: string;
-    discipline_id: string;
-    name: string;
-};
+export type { Currency, Discipline, Position, ProductionCity, ProjectType };
 
 export function listDisciplines(accessToken: string): Promise<Discipline[]> {
-    return readList(accessToken, '/api/disciplines', isDiscipline, 'Disciplines');
+    return readList(accessToken, '/api/disciplines', DisciplineSchema, 'Disciplines response was not valid.');
 }
 
 export function listPositions(accessToken: string): Promise<Position[]> {
-    return readList(accessToken, '/api/positions', isPosition, 'Positions');
+    return readList(accessToken, '/api/positions', PositionSchema, 'Positions response was not valid.');
 }
 
 export function listCurrencies(accessToken: string): Promise<Currency[]> {
-    return readList(accessToken, '/api/currencies', isCurrency, 'Currencies');
+    return readList(accessToken, '/api/currencies', CurrencySchema, 'Currencies response was not valid.');
 }
 
 export function listProductionCities(accessToken: string): Promise<ProductionCity[]> {
-    return readList(accessToken, '/api/production-cities', isProductionCity, 'Cities');
+    return readList(accessToken, '/api/production-cities', ProductionCitySchema, 'Cities response was not valid.');
 }
 
 export function listProjectTypes(accessToken: string): Promise<ProjectType[]> {
-    return readList(accessToken, '/api/project-types', isProjectType, 'Project types');
+    return readList(accessToken, '/api/project-types', ProjectTypeSchema, 'Project types response was not valid.');
 }
 
-async function readList<T>(
+async function readList<T extends z.ZodType>(
     accessToken: string,
     path: string,
-    item: (value: unknown) => value is T,
-    label: string,
-): Promise<T[]> {
+    item: T,
+    message: string,
+): Promise<Array<z.output<T>>> {
     const body = await apiJson(accessToken, path);
-    if (!Array.isArray(body) || !body.every(item)) {
-        throw new ApiError(502, `${label} response was not valid.`);
-    }
-    return body;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null;
-}
-
-function isDiscipline(value: unknown): value is Discipline {
-    return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string';
-}
-
-function isPosition(value: unknown): value is Position {
-    return isRecord(value)
-        && typeof value.id === 'string'
-        && typeof value.discipline_id === 'string'
-        && typeof value.name === 'string';
-}
-
-function isCurrency(value: unknown): value is Currency {
-    return isRecord(value)
-        && typeof value.id === 'string'
-        && typeof value.code === 'string'
-        && typeof value.name === 'string';
-}
-
-function isProductionCity(value: unknown): value is ProductionCity {
-    return isRecord(value)
-        && typeof value.id === 'string'
-        && typeof value.name === 'string'
-        && typeof value.country_code === 'string';
-}
-
-function isProjectType(value: unknown): value is ProjectType {
-    return isRecord(value)
-        && typeof value.id === 'string'
-        && typeof value.discipline_id === 'string'
-        && typeof value.name === 'string';
+    return parseResponseList(item, body, message);
 }

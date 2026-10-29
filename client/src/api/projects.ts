@@ -1,12 +1,8 @@
-import { ApiError, apiJson } from './http.ts';
+import { ProjectProjectTypeSchema, ProjectSchema, type Project, type ProjectProjectType } from '@sugarcube/schema';
+import { apiJson } from './http.ts';
+import { parseResponse, parseResponseList } from './parse.ts';
 
-export type Project = {
-    id: string;
-    user_profile_id: string;
-    name: string;
-    position_id: string;
-    lead_producer_name: string;
-};
+export type { Project, ProjectProjectType };
 
 export type ProjectInput = {
     name: string;
@@ -38,11 +34,6 @@ export function deleteProject(accessToken: string, id: string): Promise<Project>
     });
 }
 
-export type ProjectProjectType = {
-    project_id: string;
-    project_type_id: string;
-};
-
 export function listProjectProjectTypes(accessToken: string, projectId: string): Promise<ProjectProjectType[]> {
     return readProjectProjectTypes(accessToken, `/api/me/projects/${encodeURIComponent(projectId)}/project-types`);
 }
@@ -60,18 +51,12 @@ export function updateProjectProjectTypes(
 
 async function readProjects(accessToken: string, path: string): Promise<Project[]> {
     const body = await apiJson(accessToken, path);
-    if (!Array.isArray(body) || !body.every(isProject)) {
-        throw new ApiError(502, 'Projects response was not valid.');
-    }
-    return body;
+    return parseResponseList(ProjectSchema, body, 'Projects response was not valid.');
 }
 
 async function readProject(accessToken: string, path: string, init?: RequestInit): Promise<Project> {
     const body = await apiJson(accessToken, path, init);
-    if (!isProject(body)) {
-        throw new ApiError(502, 'Project response was not valid.');
-    }
-    return body;
+    return parseResponse(ProjectSchema, body, 'Project response was not valid.');
 }
 
 async function readProjectProjectTypes(
@@ -80,28 +65,5 @@ async function readProjectProjectTypes(
     init?: RequestInit,
 ): Promise<ProjectProjectType[]> {
     const body = await apiJson(accessToken, path, init);
-    if (!Array.isArray(body) || !body.every(isProjectProjectType)) {
-        throw new ApiError(502, 'Project types response was not valid.');
-    }
-    return body;
-}
-
-function isProjectProjectType(value: unknown): value is ProjectProjectType {
-    if (!value || typeof value !== 'object') {
-        return false;
-    }
-    const row = value as Record<string, unknown>;
-    return typeof row.project_id === 'string' && typeof row.project_type_id === 'string';
-}
-
-function isProject(value: unknown): value is Project {
-    if (!value || typeof value !== 'object') {
-        return false;
-    }
-    const project = value as Record<string, unknown>;
-    return typeof project.id === 'string'
-        && typeof project.user_profile_id === 'string'
-        && typeof project.name === 'string'
-        && typeof project.position_id === 'string'
-        && typeof project.lead_producer_name === 'string';
+    return parseResponseList(ProjectProjectTypeSchema, body, 'Project types response was not valid.');
 }
