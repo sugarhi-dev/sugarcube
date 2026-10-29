@@ -1,7 +1,7 @@
 {
   "files": [],
   "references": [
-    { "path": "schema" },
+    { "path": "client/schema" },
     { "path": "server-core" },
     { "path": "server" }
   ]
