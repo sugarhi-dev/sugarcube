@@ -1,26 +1,23 @@
 import { exit } from 'node:process';
 import { createLocalJWKSet, jwtVerify, type JSONWebKeySet, type JWTPayload } from 'jose';
 import { Base } from './base.js';
+import { Config } from './config.js';
 
 export class JwtValidator extends Base {
-    private issuer = '';
+    private readonly issuer: string;
+    private readonly jwksUrl: string;
     private getKey: ReturnType<typeof createLocalJWKSet> | undefined;
 
-    constructor()
+    constructor(config: Config)
     {
         super();
+        this.issuer = config.require('KEYCLOAK_ISSUER');
+        this.jwksUrl = config.require('KEYCLOAK_JWKS_URL');
     }
 
     public async loadSigningKeys(): Promise<void>
     {
-        const issuer = process.env.KEYCLOAK_ISSUER;
-        const jwksUrl = process.env.KEYCLOAK_JWKS_URL;
-        if (!issuer || !jwksUrl) {
-            this.log.fatal('KEYCLOAK_ISSUER and KEYCLOAK_JWKS_URL must be set');
-            exit(1);
-        }
-
-        const response = await fetch(jwksUrl);
+        const response = await fetch(this.jwksUrl);
         if (!response.ok) {
             this.log.fatal(`Failed to fetch JWKS: ${response.status}`);
             exit(1);
@@ -35,7 +32,6 @@ export class JwtValidator extends Base {
             exit(1);
         }
 
-        this.issuer = issuer;
         this.getKey = createLocalJWKSet({ keys: signingKeys });
         this.log.info(`Cached ${signingKeys.length} signing keys for ${this.issuer}`);
     }

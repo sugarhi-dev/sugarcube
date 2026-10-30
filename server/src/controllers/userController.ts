@@ -1,5 +1,5 @@
 import { Controller, type Context } from '@sugarcube/server-core';
-import type { Express, Request, Response } from 'express';
+import express, { type Express, type Request, type RequestHandler, type Response } from 'express';
 import { z } from 'zod';
 import { AccountTypeSchema, type User } from '../entities/user.js';
 import { UnionStatusSchema } from '../entities/userWorkProfile.js';
@@ -27,13 +27,20 @@ const ChooseAccountTypeRequestSchema = z.object({
     account_type: AccountTypeSchema.meta({ description: 'Whether the user is hiring crew or getting booked.' }),
 });
 
+const BasicProfileRequestSchema = z.object({
+    phone: z.string().trim().min(1).max(40).meta({ description: 'Phone number clients and productions can use.' }),
+    bio: z.string().trim().min(1).max(300).meta({ description: 'Short bio shown on the profile.' }),
+}).refine(
+    (row) => isPhone(row.phone),
+    'Enter a phone number with at least 7 digits.',
+);
+
 const SetupCitySchema = z.object({
     production_city_id: z.ulid().meta({ description: 'Production city the user can work in.' }),
     home_city: z.boolean().meta({ description: 'Whether this city is the user home city.' }),
 });
 
 const SetupProfileRequestSchema = z.object({
-    phone: z.string().trim().min(1).max(40).meta({ description: 'Phone number clients and productions can use.' }),
     discipline_id: z.ulid().meta({ description: 'Discipline the user works in.' }),
     position_id: z.ulid().meta({ description: 'Position the user is booked as.' }),
     day_rate: z.number().finite().min(0).meta({ description: 'Day rate clients see when booking.' }),
@@ -42,9 +49,6 @@ const SetupProfileRequestSchema = z.object({
     flat_fee: z.boolean().meta({ description: 'Whether the user accepts a flat fee.' }),
     cities: z.array(SetupCitySchema).min(1).max(20).meta({ description: 'Cities where the user works as a local. Exactly one is home.' }),
 }).refine(
-    (row) => isPhone(row.phone),
-    'Enter a phone number with at least 7 digits.',
-).refine(
     (row) => new Set(row.cities.map((city) => city.production_city_id)).size === row.cities.length,
     'Each city can only be added once.',
 ).refine(
@@ -55,6 +59,25 @@ const SetupProfileRequestSchema = z.object({
 function isPhone(phone: string): boolean {
     return /^[0-9+().\-\s]+$/.test(phone) && (phone.match(/\d/g)?.length ?? 0) >= 7;
 }
+
+const photoLimit = 8 * 1024 * 1024;
+
+const readPhotoBody: RequestHandler = (req, res, next) => {
+    express.raw({
+        limit: photoLimit,
+        type: ['image/jpeg', 'image/png'],
+    })(req, res, (error: unknown) => {
+        if (!error) {
+            next();
+            return;
+        }
+        if (payloadTooLarge(error)) {
+            res.status(413).json({ error_message: 'Use a photo smaller than 8 MB.' });
+            return;
+        }
+        next(error);
+    });
+};
 
 const SaveUserWorkProfileRequestSchema = z.object({
     day_rate: z.number().min(0).nullable().default(null).meta({ description: 'Day rate. Empty when no rate is set.' }),
@@ -69,6 +92,7 @@ const SaveUserWorkProfileRequestSchema = z.object({
 export const userRequestSchemas = {
     UserLocaleId: UserLocaleIdSchema,
     ChooseAccountTypeRequest: ChooseAccountTypeRequestSchema,
+    BasicProfileRequest: BasicProfileRequestSchema,
     SetupProfileRequest: SetupProfileRequestSchema,
     CreateUserLocaleRequest: CreateUserLocaleRequestSchema,
     UpdateUserLocaleRequest: UpdateUserLocaleRequestSchema,
@@ -92,6 +116,9 @@ export class UserController extends Controller {
         this.userWorkProfileLogic = userWorkProfileLogic;
         this.get('/api/me', this.GET_me.bind(this));
         this.put('/api/me/account-type', this.PUT_account_type.bind(this));
+        this.put('/api/me/basic', this.PUT_basic.bind(this));
+        this.get('/api/me/photo', this.GET_photo.bind(this));
+        this.put('/api/me/photo', this.PUT_photo.bind(this), [], [readPhotoBody]);
         this.put('/api/me/setup', this.PUT_setup.bind(this));
         this.put('/api/me/experience', this.PUT_experience.bind(this));
         this.get('/api/me/locales', this.GET_locales.bind(this));
@@ -123,6 +150,61 @@ export class UserController extends Controller {
 
         const body = parseBody(ChooseAccountTypeRequestSchema, req.body);
         const updated = await this.userLogic.chooseAccountType(ctx, user.id, body.account_type);
+        this.checkAndRespond(ctx, res, updated);
+    }
+
+    protected async PUT_basic(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const body = parseBody(BasicProfileRequestSchema, req.body);
+        const updated = await this.userLogic.saveBasic(ctx, user.id, body);
+        this.checkAndRespond(ctx, res, updated);
+    }
+
+    protected async GET_photo(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+        if (!user.photo) {
+            ctx.error('Profile photo not found.', 404);
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const photo = await this.userLogic.loadPhoto(ctx, user.photo);
+        if (!photo) {
+            ctx.error('Profile photo not found.', 404);
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.status(200).type(photo.contentType).send(Buffer.from(photo.data));
+    }
+
+    protected async PUT_photo(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const contentType = photoContentType(req.header('content-type'));
+        const body = req.body;
+        if (!contentType || !Buffer.isBuffer(body) || !isImage(body, contentType)) {
+            ctx.error('Use a JPG or PNG photo.', 400);
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const updated = await this.userLogic.savePhoto(ctx, user, body, contentType);
         this.checkAndRespond(ctx, res, updated);
     }
 
@@ -252,4 +334,40 @@ export class UserController extends Controller {
 
         return this.userLogic.requireByKeycloakId(ctx, subject);
     }
+}
+
+function photoContentType(header: string | undefined): 'image/jpeg' | 'image/png' | null {
+    const type = header?.split(';', 1)[0]?.trim().toLowerCase();
+    if (type === 'image/jpeg' || type === 'image/png') {
+        return type;
+    }
+    return null;
+}
+
+function isImage(data: Buffer, contentType: 'image/jpeg' | 'image/png'): boolean {
+    if (data.byteLength === 0 || data.byteLength > photoLimit) {
+        return false;
+    }
+    if (contentType === 'image/png') {
+        return data.byteLength >= 8
+            && data[0] === 0x89
+            && data[1] === 0x50
+            && data[2] === 0x4e
+            && data[3] === 0x47
+            && data[4] === 0x0d
+            && data[5] === 0x0a
+            && data[6] === 0x1a
+            && data[7] === 0x0a;
+    }
+    return data.byteLength >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
+}
+
+function payloadTooLarge(error: unknown): boolean {
+    if (typeof error !== 'object' || error === null) {
+        return false;
+    }
+    if ('type' in error && error.type === 'entity.too.large') {
+        return true;
+    }
+    return 'status' in error && error.status === 413;
 }

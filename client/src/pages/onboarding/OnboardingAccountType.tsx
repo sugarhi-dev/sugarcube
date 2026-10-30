@@ -3,11 +3,11 @@ import { App as AntdApp, Button, Card, Flex, Form, Layout, Typography } from 'an
 import { useEffect, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { chooseAccountType, type AccountType } from '../../api/me.ts';
-import { useAppDispatch, useSession } from '../../store/hooks.ts';
+import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { sessionCleared } from '../../store/sessionSlice.ts';
 import { copyThat } from '../../theme.ts';
-import { onboardingProfilePath } from './OnboardingProfile.tsx';
+import { onboardingBasicPath } from './OnboardingBasic.tsx';
 
 const { Content } = Layout;
 
@@ -40,8 +40,9 @@ export function OnboardingAccountType() {
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const session = useSession();
+    const savedType = useAppSelector((state) => state.profile.user?.account_type);
     const { message } = AntdApp.useApp();
-    const [accountType, setAccountType] = useState<AccountType>('client');
+    const [accountType, setAccountType] = useState<AccountType>(savedType ?? 'client');
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
@@ -74,7 +75,7 @@ export function OnboardingAccountType() {
         try {
             const user = await chooseAccountType(session.accessToken, accountType);
             dispatch(profileLoaded({ user, forSubject: session.profile.subject }));
-            navigate(user.status === 'setup' ? onboardingProfilePath : '/', { replace: true });
+            navigate(user.status === 'basic' ? onboardingBasicPath : '/', { replace: true });
         } catch (error) {
             message.error(error instanceof Error ? error.message : 'Could not save your account type.');
         } finally {

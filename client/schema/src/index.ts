@@ -13,3 +13,11 @@ export { ProductionCitySchema, type ProductionCity } from './productionCity.js';
 export { ProjectProjectTypeSchema, type ProjectProjectType } from './projectProjectType.js';
 export { ProjectSchema, type Project } from './project.js';
 export { ProjectTypeSchema, type ProjectType } from './projectType.js';
+export {
+    MediaTypeSchema,
+    UserMediaSchema,
+    classifyMediaLink,
+    type MediaLink,
+    type MediaType,
+    type UserMedia,
+} from './userMedia.js';

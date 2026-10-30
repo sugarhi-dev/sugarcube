@@ -5,7 +5,9 @@ import { SignedIn } from './components/SignedIn.tsx';
 import { CallbackPage } from './pages/CallbackPage.tsx';
 import { HomePage } from './pages/HomePage.tsx';
 import { OnboardingAccountType, onboardingAccountTypePath } from './pages/onboarding/OnboardingAccountType.tsx';
+import { OnboardingBasic, onboardingBasicPath } from './pages/onboarding/OnboardingBasic.tsx';
 import { OnboardingExperience, onboardingExperiencePath } from './pages/onboarding/OnboardingExperience.tsx';
+import { OnboardingMedia, onboardingMediaPath } from './pages/onboarding/OnboardingMedia.tsx';
 import { OnboardingProfile, onboardingProfilePath } from './pages/onboarding/OnboardingProfile.tsx';
 import { SignInPage } from './pages/SignInPage.tsx';
 import { copyThatTheme } from './theme.ts';
@@ -21,8 +23,10 @@ export function App() {
                         <Route element={<RequireSession><SignedIn /></RequireSession>}>
                             <Route path="/" element={<HomePage />} />
                             <Route path={onboardingAccountTypePath} element={<OnboardingAccountType />} />
+                            <Route path={onboardingBasicPath} element={<OnboardingBasic />} />
                             <Route path={onboardingProfilePath} element={<OnboardingProfile />} />
                             <Route path={onboardingExperiencePath} element={<OnboardingExperience />} />
+                            <Route path={onboardingMediaPath} element={<OnboardingMedia />} />
                         </Route>
                         <Route path="/sign-in" element={<SignInPage />} />
                         <Route path="/auth/callback" element={<CallbackPage />} />

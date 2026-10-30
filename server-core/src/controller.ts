@@ -1,5 +1,5 @@
 import { Base } from './base.js';
-import type { Request, Response, Express } from 'express';
+import type { Request, RequestHandler, Response, Express } from 'express';
 import { Context } from './context.js';
 
 type Handler = (ctx: Context, req: Request, res: Response) => void | Promise<void>;
@@ -71,9 +71,9 @@ export class Controller extends Base {
         this.app.post(path, (req, res) => this.instrument('POST', path, req, res, handler, requireRoles));
     }
 
-    protected put(path: string, handler: Handler, requireRoles: string[] = [])
+    protected put(path: string, handler: Handler, requireRoles: string[] = [], middleware: RequestHandler[] = [])
     {
-        this.app.put(path, (req, res) => this.instrument('PUT', path, req, res, handler, requireRoles));
+        this.app.put(path, ...middleware, (req, res) => this.instrument('PUT', path, req, res, handler, requireRoles));
     }
 
     protected delete(path: string, handler: Handler, requireRoles: string[] = [])

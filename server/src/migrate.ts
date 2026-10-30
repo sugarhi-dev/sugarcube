@@ -1,20 +1,15 @@
-import { config as loadEnv } from 'dotenv';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Database } from '@sugarcube/server-core';
+import { Config, Database } from '@sugarcube/server-core';
 
 const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const envPath = path.join(serverRoot, 'config/local/.env');
 const migrationsDir = path.join(serverRoot, 'db');
 
 async function start(): Promise<void> {
-    const loaded = loadEnv({ path: envPath, quiet: true });
-    if (loaded.error) {
-        throw loaded.error;
-    }
-
-    const database = new Database();
+    const config = new Config(envPath);
+    const database = new Database(config);
     try {
         await runMigrations(database);
     } finally {

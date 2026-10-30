@@ -1,5 +1,6 @@
 import { Pool, type QueryResult, type QueryResultRow } from 'pg';
 import { Base } from './base.js';
+import { Config } from './config.js';
 
 type QueryValues = unknown[];
 
@@ -11,12 +12,9 @@ type SqlQuery = <R extends QueryResultRow = QueryResultRow>(
 export class Database extends Base {
     private readonly pool: Pool;
 
-    constructor() {
+    constructor(config: Config) {
         super();
-        const connectionString = process.env.DATABASE_URL;
-        if (!connectionString) {
-            throw new Error('DATABASE_URL is not set');
-        }
+        const connectionString = config.require('DATABASE_URL');
         this.pool = new Pool({ connectionString });
     }
 

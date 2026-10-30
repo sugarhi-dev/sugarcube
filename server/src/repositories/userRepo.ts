@@ -4,7 +4,7 @@ import type { UserLocale } from '../entities/userLocale.js';
 import type { UnionStatus } from '../entities/userWorkProfile.js';
 import type { WorkProfile } from '../entities/workProfile.js';
 
-const userColumns = 'id, first_name, last_name, email, phone, keycloak_id, status, account_type';
+const userColumns = 'id, first_name, last_name, email, phone, bio, photo, keycloak_id, status, account_type';
 
 type UserRow = {
     id: string;
@@ -12,6 +12,8 @@ type UserRow = {
     last_name: string;
     email: string;
     phone: string | null;
+    bio: string | null;
+    photo: string | null;
     keycloak_id: string;
     status: string;
     account_type: string | null;
@@ -53,11 +55,41 @@ export class UserRepo extends Repository {
         const result = await this.database.query<UserRow>(
             `UPDATE user_profile
              SET account_type = $2,
-                 status = 'setup',
+                 status = 'basic',
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status = 'new'
+             WHERE id = $1 AND status IN ('new', 'basic')
              RETURNING ${userColumns}`,
             [userId, accountType],
+        );
+        const row = result.rows[0];
+        return row ? UserSchema.parse(row) : null;
+    }
+
+    async saveBasic(ctx: Context, userId: string, input: BasicWrite): Promise<User | null> {
+        this.log.trace(`${ctx.traceId} save basic profile ${userId}`);
+        const result = await this.database.query<UserRow>(
+            `UPDATE user_profile
+             SET phone = $2,
+                 bio = $3,
+                 status = 'setup',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status = 'basic'
+             RETURNING ${userColumns}`,
+            [userId, input.phone, input.bio],
+        );
+        const row = result.rows[0];
+        return row ? UserSchema.parse(row) : null;
+    }
+
+    async savePhoto(ctx: Context, userId: string, photo: string): Promise<User | null> {
+        this.log.trace(`${ctx.traceId} save profile photo ${userId}`);
+        const result = await this.database.query<UserRow>(
+            `UPDATE user_profile
+             SET photo = $2,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status = 'basic'
+             RETURNING ${userColumns}`,
+            [userId, photo],
         );
         const row = result.rows[0];
         return row ? UserSchema.parse(row) : null;
@@ -137,12 +169,11 @@ export class UserRepo extends Repository {
 
             const updated = await query<UserRow>(
                 `UPDATE user_profile
-                 SET phone = $2,
-                     status = 'experience',
+                 SET status = 'experience',
                      updated_at = CURRENT_TIMESTAMP
                  WHERE id = $1 AND status = 'setup'
                  RETURNING ${userColumns}`,
-                [userId, input.phone],
+                [userId],
             );
             const row = updated.rows[0];
             return row ? UserSchema.parse(row) : null;
@@ -164,8 +195,12 @@ export class UserRepo extends Repository {
     }
 }
 
-export type SetupWrite = {
+export type BasicWrite = {
     phone: string;
+    bio: string;
+};
+
+export type SetupWrite = {
     workProfile: WorkProfile;
     day_rate: number;
     currency_id: string;

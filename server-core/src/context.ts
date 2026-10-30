@@ -1,37 +1,30 @@
 import { ulid } from "ulidx";
 
 export class Context {
-    private _traceId: string;
-    private _userError: string;
-    private _userErrorStatusCode: number;
-    private _hasError: boolean;
+    readonly #traceId = ulid();
+    #userError = '';
+    #userErrorStatusCode = 0;
+    #hasError = false;
 
     public get traceId(): string {
-        return this._traceId;
+        return this.#traceId;
     }
 
     public get userError(): string {
-        return this._userError;
+        return this.#userError;
     }
 
     public get userErrorStatusCode(): number {
-        return this._userErrorStatusCode;
+        return this.#userErrorStatusCode;
     }
 
     public get hasError(): boolean {
-        return this._hasError;
-    }    
-
-    constructor() {
-        this._traceId = ulid();
-        this._userError = '';
-        this._userErrorStatusCode = 0;
-        this._hasError = false;        
+        return this.#hasError;
     }
 
     public error(message: string, statusCode: number) {
-        this._userError = message;
-        this._userErrorStatusCode = statusCode;
-        this._hasError = true;
+        this.#userError = message;
+        this.#userErrorStatusCode = statusCode;
+        this.#hasError = true;
     }
 }

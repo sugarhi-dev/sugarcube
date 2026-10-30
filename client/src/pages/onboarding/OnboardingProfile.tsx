@@ -3,12 +3,11 @@ import {
     ArrowRightOutlined,
     EnvironmentOutlined,
     HomeOutlined,
-    PhoneOutlined,
     PlaySquareOutlined,
     PlusOutlined,
     VideoCameraOutlined,
 } from '@ant-design/icons';
-import { App as AntdApp, Button, Flex, Form, Input, InputNumber, Radio, Result, Select, Spin, Switch, Tag, Typography } from 'antd';
+import { App as AntdApp, Button, Flex, Form, InputNumber, Radio, Result, Select, Spin, Switch, Tag, Typography } from 'antd';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -52,7 +51,6 @@ type Catalog = {
 };
 
 type ProfileFormValues = {
-    phone: string;
     discipline_id: string;
     position_id: string;
     day_rate: number | string | null;
@@ -153,7 +151,6 @@ export function OnboardingProfile() {
         setSaving(true);
         try {
             const user = await saveSetup(session.accessToken, {
-                phone: values.phone.trim(),
                 discipline_id: values.discipline_id,
                 position_id: values.position_id,
                 day_rate: Math.round(dayRate * 100) / 100,
@@ -207,18 +204,6 @@ export function OnboardingProfile() {
                     initialValues={{ flat_fee: false, locales: [] }}
                     onFinish={(values) => void onFinish(values)}
                 >
-                    <Flex gap={12} align="flex-start">
-                        <Form.Item label="First name" style={{ flex: 1 }}>
-                            <Input readOnly className="profile-readonly" value={user?.first_name ?? ''} />
-                        </Form.Item>
-                        <Form.Item label="Last name" style={{ flex: 1 }}>
-                            <Input readOnly className="profile-readonly" value={user?.last_name ?? ''} />
-                        </Form.Item>
-                    </Flex>
-                    <Form.Item label="Email">
-                        <Input readOnly className="profile-readonly" value={user?.email ?? ''} />
-                    </Form.Item>
-
                     <Form.Item
                         label="Discipline"
                         name="discipline_id"
@@ -250,14 +235,6 @@ export function OnboardingProfile() {
                                 .filter((position) => position.discipline_id === disciplineId)
                                 .map((position) => ({ value: position.id, label: position.name }))}
                         />
-                    </Form.Item>
-
-                    <Form.Item
-                        label="Phone number"
-                        name="phone"
-                        rules={[{ validator: validatePhone }]}
-                    >
-                        <Input inputMode="tel" autoComplete="tel" prefix={<PhoneOutlined />} placeholder="+1 213 555 0100" />
                     </Form.Item>
 
                     <Flex gap={12} align="flex-start" wrap="wrap">
@@ -476,17 +453,6 @@ function orderDisciplines(disciplines: Discipline[]): Discipline[] {
 function rank(order: string[], name: string): number {
     const index = order.indexOf(name);
     return index === -1 ? order.length : index;
-}
-
-function validatePhone(_: unknown, value: unknown): Promise<void> {
-    if (typeof value === 'string' && isPhone(value.trim())) {
-        return Promise.resolve();
-    }
-    return Promise.reject(new Error('Enter a phone number with at least 7 digits.'));
-}
-
-function isPhone(phone: string): boolean {
-    return /^[0-9+().\-\s]+$/.test(phone) && (phone.match(/\d/g)?.length ?? 0) >= 7;
 }
 
 function validateRate(_: unknown, value: unknown): Promise<void> {

@@ -1,7 +1,10 @@
 export { Controller } from './controller.js';
+export { Binary } from './binary.js';
+export type { BinaryObject } from './binary.js';
 export { Database } from './database.js';
 export { Base } from './base.js';
 export { Context } from './context.js';
+export { Config } from './config.js';
 export { JwtValidator } from './jwtValidator.js';
 export { Repository } from './repository.js';
 export { Service } from './service.js';

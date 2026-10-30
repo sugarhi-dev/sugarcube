@@ -1,4 +1,4 @@
-import { Controller, type Context } from "@sugarcube/server-core";
+import { Config, Controller, type Context } from "@sugarcube/server-core";
 import type { Express, Request, Response } from 'express';
 import { ulid } from 'ulidx';
 import { z } from 'zod';
@@ -18,27 +18,22 @@ export const authRequestSchemas = { OidcCallbackRequest: OidcCallbackRequestSche
 
 export class AuthController extends Controller {    
     private readonly userLogic: UserLogic;
-    constructor(app: Express, userLogic: UserLogic)
+    private readonly clientSecret: string;
+    private readonly keycloakIssuer: string;
+
+    constructor(config: Config, app: Express, userLogic: UserLogic)
     {
         super(app);        
         this.userLogic = userLogic;
+        this.clientSecret = config.require('OAUTH_CLIENT_SECRET');
+        this.keycloakIssuer = config.require('KEYCLOAK_ISSUER');
         this.post('/api/auth/oidc/callback', this.POST_oidc_callback.bind(this));
     }
 
     protected async POST_oidc_callback(ctx: Context, req: Request, res: Response): Promise<void>
     {        
         const { code, session_state, redirect_uri, client_id } = parseBody(OidcCallbackRequestSchema, req.body);
-        
-        const client_secret = process.env.OAUTH_CLIENT_SECRET;
-
-        if (!client_secret) {
-            this.log.error(`${ctx.traceId} Missing client secret. Client id: ${client_id}`);
-            ctx.error('Sign-in is not configured.', 500);
-            this.checkAndRespond(ctx, res);
-            return;
-        }
-
-        await this.authorizeClient(ctx, res, code, session_state, redirect_uri, client_id, client_secret);
+        await this.authorizeClient(ctx, res, code, session_state, redirect_uri, client_id, this.clientSecret);
     }
 
     private async authorizeClient(
@@ -50,7 +45,7 @@ export class AuthController extends Controller {
         client_id: string,
         client_secret: string,
     ): Promise<void> {                
-        const keycloak_base_url = process.env.KEYCLOAK_ISSUER;
+        const keycloak_base_url = this.keycloakIssuer;
         
         const url = `${keycloak_base_url}/protocol/openid-connect/token`;
         const response = await fetch(url, {

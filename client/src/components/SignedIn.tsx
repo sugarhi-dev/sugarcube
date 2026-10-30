@@ -4,7 +4,9 @@ import { Navigate, Outlet, useLocation } from 'react-router';
 import { ApiError } from '../api/http.ts';
 import { getMe } from '../api/me.ts';
 import { onboardingAccountTypePath } from '../pages/onboarding/OnboardingAccountType.tsx';
+import { onboardingBasicPath } from '../pages/onboarding/OnboardingBasic.tsx';
 import { onboardingExperiencePath } from '../pages/onboarding/OnboardingExperience.tsx';
+import { onboardingMediaPath } from '../pages/onboarding/OnboardingMedia.tsx';
 import { onboardingProfilePath } from '../pages/onboarding/OnboardingProfile.tsx';
 import { useAppDispatch, useAppSelector, useSession } from '../store/hooks.ts';
 import { profileFailed, profileLoaded, profileRequested } from '../store/profileSlice.ts';
@@ -84,10 +86,15 @@ export function SignedIn() {
     }
 
     const onAccountType = location.pathname === onboardingAccountTypePath;
+    const onBasic = location.pathname === onboardingBasicPath;
     const onProfile = location.pathname === onboardingProfilePath;
     const onExperience = location.pathname === onboardingExperiencePath;
+    const onMedia = location.pathname === onboardingMediaPath;
     if (user.status === 'new' && !onAccountType) {
         return <Navigate to={onboardingAccountTypePath} replace />;
+    }
+    if (user.status === 'basic' && !onBasic && !onAccountType) {
+        return <Navigate to={onboardingBasicPath} replace />;
     }
     if (user.status === 'setup' && !onProfile) {
         return <Navigate to={onboardingProfilePath} replace />;
@@ -95,11 +102,16 @@ export function SignedIn() {
     if (user.status === 'experience' && !onExperience) {
         return <Navigate to={onboardingExperiencePath} replace />;
     }
+    if (user.status === 'media' && !onMedia) {
+        return <Navigate to={onboardingMediaPath} replace />;
+    }
     if (
         user.status !== 'new'
+        && user.status !== 'basic'
         && user.status !== 'setup'
         && user.status !== 'experience'
-        && (onAccountType || onProfile || onExperience)
+        && user.status !== 'media'
+        && (onAccountType || onBasic || onProfile || onExperience || onMedia)
     ) {
         return <Navigate to="/" replace />;
     }

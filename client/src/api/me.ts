@@ -1,5 +1,5 @@
 import { CurrentUserSchema, type AccountType, type CurrentUser, type UserStatus } from '@sugarcube/schema';
-import { apiJson } from './http.ts';
+import { apiBlob, apiJson } from './http.ts';
 import { parseResponse } from './parse.ts';
 
 export type { AccountType, CurrentUser, UserStatus };
@@ -12,7 +12,6 @@ export type SetupCity = {
 };
 
 export type SetupProfileInput = {
-    phone: string;
     discipline_id: string;
     position_id: string;
     day_rate: number;
@@ -26,11 +25,35 @@ export function getMe(accessToken: string): Promise<CurrentUser> {
     return readUser(accessToken, '/api/me');
 }
 
+export type BasicProfileInput = {
+    phone: string;
+    bio: string;
+};
+
 export function chooseAccountType(accessToken: string, accountType: AccountType): Promise<CurrentUser> {
     return readUser(accessToken, '/api/me/account-type', {
         method: 'PUT',
         body: JSON.stringify({ account_type: accountType }),
     });
+}
+
+export function saveBasic(accessToken: string, input: BasicProfileInput): Promise<CurrentUser> {
+    return readUser(accessToken, '/api/me/basic', {
+        method: 'PUT',
+        body: JSON.stringify(input),
+    });
+}
+
+export function uploadProfilePhoto(accessToken: string, file: File): Promise<CurrentUser> {
+    return readUser(accessToken, '/api/me/photo', {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+    });
+}
+
+export function getProfilePhoto(accessToken: string): Promise<Blob> {
+    return apiBlob(accessToken, '/api/me/photo');
 }
 
 export function saveSetup(accessToken: string, input: SetupProfileInput): Promise<CurrentUser> {

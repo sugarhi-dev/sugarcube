@@ -30,14 +30,23 @@ body {
     font-weight: 650;
 }
 
-.profile-readonly.ant-input {
+.profile-readonly.ant-input,
+.profile-readonly.ant-input-affix-wrapper {
     color: #1c1c1c;
     background: #f6f3f0;
     cursor: default;
 }
 
+.profile-readonly.ant-input-affix-wrapper .ant-input {
+    background: transparent;
+    cursor: default;
+}
+
 .profile-readonly.ant-input:hover,
-.profile-readonly.ant-input:focus {
+.profile-readonly.ant-input:focus,
+.profile-readonly.ant-input-affix-wrapper:hover,
+.profile-readonly.ant-input-affix-wrapper:focus,
+.profile-readonly.ant-input-affix-wrapper:focus-within {
     border-color: #efeae6;
     background: #f6f3f0;
     box-shadow: none;
@@ -272,6 +281,320 @@ form.credit-card {
     outline-color: #5c7fa6;
 }
 
+.media-toolbar {
+    justify-content: flex-start;
+}
+
+.media-toolbar .media-count {
+    margin-left: auto;
+}
+
+.media-thumb-pick {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    margin-top: 14px;
+    padding: 0;
+    overflow: hidden;
+    border: 1.5px dashed #ddd4cc;
+    border-radius: 14px;
+    background: #faf7f4;
+    color: #8a837c;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.media-thumb-pick:focus-visible {
+    outline: 2px solid #e2186c;
+    outline-offset: 3px;
+}
+
+.media-thumb-pick img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.media-upload-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    padding: 24px;
+    border: 1.5px dashed #ddd4cc;
+    border-radius: 14px;
+    background: #faf7f4;
+    color: #8a837c;
+    text-align: center;
+}
+
+.media-toolbar .media-link.ant-input-affix-wrapper {
+    flex: 1 1 240px;
+    height: 36px;
+    border-radius: 10px;
+    border-color: #e6dfd8;
+}
+
+.media-upload.ant-btn {
+    height: 36px;
+    border-radius: 10px;
+    border-color: #e6dfd8;
+    background: #fff;
+    font-weight: 650;
+    box-shadow: 0 1px 2px rgba(28, 28, 28, 0.04);
+}
+
+.media-add.ant-btn {
+    height: 36px;
+    min-width: 64px;
+    background: #171412;
+    border-color: #171412;
+    color: #fff;
+    border-radius: 10px;
+    font-weight: 650;
+}
+
+.media-add.ant-btn:hover,
+.media-add.ant-btn:focus {
+    background: #2a2623 !important;
+    border-color: #2a2623 !important;
+    color: #fff !important;
+}
+
+.media-count {
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: #f8edd9;
+    color: #c4842a;
+    font-size: 12px;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.media-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.media-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 16 / 10.5;
+    border: 1.5px dashed #ddd4cc;
+    border-radius: 16px;
+    background: transparent;
+    color: #c4bbb4;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.media-slot:focus-visible {
+    outline: 2px solid #e2186c;
+    outline-offset: 3px;
+}
+
+.media-card {
+    position: relative;
+    aspect-ratio: 16 / 10.5;
+    overflow: hidden;
+    border-radius: 18px;
+    background: #171412;
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(23, 20, 18, 0.08);
+    user-select: none;
+}
+
+.media-card:focus-visible {
+    outline: 2px solid #e2186c;
+    outline-offset: 3px;
+}
+
+.media-card.is-dragging {
+    opacity: 0.55;
+}
+
+.media-card img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+}
+
+.media-card-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: #d9d3cc;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.media-card-grip,
+.media-card-delete,
+.media-card-edit {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    box-shadow: 0 4px 12px rgba(23, 20, 18, 0.18);
+    cursor: pointer;
+}
+
+.media-card-grip {
+    top: 10px;
+    left: 10px;
+    background: #fff;
+    color: #171412;
+    font-size: 16px;
+    cursor: grab;
+    touch-action: none;
+}
+
+.media-card.is-dragging .media-card-grip {
+    cursor: grabbing;
+}
+
+.media-card-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    display: flex;
+    gap: 8px;
+}
+
+.media-card-actions .media-card-delete,
+.media-card-actions .media-card-edit {
+    position: static;
+}
+
+.media-card-delete {
+    background: #fff;
+    color: #e11d48;
+}
+
+.media-card-edit {
+    background: #171412;
+    color: #fff;
+}
+
+.media-card-grip:focus-visible,
+.media-card-delete:focus-visible,
+.media-card-edit:focus-visible {
+    outline: 2px solid #e2186c;
+    outline-offset: 2px;
+}
+
+.media-card-cover {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    z-index: 2;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #fff;
+    color: #171412;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    box-shadow: 0 4px 12px rgba(23, 20, 18, 0.16);
+}
+
+.basic-photo-pick {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 22px 0 8px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.basic-photo-pick:focus-visible {
+    outline: 2px solid #e2186c;
+    outline-offset: 4px;
+    border-radius: 12px;
+}
+
+.basic-photo-ring {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 72px;
+    flex: 0 0 72px;
+    overflow: hidden;
+    border: 1.5px dashed #d5cfc8;
+    border-radius: 50%;
+    background: #fff;
+    color: #8a837c;
+    font-size: 18px;
+}
+
+.basic-photo-ring img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.basic-form .ant-form-item {
+    margin-bottom: 14px;
+}
+
+.basic-form .ant-form-item-label > label {
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.basic-form .basic-bio.ant-input-textarea-show-count .ant-input-data-count {
+    bottom: 10px;
+    inset-inline-end: 12px;
+    color: #b5aea6;
+    font-size: 12px;
+}
+
+.basic-form .basic-bio textarea {
+    min-height: 148px;
+    padding-bottom: 28px;
+}
+
+.basic-finish.ant-btn {
+    height: 36px;
+    background: #e2186c;
+    border: none;
+    box-shadow: none;
+}
+
+.basic-finish.ant-btn:hover,
+.basic-finish.ant-btn:focus {
+    background: #c4125c !important;
+}
+
 @media (max-width: 860px) {
     .onboarding-shell.ant-layout {
         flex-direction: column;
@@ -285,6 +608,12 @@ form.credit-card {
     }
 
     .onboarding-shell > .ant-layout-content {
+        width: 100% !important;
+        max-width: 100% !important;
         padding: 28px 20px 40px !important;
+    }
+
+    .media-grid {
+        grid-template-columns: 1fr;
     }
 }

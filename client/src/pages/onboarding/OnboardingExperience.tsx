@@ -32,6 +32,7 @@ import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
 import { OnboardingFrame } from './OnboardingFrame.tsx';
+import { onboardingMediaPath } from './OnboardingMedia.tsx';
 
 export const onboardingExperiencePath = '/onboarding/experience';
 
@@ -245,7 +246,7 @@ export function OnboardingExperience() {
             await persistProjectTypes(saveQueue, projectsRef, selectedTypeIdsRef, session.accessToken);
             const user = await completeExperience(session.accessToken);
             dispatch(profileLoaded({ user, forSubject: session.profile.subject }));
-            navigate('/', { replace: true });
+            navigate(onboardingMediaPath, { replace: true });
         } catch (error) {
             message.error(error instanceof Error ? error.message : 'Could not continue.');
         } finally {

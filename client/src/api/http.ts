@@ -57,3 +57,24 @@ async function readError(response: Response): Promise<string> {
 
     return fallback;
 }
+
+export async function apiBlob(accessToken: string, path: string): Promise<Blob> {
+    let response: Response;
+    try {
+        response = await fetch(`${apiBase()}${path}`, {
+            cache: 'no-store',
+            headers: {
+                Accept: 'image/jpeg, image/png',
+                Authorization: `Bearer ${accessToken}`,
+            },
+        });
+    } catch {
+        throw new ApiError(0, 'Could not reach the Sugarcube API.');
+    }
+
+    if (!response.ok) {
+        throw new ApiError(response.status, await readError(response));
+    }
+
+    return response.blob();
+}

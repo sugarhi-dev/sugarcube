@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const UserStatusSchema = z.enum([
     'new',
+    'basic',
     'setup',
     'experience',
     'media',
@@ -23,6 +24,8 @@ export const CurrentUserSchema = z.object({
     last_name: z.string().max(255),
     email: z.email().max(255),
     phone: z.string().nullable(),
+    bio: z.string().max(300).nullable(),
+    photo: z.ulid().nullable(),
     status: UserStatusSchema,
     account_type: AccountTypeSchema.nullable(),
 }).strip();

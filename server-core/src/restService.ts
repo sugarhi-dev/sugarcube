@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import { Service } from './service.js';
 import { Controller } from './controller.js';
+import { Config } from './config.js';
 import { JwtValidator } from './jwtValidator.js';
 
 export class RestService extends Service {
@@ -9,14 +10,15 @@ export class RestService extends Service {
     protected controllers: Controller[];
 
     private anonymousPaths: string[] = [];
-    private jwtValidator = new JwtValidator();
+    private readonly jwtValidator: JwtValidator;
 
-    constructor(name: string, app: Express, anonymousPaths: string[] = [])
+    constructor(config: Config, name: string, app: Express, anonymousPaths: string[] = [])
     {
         super(name);
         this.app = app;
         this.controllers = [];
         this.anonymousPaths = anonymousPaths;
+        this.jwtValidator = new JwtValidator(config);
     }
 
     protected async beforeStart(): Promise<void>

@@ -73,8 +73,8 @@ test('saves credits and project types on the experience page', async ({ page }) 
     await expect(page.getByRole('button', { name: 'Visual FX', exact: true })).toHaveAttribute('aria-pressed', 'false');
 
     await page.getByRole('button', { name: 'Continue — upload media' }).click();
-    await expect(page.getByRole('heading', { name: `Hello, ${devUser.firstName} ${devUser.lastName}` })).toBeVisible();
-    await expect(page.getByText(devUser.email)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add a video' })).toBeVisible();
 });
 
 async function openExperience(page: Page): Promise<void> {
@@ -87,11 +87,15 @@ async function openExperience(page: Page): Promise<void> {
     await page.getByRole('radio', { name: /I'm Crew/ }).click();
     await page.getByRole('button', { name: 'Continue as Crew' }).click();
 
+    await expect(page.getByRole('heading', { name: 'Tell us about you' })).toBeVisible();
+    await page.getByLabel('Phone').fill('+1 213 555 0100');
+    await page.getByLabel('Bio').fill('Producer and director based in Mexico City.');
+    await page.getByRole('button', { name: 'Continue — setup' }).click();
+
     await expect(page.getByRole('heading', { name: 'Set up your profile' })).toBeVisible();
     await page.locator('.profile-choice').getByText('Shooting', { exact: true }).click();
     await expect(page.getByRole('combobox', { name: 'Position' })).toBeEnabled();
     await chooseOption(page, 'Position', 'Director', 'Director');
-    await page.getByLabel('Phone number').fill('+1 213 555 0100');
     await page.getByLabel('Day rate').fill('850');
     await chooseOption(page, 'Currency', 'USD');
     await page.locator('.union-choice').getByText('Non-Union', { exact: true }).click();
