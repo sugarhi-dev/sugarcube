@@ -18,12 +18,14 @@ COPY client/config/test/.env /app/client/.env
 
 RUN npm run build -w @sugarcube/client
 
-FROM nginx:1.28 AS runtime
+FROM node:24-bookworm-slim AS runtime
 
-COPY client/config/test/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/client/dist /usr/share/nginx/html/sugarhi
-COPY client/config/test/.env /.env
+WORKDIR /app
 
-EXPOSE 80
+RUN npm install -g serve@14
 
-CMD ["nginx", "-g", "daemon off;"]
+COPY --from=build /app/client/dist ./dist
+
+EXPOSE 8080
+
+CMD ["serve", "-s", "dist", "-l", "8080"]

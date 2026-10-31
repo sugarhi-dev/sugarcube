@@ -1,0 +1,38 @@
+name: Deploy test
+
+on:
+  push:
+    branches:
+      - test
+
+concurrency:
+  group: deploy-test
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to test
+    runs-on: [self-hosted, test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure test secrets
+        run: |
+          export SUGARCUBE_TEST_ENV="${HOME}/.config/sugarcube/test.env"
+          chmod +x server/docker/test/ensure-secrets.sh
+          ./server/docker/test/ensure-secrets.sh
+          install -m 600 "$SUGARCUBE_TEST_ENV" server/docker/test/.env
+
+      - name: Deploy infra and server
+        run: |
+          docker compose -f server/docker/test/docker-compose.yml --env-file server/docker/test/.env up -d --build --force-recreate --remove-orphans
+
+      - name: Deploy client
+        run: |
+          docker compose -f client/docker/test/docker-compose.yml up -d --build --force-recreate --remove-orphans
+
+      - name: Verify containers
+        run: |
+          docker compose -f server/docker/test/docker-compose.yml --env-file server/docker/test/.env ps
+          docker compose -f client/docker/test/docker-compose.yml ps

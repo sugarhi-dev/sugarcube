@@ -35,7 +35,6 @@ COPY --from=build /app/server-core ./server-core
 COPY --from=build /app/server/package.json ./server/package.json
 COPY --from=build /app/server/dist ./server/dist
 COPY --from=build /app/server/db ./server/db
-COPY server/config/test/.env /.env
 
 WORKDIR /app/server
 

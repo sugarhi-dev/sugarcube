@@ -8,4 +8,9 @@ services:
       dockerfile: client/docker/test/Dockerfile
     container_name: sugarcube-client-test
     restart: unless-stopped
-    network_mode: host
+    networks:
+      - sugarcube-test
+
+networks:
+  sugarcube-test:
+    external: true

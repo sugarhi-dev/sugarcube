@@ -17,8 +17,13 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
-!server/config/test/.env
 !client/config/test/.env
+!server/docker/test/.env.example
+
+# OAuth / IdP secrets (keep outside the repo)
+**/client_secret*.json
+**/client_secret*.apps.googleusercontent.com.json
+server/config/test/keycloak-google-idp.md
 
 # Test and coverage
 coverage/

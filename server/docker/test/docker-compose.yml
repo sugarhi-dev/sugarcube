@@ -1,6 +1,105 @@
 name: sugarcube-server-test
 
 services:
+  postgres:
+    image: postgres:18
+    container_name: sugarcube-postgres-test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - sugarcube-test
+
+  keycloak-db-init:
+    image: postgres:18
+    container_name: sugarcube-keycloak-db-init-test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+    restart: "no"
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        if ! psql -h postgres -U "$$POSTGRES_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'keycloak'" | grep -q 1; then
+          psql -h postgres -U "$$POSTGRES_USER" -d postgres -c "CREATE DATABASE keycloak OWNER $$POSTGRES_USER"
+        fi
+    networks:
+      - sugarcube-test
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    container_name: sugarcube-keycloak-test
+    restart: unless-stopped
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: "8080"
+      KC_HOSTNAME: https://sugarcube.tv/idp
+      KC_HTTP_RELATIVE_PATH: /idp
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ../../../keycloak-theme/copythat:/opt/keycloak/themes/copythat:ro,z
+    depends_on:
+      keycloak-db-init:
+        condition: service_completed_successfully
+    networks:
+      - sugarcube-test
+
+  nginx:
+    image: nginx:1.28
+    container_name: sugarcube-nginx-test
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ../../config/test/nginx.conf:/etc/nginx/conf.d/default.conf:ro,z
+    depends_on:
+      - keycloak
+      - server
+    networks:
+      - sugarcube-test
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.51
+    container_name: sugarcube-seaweedfs-test
+    restart: unless-stopped
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+    command: ["mini", "-dir=/data"]
+    volumes:
+      - seaweedfs_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9333/cluster/status"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - sugarcube-test
+
   server:
     image: sugarcube-server:test
     build:
@@ -8,4 +107,31 @@ services:
       dockerfile: server/docker/test/Dockerfile
     container_name: sugarcube-server-test
     restart: unless-stopped
-    network_mode: host
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET: ${S3_BUCKET}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
+      KEYCLOAK_JWKS_URL: ${KEYCLOAK_JWKS_URL}
+      PORT: ${PORT:-3000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    networks:
+      - sugarcube-test
+
+networks:
+  sugarcube-test:
+    name: sugarcube-test
+
+volumes:
+  postgres_data:
+  seaweedfs_data:

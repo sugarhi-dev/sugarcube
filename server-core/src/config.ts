@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import dotenv from 'dotenv';
 import { exit } from 'process';
 import { Logger, type ILogObj } from 'tslog';
@@ -6,6 +7,11 @@ export class Config {
     private readonly log = new Logger<ILogObj>();
 
     constructor(envFile?: string) {
+        if (envFile && !existsSync(envFile)) {
+            // Container/runtime env can supply process.env without a dotenv file.
+            return;
+        }
+
         const loaded = dotenv.config({ path: envFile, quiet: true });
         if (loaded.error) {
             this.log.fatal(loaded.error.message);
