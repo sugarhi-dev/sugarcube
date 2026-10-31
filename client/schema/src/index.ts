@@ -17,6 +17,7 @@ export {
     MediaTypeSchema,
     UserMediaSchema,
     classifyMediaLink,
+    mediaUrl,
     type MediaLink,
     type MediaType,
     type UserMedia,

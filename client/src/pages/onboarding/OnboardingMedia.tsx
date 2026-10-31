@@ -1,8 +1,8 @@
 import { ArrowLeftOutlined, ArrowRightOutlined, DeleteOutlined, EditOutlined, HolderOutlined, LinkOutlined, PictureOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
-import { classifyMediaLink, type UserMedia } from '@sugarcube/schema';
-import { App as AntdApp, Button, Flex, Input, Modal, Result, Spin, Typography } from 'antd';
+import { classifyMediaLink, mediaUrl, type UserMedia } from '@sugarcube/schema';
+import { App as AntdApp, Button, Flex, Input, Modal, Progress, Result, Spin, Typography } from 'antd';
 import { useEffect, useRef, useState } from 'react';
-import { createMedia, deleteMedia, getMediaThumbnail, listMedia, reorderMedia, updateMedia } from '../../api/media.ts';
+import { createMedia, deleteMedia, getMediaThumbnail, listMedia, reorderMedia, updateMedia, uploadMedia } from '../../api/media.ts';
 import { useAppSelector, useSession } from '../../store/hooks.ts';
 import { copyThat } from '../../theme.ts';
 import { OnboardingFrame } from './OnboardingFrame.tsx';
@@ -11,6 +11,7 @@ export const onboardingMediaPath = '/onboarding/media';
 
 const minimumMedia = 5;
 const thumbnailLimit = 8 * 1024 * 1024;
+const videoLimit = 200 * 1024 * 1024;
 
 type DragState = {
     id: string;
@@ -24,12 +25,20 @@ export function OnboardingMedia() {
     const accountLabel = accountType === 'client' ? 'CLIENT SETUP' : 'CREW SETUP';
     const { message } = AntdApp.useApp();
     const thumbRef = useRef<HTMLInputElement>(null);
+    const videoRef = useRef<HTMLInputElement>(null);
+    const uploadThumbRef = useRef<HTMLInputElement>(null);
+    const uploadAbort = useRef<AbortController | null>(null);
     const itemsRef = useRef<UserMedia[]>([]);
     const dragRef = useRef<DragState | null>(null);
     const writes = useRef(Promise.resolve());
     const [items, setItems] = useState<UserMedia[]>([]);
     const [linkOpen, setLinkOpen] = useState(false);
     const [uploadOpen, setUploadOpen] = useState(false);
+    const [videoFile, setVideoFile] = useState<File | null>(null);
+    const [videoType, setVideoType] = useState<string | null>(null);
+    const [videoError, setVideoError] = useState<string | null>(null);
+    const [uploading, setUploading] = useState(false);
+    const [uploadPercent, setUploadPercent] = useState(0);
     const [link, setLink] = useState('');
     const [linkError, setLinkError] = useState<string | null>(null);
     const [thumbFile, setThumbFile] = useState<File | null>(null);
@@ -107,12 +116,93 @@ export function OnboardingMedia() {
     }, [thumbFile]);
 
     function openLinkDialog(): void {
+        if (uploading) {
+            return;
+        }
         setLink('');
         setLinkError(null);
         setThumbFile(null);
         setThumbError(null);
         setUploadOpen(false);
         setLinkOpen(true);
+    }
+
+    function openUploadDialog(): void {
+        if (uploading) {
+            return;
+        }
+        setVideoFile(null);
+        setVideoType(null);
+        setVideoError(null);
+        setThumbFile(null);
+        setThumbError(null);
+        setUploadPercent(0);
+        setUploadOpen(true);
+    }
+
+    function chooseVideo(file: File): void {
+        const contentType = videoContentType(file);
+        if (!contentType) {
+            setVideoFile(null);
+            setVideoType(null);
+            setVideoError('Use an MP4, MOV, or WebM video.');
+            return;
+        }
+        if (file.size > videoLimit) {
+            setVideoFile(null);
+            setVideoType(null);
+            setVideoError('Use a video smaller than 200 MB.');
+            return;
+        }
+        setVideoError(null);
+        setVideoType(contentType);
+        setVideoFile(file);
+    }
+
+    async function onUpload(): Promise<void> {
+        if (!session || uploading || !videoFile || !videoType) {
+            return;
+        }
+        if (!thumbFile) {
+            setThumbError('Choose a JPG or PNG thumbnail.');
+            return;
+        }
+
+        const controller = new AbortController();
+        uploadAbort.current = controller;
+        setVideoError(null);
+        setUploadPercent(0);
+        setUploading(true);
+        try {
+            await writes.current;
+            const created = await uploadMedia(
+                session.accessToken,
+                videoFile,
+                videoType,
+                thumbFile,
+                setUploadPercent,
+                controller.signal,
+            );
+            remember([...itemsRef.current, created]);
+            setUploadOpen(false);
+        } catch (error: unknown) {
+            if (isAbort(error)) {
+                setUploadOpen(false);
+                return;
+            }
+            message.error(error instanceof Error ? error.message : 'Could not upload that video.');
+        } finally {
+            uploadAbort.current = null;
+            setUploading(false);
+        }
+    }
+
+    function closeUpload(): void {
+        if (uploading) {
+            uploadAbort.current?.abort();
+            return;
+        }
+        setUploadOpen(false);
     }
 
     async function chooseThumbnail(file: File): Promise<void> {
@@ -195,7 +285,7 @@ export function OnboardingMedia() {
 
     function onEdit(item: UserMedia): void {
         setEditingId(item.id);
-        setEditUrl(item.url);
+        setEditUrl(mediaUrl(item) ?? '');
         setEditError(null);
     }
 
@@ -341,7 +431,7 @@ export function OnboardingMedia() {
             ) : (
                 <>
                     <Flex className="media-toolbar" align="center" gap={10} wrap="wrap">
-                        <Button htmlType="button" className="media-upload" icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>
+                        <Button htmlType="button" className="media-upload" icon={<UploadOutlined />} onClick={openUploadDialog}>
                             Upload
                         </Button>
                         <Button htmlType="button" className="media-add" icon={<LinkOutlined />} onClick={openLinkDialog}>
@@ -476,19 +566,79 @@ export function OnboardingMedia() {
                     <Modal
                         title="Upload a video"
                         open={uploadOpen}
-                        footer={null}
+                        okText="Upload"
+                        cancelText="Cancel"
+                        confirmLoading={uploading}
+                        okButtonProps={{ disabled: !videoFile || !thumbFile }}
                         destroyOnHidden
                         width={440}
-                        onCancel={() => setUploadOpen(false)}
+                        onOk={() => {
+                            void onUpload();
+                        }}
+                        onCancel={closeUpload}
                     >
-                        <div className="media-upload-note">
-                            Uploading a video file isn't available yet.
-                        </div>
-                        <Flex justify="flex-end" style={{ marginTop: 16 }}>
-                            <Button htmlType="button" type="primary" onClick={openLinkDialog}>
-                                Add a link
-                            </Button>
-                        </Flex>
+                        <button type="button" className="media-upload-note" onClick={() => videoRef.current?.click()} disabled={uploading}>
+                            {videoFile ? videoFile.name : 'Choose an MP4, MOV, or WebM'}
+                        </button>
+                        <input
+                            ref={videoRef}
+                            type="file"
+                            accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
+                            hidden
+                            aria-label="Video file"
+                            onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = '';
+                                if (file) {
+                                    chooseVideo(file);
+                                }
+                            }}
+                        />
+                        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                            MP4, MOV, or WebM · up to 200 MB.
+                        </Typography.Text>
+                        {videoError ? (
+                            <Typography.Text type="danger" role="alert" style={{ display: 'block', marginTop: 8, fontSize: 13 }}>
+                                {videoError}
+                            </Typography.Text>
+                        ) : null}
+                        <button type="button" className="media-thumb-pick" onClick={() => uploadThumbRef.current?.click()} disabled={uploading}>
+                            {thumbPreview ? (
+                                <img src={thumbPreview} alt="Selected thumbnail" />
+                            ) : (
+                                <span><PictureOutlined /> Choose a thumbnail</span>
+                            )}
+                        </button>
+                        <input
+                            ref={uploadThumbRef}
+                            type="file"
+                            accept="image/jpeg,image/png"
+                            hidden
+                            aria-label="Thumbnail"
+                            onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = '';
+                                if (file) {
+                                    void chooseThumbnail(file);
+                                }
+                            }}
+                        />
+                        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                            JPG or PNG · up to 8 MB. This image is shown on the video.
+                        </Typography.Text>
+                        {thumbError ? (
+                            <Typography.Text type="danger" role="alert" style={{ display: 'block', marginTop: 8, fontSize: 13 }}>
+                                {thumbError}
+                            </Typography.Text>
+                        ) : null}
+                        {uploading ? (
+                            <Progress
+                                percent={uploadPercent}
+                                strokeColor={copyThat.pink}
+                                style={{ marginTop: 16 }}
+                                aria-label="Upload progress"
+                            />
+                        ) : null}
                     </Modal>
                     <Modal
                         title="Edit video link"
@@ -598,6 +748,31 @@ function MediaPreview({ item, accessToken }: { item: UserMedia; accessToken: str
             onError={() => setSrc(null)}
         />
     );
+}
+
+function videoContentType(file: File): string | null {
+    const type = file.type.toLowerCase();
+    if (type === 'video/mp4' || type === 'video/quicktime' || type === 'video/webm') {
+        return type;
+    }
+    if (type && type !== 'application/octet-stream') {
+        return null;
+    }
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.mp4')) {
+        return 'video/mp4';
+    }
+    if (name.endsWith('.mov')) {
+        return 'video/quicktime';
+    }
+    if (name.endsWith('.webm')) {
+        return 'video/webm';
+    }
+    return null;
+}
+
+function isAbort(error: unknown): boolean {
+    return error instanceof DOMException && error.name === 'AbortError';
 }
 
 function mediaProgressLabel(count: number, minimum: number): string {

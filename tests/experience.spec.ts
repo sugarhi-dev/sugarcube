@@ -88,7 +88,7 @@ async function openExperience(page: Page): Promise<void> {
     await page.getByRole('button', { name: 'Continue as Crew' }).click();
 
     await expect(page.getByRole('heading', { name: 'Tell us about you' })).toBeVisible();
-    await page.getByLabel('Phone').fill('+1 213 555 0100');
+    await page.getByRole('textbox', { name: 'Phone' }).fill('+1 213 555 0100');
     await page.getByLabel('Bio').fill('Producer and director based in Mexico City.');
     await page.getByRole('button', { name: 'Continue — setup' }).click();
 

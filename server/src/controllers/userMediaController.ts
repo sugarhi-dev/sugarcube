@@ -21,6 +21,11 @@ const UpdateUserMediaRequestSchema = z.object({
 });
 
 const thumbnailLimit = 8 * 1024 * 1024;
+const videoLimit = 200 * 1024 * 1024;
+
+const videoTypes = ['video/mp4', 'video/quicktime', 'video/webm'] as const;
+
+type VideoContentType = (typeof videoTypes)[number];
 
 const readThumbnailBody: RequestHandler = (req, res, next) => {
     express.raw({
@@ -33,6 +38,23 @@ const readThumbnailBody: RequestHandler = (req, res, next) => {
         }
         if (payloadTooLarge(error)) {
             res.status(413).json({ error_message: 'Use a thumbnail smaller than 8 MB.' });
+            return;
+        }
+        next(error);
+    });
+};
+
+const readVideoBody: RequestHandler = (req, res, next) => {
+    express.raw({
+        limit: videoLimit,
+        type: [...videoTypes],
+    })(req, res, (error: unknown) => {
+        if (!error) {
+            next();
+            return;
+        }
+        if (payloadTooLarge(error)) {
+            res.status(413).json({ error_message: 'Use a video smaller than 200 MB.' });
             return;
         }
         next(error);
@@ -56,6 +78,7 @@ export class UserMediaController extends Controller {
         this.userMediaLogic = userMediaLogic;
         this.get('/api/me/media', this.GET_media.bind(this));
         this.post('/api/me/media', this.POST_media.bind(this));
+        this.post('/api/me/media/upload', this.POST_media_upload.bind(this), [], [readVideoBody]);
         this.put('/api/me/media/order', this.PUT_media_order.bind(this));
         this.get('/api/me/media/:id/thumbnail', this.GET_media_thumbnail.bind(this));
         this.put('/api/me/media/:id/thumbnail', this.PUT_media_thumbnail.bind(this), [], [readThumbnailBody]);
@@ -83,6 +106,25 @@ export class UserMediaController extends Controller {
 
         const body = parseBody(CreateUserMediaRequestSchema, req.body);
         const media = await this.userMediaLogic.createUserMedia(ctx, user.id, body.url);
+        this.checkAndRespond(ctx, res, media, 201);
+    }
+
+    protected async POST_media_upload(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await currentUser(ctx, req, this.userLogic);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const contentType = videoContentType(req.header('content-type'));
+        const body = req.body;
+        if (!contentType || !Buffer.isBuffer(body) || !isVideo(body, contentType)) {
+            ctx.error('Use an MP4, MOV, or WebM video.', 400);
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const media = await this.userMediaLogic.createUploadedMedia(ctx, user.id, body, contentType);
         this.checkAndRespond(ctx, res, media, 201);
     }
 
@@ -161,6 +203,32 @@ export class UserMediaController extends Controller {
         const media = await this.userMediaLogic.deleteUserMedia(ctx, user.id, id);
         this.checkAndRespond(ctx, res, media);
     }
+}
+
+function videoContentType(header: string | undefined): VideoContentType | null {
+    const type = header?.split(';', 1)[0]?.trim().toLowerCase();
+    if (type === 'video/mp4' || type === 'video/quicktime' || type === 'video/webm') {
+        return type;
+    }
+    return null;
+}
+
+function isVideo(data: Buffer, contentType: VideoContentType): boolean {
+    if (data.byteLength === 0 || data.byteLength > videoLimit) {
+        return false;
+    }
+    if (contentType === 'video/webm') {
+        return data.byteLength >= 4
+            && data[0] === 0x1a
+            && data[1] === 0x45
+            && data[2] === 0xdf
+            && data[3] === 0xa3;
+    }
+    return data.byteLength >= 8
+        && data[4] === 0x66
+        && data[5] === 0x74
+        && data[6] === 0x79
+        && data[7] === 0x70;
 }
 
 function thumbnailContentType(header: string | undefined): 'image/jpeg' | 'image/png' | null {

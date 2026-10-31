@@ -66,9 +66,9 @@ export class Controller extends Base {
         this.app.get(path, (req, res) => this.instrument('GET', path, req, res, handler, requireRoles));
     }
 
-    protected post(path: string, handler: Handler, requireRoles: string[] = [])
+    protected post(path: string, handler: Handler, requireRoles: string[] = [], middleware: RequestHandler[] = [])
     {
-        this.app.post(path, (req, res) => this.instrument('POST', path, req, res, handler, requireRoles));
+        this.app.post(path, ...middleware, (req, res) => this.instrument('POST', path, req, res, handler, requireRoles));
     }
 
     protected put(path: string, handler: Handler, requireRoles: string[] = [], middleware: RequestHandler[] = [])

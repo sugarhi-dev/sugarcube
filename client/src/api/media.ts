@@ -1,5 +1,5 @@
 import { UserMediaSchema, type UserMedia } from '@sugarcube/schema';
-import { apiBlob, apiJson } from './http.ts';
+import { apiBlob, apiJson, apiUpload } from './http.ts';
 import { parseResponse, parseResponseList } from './parse.ts';
 
 export type { UserMedia };
@@ -18,6 +18,29 @@ export async function createMedia(accessToken: string, url: string, thumbnail: F
             method: 'PUT',
             body: thumbnail,
             headers: { 'Content-Type': thumbnail.type },
+        });
+    } catch (error) {
+        await deleteMedia(accessToken, created.id).catch(() => undefined);
+        throw error;
+    }
+}
+
+export async function uploadMedia(
+    accessToken: string,
+    video: File,
+    contentType: string,
+    thumbnail: File,
+    onProgress: (percent: number) => void,
+    signal?: AbortSignal,
+): Promise<UserMedia> {
+    const body = await apiUpload(accessToken, '/api/me/media/upload', video, contentType, onProgress, signal);
+    const created = parseResponse(UserMediaSchema, body, 'Media response was not valid.');
+    try {
+        return await readMedia(accessToken, `/api/me/media/${encodeURIComponent(created.id)}/thumbnail`, {
+            method: 'PUT',
+            body: thumbnail,
+            headers: { 'Content-Type': thumbnail.type },
+            signal,
         });
     } catch (error) {
         await deleteMedia(accessToken, created.id).catch(() => undefined);

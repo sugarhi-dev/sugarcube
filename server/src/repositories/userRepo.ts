@@ -80,7 +80,7 @@ export class UserRepo extends Repository {
         const row = result.rows[0];
         return row ? UserSchema.parse(row) : null;
     }
-
+    
     async savePhoto(ctx: Context, userId: string, photo: string): Promise<User | null> {
         this.log.trace(`${ctx.traceId} save profile photo ${userId}`);
         const result = await this.database.query<UserRow>(

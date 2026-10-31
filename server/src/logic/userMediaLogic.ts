@@ -5,6 +5,8 @@ import { UserMediaSchema, type UserMedia } from '../entities/userMedia.js';
 import { UserMediaRepo } from '../repositories/userMediaRepo.js';
 import { constraintFailure } from './pgError.js';
 
+const ulidPattern = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+
 const mediaConstraints = {
     user_media_user_profile_id_fkey: { statusCode: 404, message: 'Profile not found.' },
     user_media_media_type_check: { statusCode: 400, message: 'Media type is not allowed.' },
@@ -37,12 +39,38 @@ export class UserMediaLogic extends Logic {
             id: ulid(),
             user_profile_id: userProfileId,
             media_type: link.media_type,
-            url: link.url,
+            ref: link.url,
             thumbnail: null,
         });
         try {
             return await this.userMediaRepo.createUserMedia(ctx, media);
         } catch (error) {
+            return this.rejectConstraint(ctx, error);
+        }
+    }
+
+    async createUploadedMedia(
+        ctx: Context,
+        userProfileId: string,
+        data: Uint8Array,
+        contentType: string,
+    ): Promise<UserMedia | null> {
+        const ref = await this.storeBinary(ctx, data, contentType, 'video');
+        if (!ref) {
+            return null;
+        }
+
+        const media = UserMediaSchema.omit({ sort_order: true }).parse({
+            id: ulid(),
+            user_profile_id: userProfileId,
+            media_type: 'upload',
+            ref,
+            thumbnail: null,
+        });
+        try {
+            return await this.userMediaRepo.createUserMedia(ctx, media);
+        } catch (error) {
+            await this.discardBinary(ref);
             return this.rejectConstraint(ctx, error);
         }
     }
@@ -73,16 +101,20 @@ export class UserMediaLogic extends Logic {
             return null;
         }
 
+        const previousVideo = storedUpload(current);
         const media = UserMediaSchema.parse({
             ...current,
             media_type: link.media_type,
-            url: link.url,
+            ref: link.url,
         });
         try {
             const updated = await this.userMediaRepo.updateUserMedia(ctx, media);
             if (!updated) {
                 ctx.error('Video not found.', 404);
                 return null;
+            }
+            if (previousVideo) {
+                await this.discardBinary(previousVideo);
             }
             return updated;
         } catch (error) {
@@ -103,13 +135,8 @@ export class UserMediaLogic extends Logic {
             return null;
         }
 
-        let thumbnail: string;
-        try {
-            thumbnail = await this.binary.store(data, contentType);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            this.log.error(`${ctx.traceId} thumbnail store failed: ${message}`);
-            ctx.error('Could not store that thumbnail.', 502);
+        const thumbnail = await this.storeBinary(ctx, data, contentType, 'thumbnail');
+        if (!thumbnail) {
             return null;
         }
 
@@ -120,16 +147,16 @@ export class UserMediaLogic extends Logic {
         try {
             const updated = await this.userMediaRepo.updateUserMedia(ctx, media);
             if (!updated) {
-                await this.discardThumbnail(thumbnail);
+                await this.discardBinary(thumbnail);
                 ctx.error('Video not found.', 404);
                 return null;
             }
             if (current.thumbnail && current.thumbnail !== thumbnail) {
-                await this.discardThumbnail(current.thumbnail);
+                await this.discardBinary(current.thumbnail);
             }
             return updated;
         } catch (error) {
-            await this.discardThumbnail(thumbnail);
+            await this.discardBinary(thumbnail);
             return this.rejectConstraint(ctx, error);
         }
     }
@@ -141,7 +168,11 @@ export class UserMediaLogic extends Logic {
             return null;
         }
         if (deleted.thumbnail) {
-            await this.discardThumbnail(deleted.thumbnail);
+            await this.discardBinary(deleted.thumbnail);
+        }
+        const video = storedUpload(deleted);
+        if (video) {
+            await this.discardBinary(video);
         }
         return deleted;
     }
@@ -162,7 +193,18 @@ export class UserMediaLogic extends Logic {
         return image;
     }
 
-    private async discardThumbnail(id: string): Promise<void> {
+    private async storeBinary(ctx: Context, data: Uint8Array, contentType: string, kind: 'video' | 'thumbnail'): Promise<string | null> {
+        try {
+            return await this.binary.store(data, contentType);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log.error(`${ctx.traceId} ${kind} store failed: ${message}`);
+            ctx.error(kind === 'video' ? 'Could not store that video.' : 'Could not store that thumbnail.', 502);
+            return null;
+        }
+    }
+
+    private async discardBinary(id: string): Promise<void> {
         try {
             await this.binary.remove(id);
         } catch (error) {
@@ -179,4 +221,11 @@ export class UserMediaLogic extends Logic {
         ctx.error(failure.message, failure.statusCode);
         return null;
     }
+}
+
+function storedUpload(media: UserMedia): string | null {
+    if (media.media_type !== 'upload' || !ulidPattern.test(media.ref)) {
+        return null;
+    }
+    return media.ref;
 }

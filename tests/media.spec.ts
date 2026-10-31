@@ -1,5 +1,10 @@
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { devUser, prepareDevUser } from './reset.ts';
+
+const mediaDir = join(import.meta.dirname, 'media');
+const videoPath = join(mediaDir, 'test-video.mp4');
+const thumbnailPath = join(mediaDir, 'thumb-1.jpg');
 
 const youtubeUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const vimeoUrl = 'https://vimeo.com/76979871';
@@ -16,15 +21,76 @@ test.beforeEach(async () => {
     await prepareDevUser();
 });
 
+test('uploads a video and thumbnail', async ({ page }) => {
+    test.setTimeout(120_000);
+    await openMedia(page);
+
+    await page.getByRole('button', { name: 'Upload' }).click();
+    const upload = page.getByRole('dialog', { name: 'Upload a video' });
+    await upload.getByLabel('Video file').setInputFiles(videoPath);
+    await upload.getByLabel('Thumbnail').setInputFiles(thumbnailPath);
+    await expect(upload.getByText('test-video.mp4')).toBeVisible();
+    await expect(upload.getByRole('img', { name: 'Selected thumbnail' })).toBeVisible();
+
+    const storedVideo = page.waitForResponse((response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/api/me/media/upload') && response.ok());
+    const storedThumb = page.waitForResponse((response) =>
+        response.request().method() === 'PUT' && response.url().includes('/api/me/media/') && response.url().includes('/thumbnail') && response.ok());
+    await upload.getByRole('button', { name: 'Upload', exact: true }).click();
+    await expect(upload.getByRole('progressbar', { name: 'Upload progress' })).toBeVisible();
+    const videoResponse = await storedVideo;
+    expect(videoResponse.status()).toBe(201);
+    expect(videoResponse.request().headers()['content-type']).toContain('video/mp4');
+    const thumbResponse = await storedThumb;
+    expect(thumbResponse.request().headers()['content-type']).toContain('image/jpeg');
+    await expect(upload).toBeHidden();
+
+    const uploaded = page.getByRole('listitem', { name: /Uploaded video, cover/ });
+    await expect(uploaded.locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(page.getByText('1 of 5 — add 4 more')).toBeVisible();
+
+    const reloadedThumb = page.waitForResponse((response) =>
+        response.request().method() === 'GET' && response.url().includes('/api/me/media/') && response.url().includes('/thumbnail') && response.ok());
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
+    const loaded = await reloadedThumb;
+    expect(loaded.headers()['content-type']).toContain('image/jpeg');
+    await expect(page.getByRole('listitem', { name: /Uploaded video, cover/ }).locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(page.getByText('1 of 5 — add 4 more')).toBeVisible();
+});
+
 test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) => {
     test.setTimeout(90_000);
     await openMedia(page);
 
     await page.getByRole('button', { name: 'Upload' }).click();
     const upload = page.getByRole('dialog', { name: 'Upload a video' });
-    await expect(upload.getByText("Uploading a video file isn't available yet.")).toBeVisible();
-    await upload.getByRole('button', { name: 'Close' }).click();
+    await expect(upload.getByText('MP4, MOV, or WebM · up to 200 MB.')).toBeVisible();
+    await upload.getByLabel('Video file').setInputFiles({
+        name: 'clip.mp4',
+        mimeType: 'video/mp4',
+        buffer: Buffer.from([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]),
+    });
+    await upload.getByLabel('Thumbnail').setInputFiles(thumbnail);
+    await expect(upload.getByText('clip.mp4')).toBeVisible();
+    await expect(upload.getByRole('img', { name: 'Selected thumbnail' })).toBeVisible();
+    await page.route('**/api/me/media/upload', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        await route.continue();
+    });
+    const storedVideo = page.waitForResponse((response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/api/me/media/upload') && response.ok());
+    const storedThumb = page.waitForResponse((response) =>
+        response.request().method() === 'PUT' && response.url().includes('/api/me/media/') && response.url().includes('/thumbnail') && response.ok());
+    await upload.getByRole('button', { name: 'Upload', exact: true }).click();
+    await expect(upload.getByRole('progressbar', { name: 'Upload progress' })).toBeVisible();
+    await storedVideo;
+    await storedThumb;
     await expect(upload).toBeHidden();
+    const uploaded = page.getByRole('listitem', { name: /Uploaded video, cover/ });
+    await expect(uploaded.locator('img')).toHaveAttribute('src', /^blob:/);
+    await uploaded.getByRole('button', { name: /^Delete / }).click();
+    await expect(page.getByText('0 of 5 — add 5 more')).toBeVisible();
 
     await page.getByRole('button', { name: 'YouTube / Vimeo' }).click();
     const addDialog = page.getByRole('dialog', { name: 'Add a YouTube or Vimeo video' });

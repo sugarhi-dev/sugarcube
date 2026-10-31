@@ -5,12 +5,12 @@ type UserMediaRow = {
     id: string;
     user_profile_id: string;
     media_type: UserMedia['media_type'];
-    url: string;
+    ref: string;
     thumbnail: string | null;
     sort_order: number;
 };
 
-const mediaColumns = 'id, user_profile_id, media_type, url, thumbnail, sort_order';
+const mediaColumns = 'id, user_profile_id, media_type, ref, thumbnail, sort_order';
 
 export class UserMediaRepo extends Repository {
     constructor(database: Database) {
@@ -53,10 +53,10 @@ export class UserMediaRepo extends Repository {
             );
             const sortOrder = Number(next.rows[0]?.sort_order ?? 0);
             const result = await query<UserMediaRow>(
-                `INSERT INTO user_media (id, user_profile_id, media_type, url, thumbnail, sort_order)
+                `INSERT INTO user_media (id, user_profile_id, media_type, ref, thumbnail, sort_order)
                  VALUES ($1, $2, $3, $4, $5, $6)
                  RETURNING ${mediaColumns}`,
-                [media.id, media.user_profile_id, media.media_type, media.url, media.thumbnail, sortOrder],
+                [media.id, media.user_profile_id, media.media_type, media.ref, media.thumbnail, sortOrder],
             );
             return requiredRow(result.rows[0], `insert user_media ${media.id}`);
         });
@@ -107,12 +107,12 @@ export class UserMediaRepo extends Repository {
         const result = await this.database.query<UserMediaRow>(
             `UPDATE user_media
              SET media_type = $3,
-                 url = $4,
+                 ref = $4,
                  thumbnail = $5,
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = $1 AND user_profile_id = $2
              RETURNING ${mediaColumns}`,
-            [media.id, media.user_profile_id, media.media_type, media.url, media.thumbnail],
+            [media.id, media.user_profile_id, media.media_type, media.ref, media.thumbnail],
         );
         const row = result.rows[0];
         return row ? UserMediaSchema.parse(row) : null;
