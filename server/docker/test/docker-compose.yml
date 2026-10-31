@@ -1,0 +1,11 @@
+name: sugarcube-server-test
+
+services:
+  server:
+    image: sugarcube-server:test
+    build:
+      context: ../../..
+      dockerfile: server/docker/test/Dockerfile
+    container_name: sugarcube-server-test
+    restart: unless-stopped
+    network_mode: host

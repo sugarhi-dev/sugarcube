@@ -2,13 +2,13 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Config, Database } from '@sugarcube/server-core';
+import { resolveEnvFile } from './envFile.js';
 
 const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const envPath = path.join(serverRoot, 'config/local/.env');
 const migrationsDir = path.join(serverRoot, 'db');
 
 async function start(): Promise<void> {
-    const config = new Config(envPath);
+    const config = new Config(resolveEnvFile(serverRoot));
     const database = new Database(config);
     try {
         await runMigrations(database);

@@ -17,6 +17,8 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+!server/config/test/.env
+!client/config/test/.env
 
 # Test and coverage
 coverage/

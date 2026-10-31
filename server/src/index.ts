@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { Config, Database } from '@sugarcube/server-core';
+import { resolveEnvFile } from './envFile.js';
 import { ApiService } from './services/apiService.js';
 
 const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -20,7 +21,7 @@ const requiredEnv = [
 ] as const;
 
 async function start(): Promise<void> {
-    const config = new Config(path.join(serverRoot, 'config/local/.env'));
+    const config = new Config(resolveEnvFile(serverRoot));
     config.requireAll(requiredEnv);
 
     const app = express();
