@@ -24,6 +24,7 @@ pnpm-debug.log*
 **/client_secret*.json
 **/client_secret*.apps.googleusercontent.com.json
 server/config/test/keycloak-google-idp.md
+server/config/test/cloudflare_origins.key
 
 # Test and coverage
 coverage/

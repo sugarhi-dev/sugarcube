@@ -49,6 +49,18 @@ jobs:
           ./server/docker/test/ensure-secrets.sh
           install -m 600 "$SUGARCUBE_TEST_ENV" server/docker/test/.env
 
+      - name: Install Cloudflare origin key
+        id: origin-key
+        env:
+          CLOUDFLARE_ORIGIN_KEY: ${{ secrets.CLOUDFLARE_ORIGIN_KEY }}
+        run: |
+          if [[ -z "${CLOUDFLARE_ORIGIN_KEY}" ]]; then
+            echo "GitHub Actions secret CLOUDFLARE_ORIGIN_KEY is empty" >&2
+            exit 1
+          fi
+          umask 077
+          printf '%s\n' "$CLOUDFLARE_ORIGIN_KEY" > server/config/test/cloudflare_origins.key
+
       - name: Deploy infra and server
         id: deploy-server
         run: |
@@ -66,7 +78,7 @@ jobs:
           docker compose -f client/docker/test/docker-compose.yml ps
 
       - name: Notify Slack deploy succeeded
-        if: steps.checkout.outcome == 'success' && steps.secrets.outcome == 'success' && steps.deploy-server.outcome == 'success' && steps.deploy-client.outcome == 'success' && steps.verify.outcome == 'success'
+        if: steps.checkout.outcome == 'success' && steps.secrets.outcome == 'success' && steps.origin-key.outcome == 'success' && steps.deploy-server.outcome == 'success' && steps.deploy-client.outcome == 'success' && steps.verify.outcome == 'success'
         continue-on-error: true
         uses: slackapi/slack-github-action@v4.0.0
         with:
@@ -90,7 +102,7 @@ jobs:
                   text: ${{ toJSON(github.event.head_commit.message) }}
 
       - name: Notify Slack deploy failed
-        if: steps.checkout.outcome == 'failure' || steps.secrets.outcome == 'failure' || steps.deploy-server.outcome == 'failure' || steps.deploy-client.outcome == 'failure' || steps.verify.outcome == 'failure'
+        if: steps.checkout.outcome == 'failure' || steps.secrets.outcome == 'failure' || steps.origin-key.outcome == 'failure' || steps.deploy-server.outcome == 'failure' || steps.deploy-client.outcome == 'failure' || steps.verify.outcome == 'failure'
         continue-on-error: true
         uses: slackapi/slack-github-action@v4.0.0
         with:

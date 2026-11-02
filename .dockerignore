@@ -16,4 +16,5 @@ keycloak-theme
 README.md
 client/.env.local
 server/config/local/.env
+server/config/test/cloudflare_origins.key
 server/docker/local
