@@ -66,6 +66,12 @@ jobs:
         run: |
           docker compose -f server/docker/test/docker-compose.yml --env-file server/docker/test/.env up -d --build --force-recreate --remove-orphans
 
+      - name: Apply Keycloak login theme
+        id: theme
+        run: |
+          chmod +x server/docker/test/apply-keycloak-theme.sh
+          ./server/docker/test/apply-keycloak-theme.sh
+
       - name: Deploy client
         id: deploy-client
         run: |
@@ -78,7 +84,7 @@ jobs:
           docker compose -f client/docker/test/docker-compose.yml ps
 
       - name: Notify Slack deploy succeeded
-        if: steps.checkout.outcome == 'success' && steps.secrets.outcome == 'success' && steps.origin-key.outcome == 'success' && steps.deploy-server.outcome == 'success' && steps.deploy-client.outcome == 'success' && steps.verify.outcome == 'success'
+        if: steps.checkout.outcome == 'success' && steps.secrets.outcome == 'success' && steps.origin-key.outcome == 'success' && steps.deploy-server.outcome == 'success' && steps.theme.outcome == 'success' && steps.deploy-client.outcome == 'success' && steps.verify.outcome == 'success'
         continue-on-error: true
         uses: slackapi/slack-github-action@v4.0.0
         with:
@@ -102,7 +108,7 @@ jobs:
                   text: ${{ toJSON(github.event.head_commit.message) }}
 
       - name: Notify Slack deploy failed
-        if: steps.checkout.outcome == 'failure' || steps.secrets.outcome == 'failure' || steps.origin-key.outcome == 'failure' || steps.deploy-server.outcome == 'failure' || steps.deploy-client.outcome == 'failure' || steps.verify.outcome == 'failure'
+        if: steps.checkout.outcome == 'failure' || steps.secrets.outcome == 'failure' || steps.origin-key.outcome == 'failure' || steps.deploy-server.outcome == 'failure' || steps.theme.outcome == 'failure' || steps.deploy-client.outcome == 'failure' || steps.verify.outcome == 'failure'
         continue-on-error: true
         uses: slackapi/slack-github-action@v4.0.0
         with:
