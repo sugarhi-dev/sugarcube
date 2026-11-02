@@ -14,10 +14,31 @@ jobs:
     name: Deploy to test
     runs-on: [self-hosted, test]
     steps:
+      - name: Notify Slack pipeline started
+        continue-on-error: true
+        uses: slackapi/slack-github-action@v4.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          errors: true
+          payload: |
+            text: ":rocket: Test pipeline started — ${{ github.repository }}@${{ github.ref_name }}"
+            blocks:
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: ":rocket: *Test pipeline started*\n*Workflow:* ${{ github.workflow }}\n*Branch:* `${{ github.ref_name }}`\n*By:* ${{ github.actor }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View pipeline>"
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: ${{ toJSON(github.event.head_commit.message) }}
+
       - name: Checkout
+        id: checkout
         uses: actions/checkout@v4
 
       - name: Ensure test secrets
+        id: secrets
         run: |
           export SUGARCUBE_TEST_ENV="${HOME}/.config/sugarcube/test.env"
           chmod +x server/docker/test/ensure-secrets.sh
@@ -25,14 +46,57 @@ jobs:
           install -m 600 "$SUGARCUBE_TEST_ENV" server/docker/test/.env
 
       - name: Deploy infra and server
+        id: deploy-server
         run: |
           docker compose -f server/docker/test/docker-compose.yml --env-file server/docker/test/.env up -d --build --force-recreate --remove-orphans
 
       - name: Deploy client
+        id: deploy-client
         run: |
           docker compose -f client/docker/test/docker-compose.yml up -d --build --force-recreate --remove-orphans
 
       - name: Verify containers
+        id: verify
         run: |
           docker compose -f server/docker/test/docker-compose.yml --env-file server/docker/test/.env ps
           docker compose -f client/docker/test/docker-compose.yml ps
+
+      - name: Notify Slack pipeline stopped
+        if: steps.checkout.outcome == 'success' && steps.secrets.outcome == 'success' && steps.deploy-server.outcome == 'success' && steps.deploy-client.outcome == 'success' && steps.verify.outcome == 'success'
+        continue-on-error: true
+        uses: slackapi/slack-github-action@v4.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          errors: true
+          payload: |
+            text: ":white_check_mark: Test pipeline stopped — ${{ github.repository }}@${{ github.ref_name }}"
+            blocks:
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: ":white_check_mark: *Test pipeline stopped*\n*Workflow:* ${{ github.workflow }}\n*Branch:* `${{ github.ref_name }}`\n*By:* ${{ github.actor }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View pipeline>"
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: ${{ toJSON(github.event.head_commit.message) }}
+
+      - name: Notify Slack pipeline error
+        if: steps.checkout.outcome == 'failure' || steps.secrets.outcome == 'failure' || steps.deploy-server.outcome == 'failure' || steps.deploy-client.outcome == 'failure' || steps.verify.outcome == 'failure'
+        continue-on-error: true
+        uses: slackapi/slack-github-action@v4.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          errors: true
+          payload: |
+            text: ":rotating_light: Test pipeline error — ${{ github.repository }}@${{ github.ref_name }}"
+            blocks:
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: ":rotating_light: *Test pipeline error*\n*Workflow:* ${{ github.workflow }}\n*Branch:* `${{ github.ref_name }}`\n*By:* ${{ github.actor }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View pipeline>"
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: ${{ toJSON(github.event.head_commit.message) }}
