@@ -1,12 +1,14 @@
 import {
     DeleteObjectCommand,
     GetObjectCommand,
+    HeadObjectCommand,
     NoSuchKey,
     NotFound,
     PutObjectCommand,
     S3Client,
     S3ServiceException,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ulid } from 'ulidx';
 import { Base } from './base.js';
 import { Config } from './config.js';
@@ -58,6 +60,30 @@ export class Binary extends Base {
         return id;
     }
 
+    async presignGet(id: string, expiresInSeconds: number): Promise<string | null> {
+        assertKey(id);
+        if (!Number.isInteger(expiresInSeconds) || expiresInSeconds < 1) {
+            throw new Error('Presign expiry must be a positive whole number of seconds.');
+        }
+
+        try {
+            await this.client.send(new HeadObjectCommand({
+                Bucket: this.bucket,
+                Key: id,
+            }));
+            const signed = await getSignedUrl(this.client, new GetObjectCommand({
+                Bucket: this.bucket,
+                Key: id,
+            }), { expiresIn: expiresInSeconds });
+            return signedObjectPath(signed, this.bucket);
+        } catch (error) {
+            if (isMissing(error)) {
+                return null;
+            }
+            throw failure(error, 'sign');
+        }
+    }
+
     async load(id: string): Promise<BinaryObject | null> {
         assertKey(id);
         try {
@@ -101,6 +127,15 @@ export class Binary extends Base {
             throw failure(error, 'delete');
         }
     }
+}
+
+function signedObjectPath(signedUrl: string, bucket: string): string {
+    const url = new URL(signedUrl);
+    const prefix = `/${bucket}/`;
+    if (!url.pathname.startsWith(prefix) || url.search.length === 0) {
+        throw new Error('S3 sign returned an unexpected URL.');
+    }
+    return `${url.pathname}${url.search}`;
 }
 
 function assertKey(id: string): void {

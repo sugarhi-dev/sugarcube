@@ -7,6 +7,7 @@ export const UserStatusSchema = z.enum([
     'experience',
     'media',
     'review',
+    'admin-review',
     'live',
     'invisible',
 ]);

@@ -11,6 +11,7 @@ const steps = [
     { title: 'Experience & project types' },
     { title: 'Upload your media' },
     { title: 'Review & go live' },
+    { title: 'Wait for approval' },
 ];
 
 type OnboardingFrameProps = {

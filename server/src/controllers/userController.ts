@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { AccountTypeSchema, type User } from '../entities/user.js';
 import { UnionStatusSchema } from '../entities/userWorkProfile.js';
 import { UserLocaleLogic } from '../logic/userLocaleLogic.js';
-import { UserLogic } from '../logic/userLogic.js';
+import { profilePhotoTtlSeconds, UserLogic } from '../logic/userLogic.js';
 import { UserWorkProfileLogic } from '../logic/userWorkProfileLogic.js';
 import { authenticatedSubject, parseBody } from './httpHelpers.js';
 
@@ -118,9 +118,12 @@ export class UserController extends Controller {
         this.put('/api/me/account-type', this.PUT_account_type.bind(this));
         this.put('/api/me/basic', this.PUT_basic.bind(this));
         this.get('/api/me/photo', this.GET_photo.bind(this));
+        this.get('/api/me/photo/url', this.GET_photo_url.bind(this));
         this.put('/api/me/photo', this.PUT_photo.bind(this), [], [readPhotoBody]);
         this.put('/api/me/setup', this.PUT_setup.bind(this));
         this.put('/api/me/experience', this.PUT_experience.bind(this));
+        this.get('/api/me/work-profiles', this.GET_work_profiles.bind(this));
+        this.put('/api/me/review', this.PUT_review.bind(this));
         this.get('/api/me/locales', this.GET_locales.bind(this));
         this.post('/api/me/locales', this.POST_locale.bind(this));
         this.get('/api/me/locales/:id', this.GET_locale.bind(this));
@@ -189,6 +192,31 @@ export class UserController extends Controller {
         res.status(200).type(photo.contentType).send(Buffer.from(photo.data));
     }
 
+    protected async GET_photo_url(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+        if (!user.photo) {
+            ctx.error('Profile photo not found.', 404);
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const objectPath = await this.userLogic.profilePhotoUrl(ctx, user.photo);
+        if (!objectPath) {
+            ctx.error('Profile photo not found.', 404);
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        this.checkAndRespond(ctx, res, {
+            url: contentPath(objectPath),
+            expires_in: profilePhotoTtlSeconds,
+        });
+    }
+
     protected async PUT_photo(ctx: Context, req: Request, res: Response): Promise<void> {
         const user = await this.currentUser(ctx, req);
         if (!user) {
@@ -228,6 +256,28 @@ export class UserController extends Controller {
         }
 
         const updated = await this.userLogic.completeExperience(ctx, user.id);
+        this.checkAndRespond(ctx, res, updated);
+    }
+
+    protected async GET_work_profiles(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const profiles = await this.userLogic.listWorkProfiles(ctx, user.id);
+        this.checkAndRespond(ctx, res, profiles);
+    }
+
+    protected async PUT_review(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const updated = await this.userLogic.submitForReview(ctx, user.id);
         this.checkAndRespond(ctx, res, updated);
     }
 
@@ -334,6 +384,13 @@ export class UserController extends Controller {
 
         return this.userLogic.requireByKeycloakId(ctx, subject);
     }
+}
+
+function contentPath(objectPath: string): string {
+    if (!objectPath.startsWith('/') || objectPath.startsWith('//')) {
+        throw new Error('Profile photo path is not valid.');
+    }
+    return `/content${objectPath}`;
 }
 
 function photoContentType(header: string | undefined): 'image/jpeg' | 'image/png' | null {

@@ -1,8 +1,22 @@
-import { CurrentUserSchema, type AccountType, type CurrentUser, type UserStatus } from '@sugarcube/schema';
+import {
+    CurrentUserSchema,
+    ProfilePhotoUrlSchema,
+    UserLocaleSchema,
+    UserWorkProfileSchema,
+    WorkProfileSchema,
+    type AccountType,
+    type CurrentUser,
+    type ProfilePhotoUrl,
+    type UserLocale,
+    type UserStatus,
+    type UserWorkProfile,
+    type WorkProfile,
+} from '@sugarcube/schema';
+import { z } from 'zod';
 import { apiBlob, apiJson } from './http.ts';
-import { parseResponse } from './parse.ts';
+import { parseResponse, parseResponseList } from './parse.ts';
 
-export type { AccountType, CurrentUser, UserStatus };
+export type { AccountType, CurrentUser, ProfilePhotoUrl, UserStatus };
 
 export type UnionStatus = 'union' | 'non_union' | 'either';
 
@@ -56,6 +70,10 @@ export function getProfilePhoto(accessToken: string): Promise<Blob> {
     return apiBlob(accessToken, '/api/me/photo');
 }
 
+export function getProfilePhotoUrl(accessToken: string): Promise<ProfilePhotoUrl> {
+    return readOne(accessToken, '/api/me/photo/url', ProfilePhotoUrlSchema, 'Profile photo link was not valid.');
+}
+
 export function saveSetup(accessToken: string, input: SetupProfileInput): Promise<CurrentUser> {
     return readUser(accessToken, '/api/me/setup', {
         method: 'PUT',
@@ -67,7 +85,43 @@ export function completeExperience(accessToken: string): Promise<CurrentUser> {
     return readUser(accessToken, '/api/me/experience', { method: 'PUT' });
 }
 
+export function listLocales(accessToken: string): Promise<UserLocale[]> {
+    return readList(accessToken, '/api/me/locales', UserLocaleSchema, 'Cities response was not valid.');
+}
+
+export function getWorkProfile(accessToken: string): Promise<UserWorkProfile> {
+    return readOne(accessToken, '/api/me/work-profile', UserWorkProfileSchema, 'Rates response was not valid.');
+}
+
+export function listWorkProfiles(accessToken: string): Promise<WorkProfile[]> {
+    return readList(accessToken, '/api/me/work-profiles', WorkProfileSchema, 'Positions response was not valid.');
+}
+
+export function submitProfile(accessToken: string): Promise<CurrentUser> {
+    return readUser(accessToken, '/api/me/review', { method: 'PUT' });
+}
+
 async function readUser(accessToken: string, path: string, init?: RequestInit): Promise<CurrentUser> {
     const body = await apiJson(accessToken, path, init);
     return parseResponse(CurrentUserSchema, body, 'Profile response was not valid.');
+}
+
+async function readOne<T extends z.ZodType>(
+    accessToken: string,
+    path: string,
+    schema: T,
+    message: string,
+): Promise<z.output<T>> {
+    const body = await apiJson(accessToken, path);
+    return parseResponse(schema, body, message);
+}
+
+async function readList<T extends z.ZodType>(
+    accessToken: string,
+    path: string,
+    item: T,
+    message: string,
+): Promise<Array<z.output<T>>> {
+    const body = await apiJson(accessToken, path);
+    return parseResponseList(item, body, message);
 }

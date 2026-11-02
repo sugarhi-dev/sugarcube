@@ -130,7 +130,7 @@ export function OnboardingBasic() {
     return (
         <OnboardingFrame step={1} accountLabel={accountLabel}>
             <Typography.Text style={{ color: copyThat.pink, fontSize: 12, fontWeight: 700, letterSpacing: '0.12em' }}>
-                STEP 1 OF 5
+                STEP 1 OF 6
             </Typography.Text>
             <Typography.Title level={3} style={{ margin: '4px 0 0', fontWeight: 700, letterSpacing: '-0.02em' }}>
                 Tell us about you

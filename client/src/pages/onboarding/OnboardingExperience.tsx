@@ -267,7 +267,7 @@ export function OnboardingExperience() {
             note="Verified references make your profile rank higher in search."
         >
             <Typography.Text style={{ color: copyThat.pink, fontSize: 12, fontWeight: 700, letterSpacing: '0.12em' }}>
-                STEP 3 OF 5
+                STEP 3 OF 6
             </Typography.Text>
             <Typography.Title level={3} style={{ margin: '4px 0 0', fontWeight: 700, letterSpacing: '-0.02em' }}>
                 Experience & project types

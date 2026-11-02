@@ -1,15 +1,9 @@
-import { LogoutOutlined } from '@ant-design/icons';
-import { Button, Card, Flex, Layout, Typography } from 'antd';
+import { Card, Typography } from 'antd';
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router';
-import { useAppDispatch, useSession } from '../store/hooks.ts';
-import { sessionCleared } from '../store/sessionSlice.ts';
-
-const { Header, Content } = Layout;
+import { Frame } from '../components/Frame.tsx';
+import { useSession } from '../store/hooks.ts';
 
 export function HomePage() {
-    const navigate = useNavigate();
-    const dispatch = useAppDispatch();
     const session = useSession();
 
     useEffect(() => {
@@ -22,33 +16,16 @@ export function HomePage() {
 
     const name = [session.profile.givenName, session.profile.familyName].filter(Boolean).join(' ');
 
-    function signOut(): void {
-        dispatch(sessionCleared());
-        navigate('/sign-in', { replace: true });
-    }
-
     return (
-        <Layout style={{ minHeight: '100vh' }}>
-            <Header>
-                <Flex align="center" justify="space-between" style={{ height: '100%' }}>
-                    <Typography.Title level={4} style={{ color: '#fff', margin: 0 }}>
-                        Sugarcube
-                    </Typography.Title>
-                    <Button icon={<LogoutOutlined />} onClick={signOut}>
-                        Sign out
-                    </Button>
-                </Flex>
-            </Header>
-            <Content style={{ padding: 24 }}>
-                <Card style={{ maxWidth: 640 }}>
-                    <Typography.Title level={3}>
-                        {name ? `Hello, ${name}` : 'Signed in'}
-                    </Typography.Title>
-                    {session.profile.email ? (
-                        <Typography.Paragraph type="secondary">{session.profile.email}</Typography.Paragraph>
-                    ) : null}
-                </Card>
-            </Content>
-        </Layout>
+        <Frame>
+            <Card style={{ maxWidth: 640 }}>
+                <Typography.Title level={3}>
+                    {name ? `Hello, ${name}` : 'Signed in'}
+                </Typography.Title>
+                {session.profile.email ? (
+                    <Typography.Paragraph type="secondary">{session.profile.email}</Typography.Paragraph>
+                ) : null}
+            </Card>
+        </Frame>
     );
 }

@@ -3,7 +3,7 @@ import { ulid } from 'ulidx';
 import type { AccountType, User } from '../entities/user.js';
 import { UserLocaleSchema } from '../entities/userLocale.js';
 import type { UnionStatus } from '../entities/userWorkProfile.js';
-import { WorkProfileSchema } from '../entities/workProfile.js';
+import { WorkProfileSchema, type WorkProfile } from '../entities/workProfile.js';
 import { constraintFailure } from './pgError.js';
 import { UserRepo, type BasicWrite } from '../repositories/userRepo.js';
 
@@ -19,6 +19,8 @@ const basicConstraints = {
 const photoConstraints = {
     user_profile_photo_check: { statusCode: 400, message: 'Profile photo is not valid.' },
 };
+
+export const profilePhotoTtlSeconds = 15 * 60;
 
 const setupConstraints = {
     work_profile_user_profile_id_fkey: { statusCode: 404, message: 'Profile not found.' },
@@ -144,6 +146,11 @@ export class UserLogic extends Logic {
         return this.binary.load(id);
     }
 
+    profilePhotoUrl(ctx: Context, id: string): Promise<string | null> {
+        this.log.trace(`${ctx.traceId} profile photo url ${id}`);
+        return this.binary.presignGet(id, profilePhotoTtlSeconds);
+    }
+
     async completeSetup(ctx: Context, userId: string, input: SetupProfileInput): Promise<User | null> {
         const workProfile = WorkProfileSchema.parse({
             id: ulid(),
@@ -189,6 +196,23 @@ export class UserLogic extends Logic {
             return null;
         }
         return user;
+    }
+
+    listWorkProfiles(ctx: Context, userId: string): Promise<WorkProfile[]> {
+        return this.userRepo.listWorkProfiles(ctx, userId);
+    }
+
+    async submitForReview(ctx: Context, userId: string): Promise<User | null> {
+        const result = await this.userRepo.submitForReview(ctx, userId);
+        if (result.status === 'incomplete') {
+            ctx.error('Add at least 2 videos before submitting.', 409);
+            return null;
+        }
+        if (result.status === 'unavailable') {
+            ctx.error('Your profile can only be submitted from the media step.', 409);
+            return null;
+        }
+        return result.user;
     }
 
     private async discardPhoto(id: string): Promise<void> {

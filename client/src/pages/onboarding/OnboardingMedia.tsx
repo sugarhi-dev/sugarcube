@@ -2,14 +2,16 @@ import { ArrowLeftOutlined, ArrowRightOutlined, DeleteOutlined, EditOutlined, Ho
 import { classifyMediaLink, mediaUrl, type UserMedia } from '@sugarcube/schema';
 import { App as AntdApp, Button, Flex, Input, Modal, Progress, Result, Spin, Typography } from 'antd';
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { createMedia, deleteMedia, getMediaThumbnail, listMedia, reorderMedia, updateMedia, uploadMedia } from '../../api/media.ts';
 import { useAppSelector, useSession } from '../../store/hooks.ts';
 import { copyThat } from '../../theme.ts';
 import { OnboardingFrame } from './OnboardingFrame.tsx';
+import { onboardingReviewPath } from './OnboardingReview.tsx';
 
 export const onboardingMediaPath = '/onboarding/media';
 
-const minimumMedia = 5;
+const minimumMedia = 2;
 const thumbnailLimit = 8 * 1024 * 1024;
 const videoLimit = 200 * 1024 * 1024;
 
@@ -20,8 +22,10 @@ type DragState = {
 };
 
 export function OnboardingMedia() {
+    const navigate = useNavigate();
     const session = useSession();
     const accountType = useAppSelector((state) => state.profile.user?.account_type);
+    const status = useAppSelector((state) => state.profile.user?.status);
     const accountLabel = accountType === 'client' ? 'CLIENT SETUP' : 'CREW SETUP';
     const { message } = AntdApp.useApp();
     const thumbRef = useRef<HTMLInputElement>(null);
@@ -54,6 +58,7 @@ export function OnboardingMedia() {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [attempt, setAttempt] = useState(0);
     const [ready, setReady] = useState(false);
+    const [continuing, setContinuing] = useState(false);
 
     useEffect(() => {
         document.title = 'Upload your media';
@@ -378,6 +383,24 @@ export function OnboardingMedia() {
         }
     }
 
+    async function onContinue(): Promise<void> {
+        if (continuing) {
+            return;
+        }
+
+        setContinuing(true);
+        try {
+            await writes.current;
+            const submitted = status === 'review';
+            if (itemsRef.current.length < minimumMedia && !submitted) {
+                return;
+            }
+            navigate(onboardingReviewPath);
+        } finally {
+            setContinuing(false);
+        }
+    }
+
     function onRemove(id: string): void {
         if (!session || removingId) {
             return;
@@ -398,6 +421,8 @@ export function OnboardingMedia() {
         });
     }
 
+    const canReview = ready && (items.length >= minimumMedia || status === 'review');
+
     return (
         <OnboardingFrame
             step={4}
@@ -406,13 +431,13 @@ export function OnboardingMedia() {
             note="Reels autoplay on your profile — paste a Vimeo or YouTube link and we handle the rest."
         >
             <Typography.Text style={{ color: copyThat.pink, fontSize: 12, fontWeight: 700, letterSpacing: '0.12em' }}>
-                STEP 4 OF 5
+                STEP 4 OF 6
             </Typography.Text>
             <Typography.Title level={3} style={{ margin: '4px 0 0', fontWeight: 700, letterSpacing: '-0.02em' }}>
                 Upload your media
             </Typography.Title>
             <Typography.Paragraph type="secondary" style={{ margin: '4px 0 18px', fontSize: 14 }}>
-                Minimum 5 items to go live. Upload files or paste a Vimeo / YouTube link — reels autoplay on your profile.
+                Minimum 2 items to go live. Upload files or paste a Vimeo / YouTube link — reels autoplay on your profile.
             </Typography.Paragraph>
 
             {loadError ? (
@@ -697,10 +722,13 @@ export function OnboardingMedia() {
                     className="profile-continue"
                     icon={<ArrowRightOutlined />}
                     iconPlacement="end"
-                    style={{
+                    loading={continuing}
+                    disabled={!canReview}
+                    onClick={() => void onContinue()}
+                    style={canReview ? {
                         background: `linear-gradient(90deg, ${copyThat.pinkHot} 0%, ${copyThat.pink} 100%)`,
                         border: 'none',
-                    }}
+                    } : undefined}
                 >
                     Continue — review
                 </Button>

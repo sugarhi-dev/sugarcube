@@ -8,6 +8,9 @@ import { onboardingBasicPath } from '../pages/onboarding/OnboardingBasic.tsx';
 import { onboardingExperiencePath } from '../pages/onboarding/OnboardingExperience.tsx';
 import { onboardingMediaPath } from '../pages/onboarding/OnboardingMedia.tsx';
 import { onboardingProfilePath } from '../pages/onboarding/OnboardingProfile.tsx';
+import { onboardingReviewPath } from '../pages/onboarding/OnboardingReview.tsx';
+import { onboardingWaitPath } from '../pages/onboarding/OnboardingWait.tsx';
+import { profilePath } from '../pages/profile/ProfilePage.tsx';
 import { useAppDispatch, useAppSelector, useSession } from '../store/hooks.ts';
 import { profileFailed, profileLoaded, profileRequested } from '../store/profileSlice.ts';
 import { sessionCleared } from '../store/sessionSlice.ts';
@@ -90,6 +93,9 @@ export function SignedIn() {
     const onProfile = location.pathname === onboardingProfilePath;
     const onExperience = location.pathname === onboardingExperiencePath;
     const onMedia = location.pathname === onboardingMediaPath;
+    const onReview = location.pathname === onboardingReviewPath;
+    const onWait = location.pathname === onboardingWaitPath;
+    const onCrewProfile = location.pathname === profilePath;
     if (user.status === 'new' && !onAccountType) {
         return <Navigate to={onboardingAccountTypePath} replace />;
     }
@@ -102,8 +108,14 @@ export function SignedIn() {
     if (user.status === 'experience' && !onExperience) {
         return <Navigate to={onboardingExperiencePath} replace />;
     }
-    if (user.status === 'media' && !onMedia) {
+    if (user.status === 'media' && !onMedia && !onReview) {
         return <Navigate to={onboardingMediaPath} replace />;
+    }
+    if (user.status === 'review' && !onReview && !onMedia && !onCrewProfile) {
+        return <Navigate to={onboardingReviewPath} replace />;
+    }
+    if (user.status === 'admin-review' && !onWait) {
+        return <Navigate to={onboardingWaitPath} replace />;
     }
     if (
         user.status !== 'new'
@@ -111,7 +123,9 @@ export function SignedIn() {
         && user.status !== 'setup'
         && user.status !== 'experience'
         && user.status !== 'media'
-        && (onAccountType || onBasic || onProfile || onExperience || onMedia)
+        && user.status !== 'review'
+        && user.status !== 'admin-review'
+        && (onAccountType || onBasic || onProfile || onExperience || onMedia || onReview || onWait)
     ) {
         return <Navigate to="/" replace />;
     }

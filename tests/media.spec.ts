@@ -47,7 +47,7 @@ test('uploads a video and thumbnail', async ({ page }) => {
 
     const uploaded = page.getByRole('listitem', { name: /Uploaded video, cover/ });
     await expect(uploaded.locator('img')).toHaveAttribute('src', /^blob:/);
-    await expect(page.getByText('1 of 5 — add 4 more')).toBeVisible();
+    await expect(page.getByText('1 of 2 — add 1 more')).toBeVisible();
 
     const reloadedThumb = page.waitForResponse((response) =>
         response.request().method() === 'GET' && response.url().includes('/api/me/media/') && response.url().includes('/thumbnail') && response.ok());
@@ -56,7 +56,7 @@ test('uploads a video and thumbnail', async ({ page }) => {
     const loaded = await reloadedThumb;
     expect(loaded.headers()['content-type']).toContain('image/jpeg');
     await expect(page.getByRole('listitem', { name: /Uploaded video, cover/ }).locator('img')).toHaveAttribute('src', /^blob:/);
-    await expect(page.getByText('1 of 5 — add 4 more')).toBeVisible();
+    await expect(page.getByText('1 of 2 — add 1 more')).toBeVisible();
 });
 
 test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) => {
@@ -90,7 +90,7 @@ test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) =>
     const uploaded = page.getByRole('listitem', { name: /Uploaded video, cover/ });
     await expect(uploaded.locator('img')).toHaveAttribute('src', /^blob:/);
     await uploaded.getByRole('button', { name: /^Delete / }).click();
-    await expect(page.getByText('0 of 5 — add 5 more')).toBeVisible();
+    await expect(page.getByText('0 of 2 — add 2 more')).toBeVisible();
 
     await page.getByRole('button', { name: 'YouTube / Vimeo' }).click();
     const addDialog = page.getByRole('dialog', { name: 'Add a YouTube or Vimeo video' });
@@ -100,19 +100,19 @@ test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) =>
     await addDialog.getByRole('button', { name: 'Add', exact: true }).click();
     await expect(addDialog.getByRole('alert')).toHaveText('Paste a YouTube or Vimeo link.');
     await addDialog.getByRole('button', { name: 'Cancel' }).click();
-    await expect(page.getByText('0 of 5 — add 5 more')).toBeVisible();
+    await expect(page.getByText('0 of 2 — add 2 more')).toBeVisible();
 
     await addLink(page, youtubeUrl);
     const youtube = page.getByRole('listitem', { name: /YouTube video, cover/ });
     await expect(youtube.locator('img')).toHaveAttribute('src', /^blob:/);
     await expect(youtube).toHaveCSS('width', /^33\d(\.\d+)?px$/);
     await expect(youtube.getByText('Cover')).toBeVisible();
-    await expect(page.getByText('1 of 5 — add 4 more')).toBeVisible();
+    await expect(page.getByText('1 of 2 — add 1 more')).toBeVisible();
 
     await addLink(page, vimeoUrl);
     const vimeo = page.getByRole('listitem', { name: /Vimeo video, 2 of 2/ });
     await expect(vimeo.locator('img')).toHaveAttribute('src', /^blob:/);
-    await expect(page.getByText('2 of 5 — add 3 more')).toBeVisible();
+    await expect(page.getByText('2 of 2')).toBeVisible();
 
     await dragCard(page, vimeo, youtube);
     const grid = page.locator('.media-grid');

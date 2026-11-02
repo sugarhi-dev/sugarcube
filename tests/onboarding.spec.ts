@@ -18,7 +18,7 @@ test('logs in and completes profile setup', async ({ page }) => {
     await page.getByRole('button', { name: 'Continue as Crew' }).click();
 
     await expect(page.getByRole('heading', { name: 'Tell us about you' })).toBeVisible();
-    await expect(page.getByText('STEP 1 OF 5')).toBeVisible();
+    await expect(page.getByText('STEP 1 OF 6')).toBeVisible();
     await expect(page.getByRole('listitem').filter({ hasText: 'Basic Info' })).toHaveAttribute('aria-current', 'step');
     await expect(page.getByText('CREW SETUP')).toBeVisible();
     await expect(page.getByLabel('First name')).toHaveValue(devUser.firstName);
@@ -99,10 +99,10 @@ test('logs in and completes profile setup', async ({ page }) => {
     await page.getByRole('button', { name: 'Continue — upload media' }).click();
 
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
-    await expect(page.getByText('STEP 4 OF 5')).toBeVisible();
+    await expect(page.getByText('STEP 4 OF 6')).toBeVisible();
     await expect(page.getByRole('listitem').filter({ hasText: 'Upload your media' })).toHaveAttribute('aria-current', 'step');
     await expect(page.getByRole('button', { name: 'Add a video' })).toBeVisible();
-    await expect(page.getByText('0 of 5 — add 5 more')).toBeVisible();
+    await expect(page.getByText('0 of 2 — add 2 more')).toBeVisible();
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
 });

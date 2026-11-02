@@ -2,7 +2,7 @@ import { Database, Repository, type Context } from '@sugarcube/server-core';
 import { UserSchema, type AccountType, type User } from '../entities/user.js';
 import type { UserLocale } from '../entities/userLocale.js';
 import type { UnionStatus } from '../entities/userWorkProfile.js';
-import type { WorkProfile } from '../entities/workProfile.js';
+import { WorkProfileSchema, type WorkProfile } from '../entities/workProfile.js';
 
 const userColumns = 'id, first_name, last_name, email, phone, bio, photo, keycloak_id, status, account_type';
 
@@ -136,7 +136,7 @@ export class UserRepo extends Repository {
             );
             const rateId = existingRate.rows[0]?.id;
             if (rateId) {
-                await query(
+            await query(
                     `UPDATE user_work_profile
                      SET day_rate = $2,
                          currency_id = $3,
@@ -180,6 +180,18 @@ export class UserRepo extends Repository {
         });
     }
 
+    async listWorkProfiles(ctx: Context, userId: string): Promise<WorkProfile[]> {
+        this.log.trace(`${ctx.traceId} select work_profile ${userId}`);
+        const result = await this.database.query<WorkProfile>(
+            `SELECT id, user_profile_id, discipline_id, position_id
+             FROM work_profile
+             WHERE user_profile_id = $1
+             ORDER BY created_at`,
+            [userId],
+        );
+        return result.rows.map((row) => WorkProfileSchema.parse(row));
+    }
+
     async completeExperience(ctx: Context, userId: string): Promise<User | null> {
         this.log.trace(`${ctx.traceId} complete experience ${userId}`);
         const result = await this.database.query<UserRow>(
@@ -193,7 +205,53 @@ export class UserRepo extends Repository {
         const row = result.rows[0];
         return row ? UserSchema.parse(row) : null;
     }
+
+    async submitForReview(ctx: Context, userId: string): Promise<SubmitForReviewResult> {
+        this.log.trace(`${ctx.traceId} submit profile for review ${userId}`);
+        return this.database.transaction(async (query) => {
+            const locked = await query<UserRow>(
+                `SELECT ${userColumns}
+                 FROM user_profile
+                 WHERE id = $1 AND status IN ('media', 'review', 'admin-review')
+                 FOR UPDATE`,
+                [userId],
+            );
+            const current = locked.rows[0];
+            if (!current) {
+                return { status: 'unavailable' };
+            }
+            if (current.status === 'admin-review') {
+                return { status: 'ok', user: UserSchema.parse(current) };
+            }
+
+            const counted = await query<{ count: number }>(
+                `SELECT COUNT(*)::int AS count
+                 FROM user_media
+                 WHERE user_profile_id = $1`,
+                [userId],
+            );
+            if (Number(counted.rows[0]?.count ?? 0) < 2) {
+                return { status: 'incomplete' };
+            }
+
+            const updated = await query<UserRow>(
+                `UPDATE user_profile
+                 SET status = 'admin-review',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1 AND status = $2
+                 RETURNING ${userColumns}`,
+                [userId, current.status],
+            );
+            const row = updated.rows[0];
+            return row ? { status: 'ok', user: UserSchema.parse(row) } : { status: 'unavailable' };
+        });
+    }
 }
+
+export type SubmitForReviewResult =
+    | { status: 'ok'; user: User }
+    | { status: 'incomplete' }
+    | { status: 'unavailable' };
 
 export type BasicWrite = {
     phone: string;

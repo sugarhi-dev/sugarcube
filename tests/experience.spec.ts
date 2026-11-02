@@ -8,7 +8,7 @@ test.beforeEach(async () => {
 test('saves credits and project types on the experience page', async ({ page }) => {
     await openExperience(page);
 
-    await expect(page.getByText('STEP 3 OF 5')).toBeVisible();
+    await expect(page.getByText('STEP 3 OF 6')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
     await expect(page.getByText('Credits live a resume — project, role and lead producer. Producers may be contacted as references.')).toBeVisible();
     await expect(page.getByRole('listitem').filter({ hasText: 'Experience & project types' })).toHaveAttribute('aria-current', 'step');
