@@ -77,8 +77,7 @@ services:
       - ../../config/test/cloudflare_origins.cert:/etc/nginx/certs/cloudflare_origins.cert:ro,z
       - ../../config/test/cloudflare_origins.key:/etc/nginx/certs/cloudflare_origins.key:ro,z
     depends_on:
-      - keycloakyou
-
+      - keycloak
       - seaweedfs
       - server
     networks:
