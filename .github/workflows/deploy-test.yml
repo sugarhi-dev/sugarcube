@@ -97,7 +97,7 @@ jobs:
               - type: section
                 text:
                   type: mrkdwn
-                  text: ":white_check_mark: *The test site is up*\nThe new code is deployed and ready to use.\n*Pushed by:* ${{ github.actor }}\n<https://test.sugarcube.tv/sugarhi/|Open the test site>"
+                  text: ":white_check_mark: *The test site is up*\nThe new code is deployed and ready to use.\n*Pushed by:* ${{ github.actor }}\n<https://test.sugarcube.tv/|Open the test site>"
               - type: context
                 elements:
                   - type: mrkdwn

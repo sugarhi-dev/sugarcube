@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
 const apiProxy = {
     '/api': {
@@ -8,21 +8,24 @@ const apiProxy = {
     },
 };
 
-export default defineConfig({
-    base: '/sugarhi/',
-    plugins: [react()],
-    server: {
-        host: '127.0.0.1',
-        port: 5173,
-        strictPort: true,
-        proxy: apiProxy,
-        hmr: {
-            clientPort: 80,
+export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, process.cwd(), '');
+    return {
+        base: env.BASE_PATH || '/sugarhi/',
+        plugins: [react()],
+        server: {
+            host: '127.0.0.1',
+            port: 5173,
+            strictPort: true,
+            proxy: apiProxy,
+            hmr: {
+                clientPort: 80,
+            },
         },
-    },
-    preview: {
-        port: 4173,
-        strictPort: true,
-        proxy: apiProxy,
-    },
+        preview: {
+            port: 4173,
+            strictPort: true,
+            proxy: apiProxy,
+        },
+    };
 });
