@@ -1,6 +1,6 @@
 import { Binary, Context, Logic, type BinaryObject } from '@sugarcube/server-core';
 import { ulid } from 'ulidx';
-import type { AccountType, User } from '../entities/user.js';
+import type { AccountType, User, UserStatus } from '../entities/user.js';
 import { UserLocaleSchema } from '../entities/userLocale.js';
 import type { UnionStatus } from '../entities/userWorkProfile.js';
 import { WorkProfileSchema, type WorkProfile } from '../entities/workProfile.js';
@@ -98,7 +98,7 @@ export class UserLogic extends Logic {
         try {
             const user = await this.userRepo.saveBasic(ctx, userId, input);
             if (!user) {
-                ctx.error('Basic profile can only be saved while your account is in basic.', 409);
+                ctx.error('Profile details can only be updated while you are setting up or reviewing your profile.', 409);
                 return null;
             }
             return user;
@@ -113,8 +113,8 @@ export class UserLogic extends Logic {
     }
 
     async savePhoto(ctx: Context, user: User, data: Uint8Array, contentType: string): Promise<User | null> {
-        if (user.status !== 'basic') {
-            ctx.error('Profile photo can only be saved while your account is in basic.', 409);
+        if (!canUpdateProfileDetails(user.status)) {
+            ctx.error('Profile photo can only be updated while you are setting up or reviewing your profile.', 409);
             return null;
         }
 
@@ -123,7 +123,7 @@ export class UserLogic extends Logic {
             const saved = await this.userRepo.savePhoto(ctx, user.id, id);
             if (!saved) {
                 await this.discardPhoto(id);
-                ctx.error('Profile photo can only be saved while your account is in basic.', 409);
+                ctx.error('Profile photo can only be updated while you are setting up or reviewing your profile.', 409);
                 return null;
             }
             if (user.photo) {
@@ -175,7 +175,7 @@ export class UserLogic extends Logic {
                 locales,
             });
             if (!user) {
-                ctx.error('Profile setup is only available while your account is in setup.', 409);
+                ctx.error('Profile setup can only be updated while you are setting up or reviewing your profile.', 409);
                 return null;
             }
             return user;
@@ -187,6 +187,20 @@ export class UserLogic extends Logic {
             ctx.error(failure.message, failure.statusCode);
             return null;
         }
+    }
+
+    async returnToStep(ctx: Context, userId: string, target: UserStatus): Promise<User | null> {
+        const from = nextOnboardingStatus[target];
+        if (!from) {
+            ctx.error('You can only go back one step.', 409);
+            return null;
+        }
+        const user = await this.userRepo.returnToStep(ctx, userId, target, from);
+        if (!user) {
+            ctx.error('You can only go back one step.', 409);
+            return null;
+        }
+        return user;
     }
 
     async completeExperience(ctx: Context, userId: string): Promise<User | null> {
@@ -223,6 +237,18 @@ export class UserLogic extends Logic {
             this.log.error(`Could not remove binary ${id}: ${message}`);
         }
     }
+}
+
+const nextOnboardingStatus: Partial<Record<UserStatus, UserStatus>> = {
+    new: 'basic',
+    basic: 'setup',
+    setup: 'experience',
+    experience: 'media',
+    media: 'review',
+};
+
+function canUpdateProfileDetails(status: User['status']): boolean {
+    return status === 'basic' || status === 'media' || status === 'review';
 }
 
 function roundMoney(value: number): number {

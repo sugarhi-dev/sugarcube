@@ -2,7 +2,7 @@ import { ArrowLeftOutlined, ArrowRightOutlined, CameraOutlined, MailOutlined, Ph
 import { App as AntdApp, Button, Flex, Form, Input, Typography } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { getProfilePhoto, saveBasic, uploadProfilePhoto } from '../../api/me.ts';
+import { getProfilePhoto, returnToStep, saveBasic, uploadProfilePhoto } from '../../api/me.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
@@ -32,6 +32,7 @@ export function OnboardingBasic() {
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
+    const [returning, setReturning] = useState(false);
     const accessToken = session?.accessToken ?? null;
     const storedPhoto = user?.photo ?? null;
 
@@ -99,6 +100,23 @@ export function OnboardingBasic() {
         }
 
         setPhotoFile(file);
+    }
+
+    async function onBack(): Promise<void> {
+        if (!session || returning) {
+            return;
+        }
+
+        setReturning(true);
+        try {
+            const saved = await returnToStep(session.accessToken, 'new');
+            dispatch(profileLoaded({ user: saved, forSubject: session.profile.subject }));
+            navigate(onboardingAccountTypePath);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not go back.');
+        } finally {
+            setReturning(false);
+        }
     }
 
     async function onFinish(values: BasicFormValues): Promise<void> {
@@ -221,7 +239,9 @@ export function OnboardingBasic() {
                         type="text"
                         htmlType="button"
                         icon={<ArrowLeftOutlined />}
-                        onClick={() => navigate(onboardingAccountTypePath)}
+                        loading={returning}
+                        disabled={saving}
+                        onClick={() => void onBack()}
                         style={{ color: copyThat.muted }}
                     >
                         Back

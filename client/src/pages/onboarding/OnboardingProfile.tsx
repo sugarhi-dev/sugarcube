@@ -1,15 +1,13 @@
 import {
     ArrowLeftOutlined,
     ArrowRightOutlined,
-    EnvironmentOutlined,
-    HomeOutlined,
     PlaySquareOutlined,
-    PlusOutlined,
     VideoCameraOutlined,
 } from '@ant-design/icons';
-import { App as AntdApp, Button, Flex, Form, InputNumber, Radio, Result, Select, Spin, Switch, Tag, Typography } from 'antd';
+import { App as AntdApp, Button, Flex, Form, InputNumber, Radio, Result, Select, Spin, Switch, Typography } from 'antd';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
+import { ApiError } from '../../api/http.ts';
 import {
     listCurrencies,
     listDisciplines,
@@ -20,10 +18,12 @@ import {
     type Position,
     type ProductionCity,
 } from '../../api/catalog.ts';
-import { saveSetup, type SetupCity, type UnionStatus } from '../../api/me.ts';
+import { getWorkProfile, listLocales, listWorkProfiles, returnToStep, saveSetup, type SetupCity, type UnionStatus } from '../../api/me.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
+import { LocaleField } from './LocaleField.tsx';
+import { onboardingBasicPath } from './OnboardingBasic.tsx';
 import { OnboardingFrame } from './OnboardingFrame.tsx';
 import { onboardingExperiencePath } from './OnboardingExperience.tsx';
 
@@ -60,6 +60,16 @@ type ProfileFormValues = {
     locales: SetupCity[];
 };
 
+type SavedSetup = {
+    discipline_id?: string;
+    position_id?: string;
+    day_rate?: number;
+    currency_id?: string;
+    union_status?: UnionStatus;
+    flat_fee: boolean;
+    locales: SetupCity[];
+};
+
 export function OnboardingProfile() {
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
@@ -71,9 +81,11 @@ export function OnboardingProfile() {
     const currencyId = Form.useWatch('currency_id', form);
     const disciplineId = Form.useWatch('discipline_id', form);
     const [catalog, setCatalog] = useState<Catalog | null>(null);
+    const [saved, setSaved] = useState<SavedSetup | null>(null);
     const [catalogError, setCatalogError] = useState<string | null>(null);
     const [attempt, setAttempt] = useState(0);
     const [saving, setSaving] = useState(false);
+    const [returning, setReturning] = useState(false);
 
     useEffect(() => {
         document.title = 'Set up your profile';
@@ -87,6 +99,7 @@ export function OnboardingProfile() {
         const token = session.accessToken;
         let active = true;
         setCatalog(null);
+        setSaved(null);
         setCatalogError(null);
 
         Promise.all([
@@ -94,8 +107,9 @@ export function OnboardingProfile() {
             listPositions(token),
             listCurrencies(token),
             listProductionCities(token),
+            loadSavedSetup(token),
         ]).then(
-            ([disciplines, positions, currencies, cities]) => {
+            ([disciplines, positions, currencies, cities, setup]) => {
                 if (!active) {
                     return;
                 }
@@ -103,6 +117,7 @@ export function OnboardingProfile() {
                     setCatalogError('Setup options are not available yet.');
                     return;
                 }
+                setSaved(setup);
                 setCatalog({
                     disciplines: orderDisciplines(disciplines),
                     positions,
@@ -137,6 +152,23 @@ export function OnboardingProfile() {
 
     const currencyCode = catalog?.currencies.find((currency) => currency.id === currencyId)?.code;
     const ratePrefix = currencyCode ? (currencySymbols[currencyCode] ?? currencyCode) : undefined;
+
+    async function onBack(): Promise<void> {
+        if (!session || returning) {
+            return;
+        }
+
+        setReturning(true);
+        try {
+            const savedUser = await returnToStep(session.accessToken, 'basic');
+            dispatch(profileLoaded({ user: savedUser, forSubject: session.profile.subject }));
+            navigate(onboardingBasicPath);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not go back.');
+        } finally {
+            setReturning(false);
+        }
+    }
 
     async function onFinish(values: ProfileFormValues): Promise<void> {
         if (!session) {
@@ -193,7 +225,7 @@ export function OnboardingProfile() {
                         </Button>
                     )}
                 />
-            ) : !catalog ? (
+            ) : !catalog || !saved ? (
                 <Spin size="large" description="Loading setup options…" />
             ) : (
                 <Form
@@ -201,7 +233,15 @@ export function OnboardingProfile() {
                     className="profile-form"
                     layout="vertical"
                     requiredMark={false}
-                    initialValues={{ flat_fee: false, locales: [] }}
+                    initialValues={{
+                        discipline_id: saved.discipline_id,
+                        position_id: saved.position_id,
+                        day_rate: saved.day_rate,
+                        currency_id: saved.currency_id,
+                        union_status: saved.union_status,
+                        flat_fee: saved.flat_fee,
+                        locales: saved.locales,
+                    }}
                     onFinish={(values) => void onFinish(values)}
                 >
                     <Form.Item
@@ -310,7 +350,15 @@ export function OnboardingProfile() {
                     </Form.Item>
 
                     <Flex justify="space-between" align="center" style={{ marginTop: 8 }}>
-                        <Button type="text" htmlType="button" icon={<ArrowLeftOutlined />} style={{ color: copyThat.muted }}>
+                        <Button
+                            type="text"
+                            htmlType="button"
+                            icon={<ArrowLeftOutlined />}
+                            loading={returning}
+                            disabled={saving}
+                            onClick={() => void onBack()}
+                            style={{ color: copyThat.muted }}
+                        >
                             Back
                         </Button>
                         <Button
@@ -334,108 +382,35 @@ export function OnboardingProfile() {
     );
 }
 
-function LocaleField({
-    id,
-    cities,
-    value = [],
-    onChange,
-}: {
-    id?: string;
-    cities: ProductionCity[];
-    value?: SetupCity[];
-    onChange?: (value: SetupCity[]) => void;
-}) {
-    const [pickerKey, setPickerKey] = useState(0);
-    const selected = new Set(value.map((row) => row.production_city_id));
-    const byId = new Map(cities.map((city) => [city.id, city]));
-    const options = cities
-        .filter((city) => !selected.has(city.id))
-        .map((city) => ({ value: city.id, label: `${city.name}, ${city.country_code}` }));
-
-    function addCity(cityId: string): void {
-        if (selected.has(cityId)) {
-            return;
-        }
-        const home = value.every((row) => !row.home_city);
-        onChange?.([...value, { production_city_id: cityId, home_city: home }]);
-        setPickerKey((key) => key + 1);
-    }
-
-    function removeCity(cityId: string): void {
-        const remaining = value.filter((row) => row.production_city_id !== cityId);
-        if (remaining.length > 0 && !remaining.some((row) => row.home_city)) {
-            const [first, ...rest] = remaining;
-            if (first) {
-                onChange?.([{ ...first, home_city: true }, ...rest]);
-                return;
+async function loadSavedSetup(token: string): Promise<SavedSetup> {
+    const [workProfiles, locales, rates] = await Promise.all([
+        listWorkProfiles(token),
+        listLocales(token),
+        getWorkProfile(token).catch((error: unknown) => {
+            if (error instanceof ApiError && error.status === 404) {
+                return null;
             }
-        }
-        onChange?.(remaining);
-    }
-
-    function makeHome(cityId: string): void {
-        onChange?.(value.map((row) => ({ ...row, home_city: row.production_city_id === cityId })));
-    }
-
-    function openSearch(): void {
-        document.querySelector<HTMLInputElement>('.city-search input')?.focus();
-    }
-
-    return (
-        <Flex vertical gap={10}>
-            <div className="city-search">
-                <Select
-                    id={id}
-                    key={pickerKey}
-                    showSearch
-                    prefix={<EnvironmentOutlined />}
-                    placeholder="Search cities..."
-                    optionFilterProp="label"
-                    options={options}
-                    onChange={(cityId) => {
-                        if (typeof cityId === 'string') {
-                            addCity(cityId);
-                        }
-                    }}
-                    style={{ width: '100%' }}
-                />
-            </div>
-            <Flex gap={8} wrap="wrap" align="center">
-                {value.map((row) => {
-                    const city = byId.get(row.production_city_id);
-                    const name = city?.name ?? 'City';
-                    return (
-                        <Tag
-                            key={row.production_city_id}
-                            className={row.home_city ? 'city-tag city-tag-home' : 'city-tag'}
-                            closable
-                            icon={row.home_city ? <HomeOutlined /> : undefined}
-                            onClose={(event) => {
-                                event.preventDefault();
-                                removeCity(row.production_city_id);
-                            }}
-                        >
-                            <button
-                                type="button"
-                                className="city-home-hit"
-                                aria-pressed={row.home_city}
-                                aria-label={row.home_city ? `${name} is your home city` : `Set ${name} as your home city`}
-                                onClick={() => makeHome(row.production_city_id)}
-                            >
-                                {row.home_city ? `${name} · Home` : name}
-                            </button>
-                        </Tag>
-                    );
-                })}
-                <Button type="dashed" shape="round" className="add-city" icon={<PlusOutlined />} onClick={openSearch}>
-                    Add city
-                </Button>
-            </Flex>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                Choose one home city. You can work as a local in the others.
-            </Typography.Text>
-        </Flex>
-    );
+            throw error;
+        }),
+    ]);
+    const work = workProfiles[0];
+    const home = locales.find((locale) => locale.home_city) ?? null;
+    const ordered = [
+        ...(home ? [home] : []),
+        ...locales.filter((locale) => locale !== home),
+    ];
+    return {
+        discipline_id: work?.discipline_id,
+        position_id: work?.position_id,
+        day_rate: rates?.day_rate ?? undefined,
+        currency_id: rates?.currency_id ?? undefined,
+        union_status: rates?.union_status,
+        flat_fee: rates?.flat_fee ?? false,
+        locales: ordered.map((locale) => ({
+            production_city_id: locale.production_city_id,
+            home_city: locale.home_city,
+        })),
+    };
 }
 
 function disciplineIcon(name: string): ReactNode {

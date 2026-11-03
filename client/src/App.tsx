@@ -10,7 +10,6 @@ import { OnboardingExperience, onboardingExperiencePath } from './pages/onboardi
 import { OnboardingMedia, onboardingMediaPath } from './pages/onboarding/OnboardingMedia.tsx';
 import { OnboardingProfile, onboardingProfilePath } from './pages/onboarding/OnboardingProfile.tsx';
 import { OnboardingReview, onboardingReviewPath } from './pages/onboarding/OnboardingReview.tsx';
-import { OnboardingWait, onboardingWaitPath } from './pages/onboarding/OnboardingWait.tsx';
 import { ProfilePage, profilePath } from './pages/profile/ProfilePage.tsx';
 import { SignInPage } from './pages/SignInPage.tsx';
 import { copyThatTheme } from './theme.ts';
@@ -32,7 +31,6 @@ export function App() {
                             <Route path={onboardingExperiencePath} element={<OnboardingExperience />} />
                             <Route path={onboardingMediaPath} element={<OnboardingMedia />} />
                             <Route path={onboardingReviewPath} element={<OnboardingReview />} />
-                            <Route path={onboardingWaitPath} element={<OnboardingWait />} />
                         </Route>
                         <Route path="/sign-in" element={<SignInPage />} />
                         <Route path="/auth/callback" element={<CallbackPage />} />

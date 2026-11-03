@@ -4,8 +4,11 @@ import { App as AntdApp, Button, Flex, Input, Modal, Progress, Result, Spin, Typ
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { createMedia, deleteMedia, getMediaThumbnail, listMedia, reorderMedia, updateMedia, uploadMedia } from '../../api/media.ts';
-import { useAppSelector, useSession } from '../../store/hooks.ts';
+import { returnToStep } from '../../api/me.ts';
+import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
+import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
+import { onboardingExperiencePath } from './OnboardingExperience.tsx';
 import { OnboardingFrame } from './OnboardingFrame.tsx';
 import { onboardingReviewPath } from './OnboardingReview.tsx';
 
@@ -23,6 +26,7 @@ type DragState = {
 
 export function OnboardingMedia() {
     const navigate = useNavigate();
+    const dispatch = useAppDispatch();
     const session = useSession();
     const accountType = useAppSelector((state) => state.profile.user?.account_type);
     const status = useAppSelector((state) => state.profile.user?.status);
@@ -59,6 +63,7 @@ export function OnboardingMedia() {
     const [attempt, setAttempt] = useState(0);
     const [ready, setReady] = useState(false);
     const [continuing, setContinuing] = useState(false);
+    const [returning, setReturning] = useState(false);
 
     useEffect(() => {
         document.title = 'Upload your media';
@@ -380,6 +385,24 @@ export function OnboardingMedia() {
         } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
             event.preventDefault();
             moveTo(id, index + 1, true);
+        }
+    }
+
+    async function onBack(): Promise<void> {
+        if (!session || returning) {
+            return;
+        }
+
+        setReturning(true);
+        try {
+            await writes.current;
+            const user = await returnToStep(session.accessToken, 'experience');
+            dispatch(profileLoaded({ user, forSubject: session.profile.subject }));
+            navigate(onboardingExperiencePath);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not go back.');
+        } finally {
+            setReturning(false);
         }
     }
 
@@ -713,7 +736,15 @@ export function OnboardingMedia() {
             </Typography.Paragraph>
 
             <Flex justify="space-between" align="center" style={{ marginTop: 28 }}>
-                <Button type="text" htmlType="button" icon={<ArrowLeftOutlined />} style={{ color: copyThat.muted }}>
+                <Button
+                    type="text"
+                    htmlType="button"
+                    icon={<ArrowLeftOutlined />}
+                    loading={returning}
+                    disabled={continuing}
+                    onClick={() => void onBack()}
+                    style={{ color: copyThat.muted }}
+                >
                     Back
                 </Button>
                 <Button

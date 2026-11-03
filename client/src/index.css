@@ -243,33 +243,33 @@ form.credit-card {
 }
 
 .project-type-chip {
-    border: 1px solid #f3a0c0;
+    border: 1px solid #e4dfd8;
     background: #fff;
-    color: #e2186c;
+    color: #3a3532;
     border-radius: 999px;
-    padding: 5px 12px;
+    padding: 6px 14px;
     font: inherit;
-    font-size: 13px;
-    font-weight: 650;
+    font-size: 13.5px;
+    font-weight: 500;
     line-height: 1.2;
     cursor: pointer;
 }
 
 .project-type-chip.is-selected {
-    background: #e2186c;
+    background: #fff;
     border-color: #e2186c;
-    color: #fff;
+    color: #e2186c;
 }
 
 .project-type-chip.is-post {
-    border-color: #c5d6ea;
-    color: #5c7fa6;
+    border-color: #c5d4e6;
+    color: #6d87a8;
 }
 
 .project-type-chip.is-post.is-selected {
-    background: #5c7fa6;
-    border-color: #5c7fa6;
-    color: #fff;
+    background: #fff;
+    border-color: #6d87a8;
+    color: #5c7fa6;
 }
 
 .project-type-chip:focus-visible {
@@ -598,145 +598,6 @@ form.credit-card {
     background: #c4125c !important;
 }
 
-.review-card {
-    display: block;
-    width: 100%;
-    padding: 0;
-    border: 0;
-    border-radius: 18px;
-    background: #fff;
-    box-shadow: 0 12px 32px rgba(40, 24, 16, 0.08);
-    overflow: hidden;
-    text-align: left;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-}
-
-.review-card:focus-visible {
-    outline: 2px solid #e2186c;
-    outline-offset: 3px;
-}
-
-.review-card.is-static {
-    cursor: default;
-}
-
-.review-cover {
-    position: relative;
-    aspect-ratio: 16 / 9;
-    background: #241c18;
-}
-
-.review-cover img,
-.review-cover-fallback {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.review-cover-fallback {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #d9d3cc;
-    font-size: 13px;
-    font-weight: 650;
-}
-
-.review-play {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 46px;
-    height: 46px;
-    border-radius: 50%;
-    background: #fff;
-    color: #1c1c1c;
-    font-size: 18px;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
-    pointer-events: none;
-}
-
-.review-play .anticon {
-    margin-left: 2px;
-}
-
-.review-body {
-    padding: 14px 16px 16px;
-}
-
-.review-avatar {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    flex: 0 0 36px;
-    border-radius: 50%;
-    background: #f3efe9;
-    color: #3a342e;
-    font-size: 12px;
-    font-weight: 700;
-    overflow: hidden;
-}
-
-.review-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.review-name {
-    color: #1c1c1c;
-    font-size: 15px;
-    font-weight: 700;
-    line-height: 1.3;
-}
-
-.review-meta {
-    color: #8d8680;
-    font-size: 12px;
-    line-height: 1.4;
-}
-
-.review-types {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 10px;
-}
-
-.review-type {
-    display: inline-flex;
-    padding: 3px 10px;
-    border-radius: 999px;
-    background: #fff1f6;
-    color: #e2186c;
-    font-size: 12px;
-    font-weight: 650;
-}
-
-.review-open {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 12px;
-    color: #ef5b3c;
-    font-size: 13px;
-    font-weight: 650;
-}
-
-.review-open .anticon-arrow-right {
-    font-size: 11px;
-}
-
 .review-submit.ant-btn,
 .review-back.ant-btn {
     width: 100%;
@@ -776,6 +637,151 @@ form.credit-card {
     text-align: center;
     color: #b5aea6;
     font-size: 13px;
+}
+
+.crew-profile.is-review {
+    display: block;
+    max-width: none;
+}
+
+.review-in-review {
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border: 1px solid #f3c3d6;
+    border-radius: 12px;
+    background: #fff4f8;
+    color: #9a2154;
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.45;
+}
+
+.project-type-chip.is-static {
+    cursor: default;
+}
+
+.review-edit.ant-btn {
+    height: 36px;
+    padding-inline: 16px;
+    border-radius: 999px;
+    border-color: #e6dfd8;
+    background: #fff;
+    color: #1c1c1c;
+    font-weight: 650;
+    box-shadow: none;
+}
+
+.review-edit.ant-btn:hover,
+.review-edit.ant-btn:focus {
+    color: #1c1c1c !important;
+    border-color: #d9d0c8 !important;
+    background: #fff !important;
+}
+
+.review-editor {
+    margin-top: 18px;
+    padding: 16px 16px 4px;
+    border: 1px solid #efeae6;
+    border-radius: 16px;
+    background: #fff;
+}
+
+.review-editor-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: 4px 0 12px;
+}
+
+.crew-tile-tools {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    display: flex;
+    gap: 6px;
+}
+
+.crew-tile-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: #fff;
+    color: #1c1c1c;
+    box-shadow: 0 4px 12px rgba(23, 20, 18, 0.16);
+    cursor: pointer;
+}
+
+.crew-tile-tool:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.crew-tile-tool:focus-visible {
+    outline: 2px solid #e2186c;
+    outline-offset: 2px;
+}
+
+.review-media-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.review-experience-add {
+    margin-top: 14px;
+}
+
+.review-credit-form {
+    width: 100%;
+}
+
+.crew-credit.is-editing {
+    display: block;
+}
+
+.crew-credit-side {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+}
+
+.review-types-label {
+    display: block;
+    margin-top: 18px;
+    color: #e2186c;
+    font-weight: 700;
+}
+
+.review-empty-copy {
+    margin: 12px 0 0;
+    color: #8a837c;
+    font-size: 13px;
+}
+
+.review-minimum {
+    margin: 16px 0 0;
+    color: #8a837c;
+    font-size: 13px;
+}
+
+.review-submit-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.review-submit-row .review-submit.ant-btn,
+.review-submit-row .review-back.ant-btn {
+    width: auto;
+    flex: 1;
 }
 
 @media (max-width: 860px) {
@@ -1097,6 +1103,14 @@ form.credit-card {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+.crew-tile-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
 }
 
 .crew-tile-fallback {

@@ -85,6 +85,15 @@ export function completeExperience(accessToken: string): Promise<CurrentUser> {
     return readUser(accessToken, '/api/me/experience', { method: 'PUT' });
 }
 
+export type OnboardingStep = 'new' | 'basic' | 'setup' | 'experience' | 'media';
+
+export function returnToStep(accessToken: string, status: OnboardingStep): Promise<CurrentUser> {
+    return readUser(accessToken, '/api/me/back', {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+    });
+}
+
 export function listLocales(accessToken: string): Promise<UserLocale[]> {
     return readList(accessToken, '/api/me/locales', UserLocaleSchema, 'Cities response was not valid.');
 }

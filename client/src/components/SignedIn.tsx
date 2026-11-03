@@ -9,7 +9,6 @@ import { onboardingExperiencePath } from '../pages/onboarding/OnboardingExperien
 import { onboardingMediaPath } from '../pages/onboarding/OnboardingMedia.tsx';
 import { onboardingProfilePath } from '../pages/onboarding/OnboardingProfile.tsx';
 import { onboardingReviewPath } from '../pages/onboarding/OnboardingReview.tsx';
-import { onboardingWaitPath } from '../pages/onboarding/OnboardingWait.tsx';
 import { profilePath } from '../pages/profile/ProfilePage.tsx';
 import { useAppDispatch, useAppSelector, useSession } from '../store/hooks.ts';
 import { profileFailed, profileLoaded, profileRequested } from '../store/profileSlice.ts';
@@ -94,7 +93,6 @@ export function SignedIn() {
     const onExperience = location.pathname === onboardingExperiencePath;
     const onMedia = location.pathname === onboardingMediaPath;
     const onReview = location.pathname === onboardingReviewPath;
-    const onWait = location.pathname === onboardingWaitPath;
     const onCrewProfile = location.pathname === profilePath;
     if (user.status === 'new' && !onAccountType) {
         return <Navigate to={onboardingAccountTypePath} replace />;
@@ -114,8 +112,8 @@ export function SignedIn() {
     if (user.status === 'review' && !onReview && !onMedia && !onCrewProfile) {
         return <Navigate to={onboardingReviewPath} replace />;
     }
-    if (user.status === 'admin-review' && !onWait) {
-        return <Navigate to={onboardingWaitPath} replace />;
+    if (user.status === 'admin-review' && !onReview) {
+        return <Navigate to={onboardingReviewPath} replace />;
     }
     if (
         user.status !== 'new'
@@ -125,7 +123,7 @@ export function SignedIn() {
         && user.status !== 'media'
         && user.status !== 'review'
         && user.status !== 'admin-review'
-        && (onAccountType || onBasic || onProfile || onExperience || onMedia || onReview || onWait)
+        && (onAccountType || onBasic || onProfile || onExperience || onMedia || onReview)
     ) {
         return <Navigate to="/" replace />;
     }

@@ -7,6 +7,7 @@ test.beforeEach(async () => {
 });
 
 test('logs in and completes profile setup', async ({ page }) => {
+    test.setTimeout(90_000);
     await page.goto('sign-in');
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
     await page.getByLabel('Email').fill(devUser.email);
@@ -66,6 +67,31 @@ test('logs in and completes profile setup', async ({ page }) => {
     await page.getByRole('button', { name: 'Continue — experience' }).click();
 
     await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page.getByRole('heading', { name: 'Set up your profile' })).toBeVisible();
+    await expect(page.locator('.profile-choice .ant-radio-button-wrapper-checked')).toHaveText('Shooting');
+    await expect(page.locator('.ant-form-item', { has: page.getByRole('combobox', { name: 'Position' }) })).toContainText('Director');
+    await expect(page.getByLabel('Day rate')).toHaveValue(/850/);
+    await expect(page.locator('.ant-form-item', { has: page.getByRole('combobox', { name: 'Currency' }) })).toContainText('USD');
+    await expect(page.locator('.union-choice .ant-radio-button-wrapper-checked')).toHaveText('Non-Union');
+    await expect(page.getByRole('switch', { name: 'Would consider flat fee offers' })).toBeChecked();
+    await expect(page.getByRole('button', { name: 'Los Angeles is your home city' })).toBeVisible();
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page.getByRole('heading', { name: 'Tell us about you' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Phone' })).toHaveValue('+52 55 0000 0000');
+    await expect(page.getByLabel('Bio')).toHaveValue('Producer and director based in Mexico City — commercials and music videos.');
+    await expect(page.getByRole('img', { name: 'Profile photo' })).toBeVisible();
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page.getByRole('heading', { name: 'How will you use CopyThat?' })).toBeVisible();
+    await expect(page.getByRole('radio', { name: /I'm Crew/ })).toBeChecked();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'How will you use CopyThat?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Continue as Crew' }).click();
+    await expect(page.getByRole('heading', { name: 'Tell us about you' })).toBeVisible();
+    await page.getByRole('button', { name: 'Continue — setup' }).click();
+    await expect(page.getByRole('heading', { name: 'Set up your profile' })).toBeVisible();
+    await page.getByRole('button', { name: 'Continue — experience' }).click();
+    await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
     await page.getByLabel('Project title').fill('Nike — Up In The Air');
     await chooseOption(page, 'Position', 'Director', 'Director');
     await page.getByLabel('Lead producer').fill('Sarah Kim');
@@ -104,6 +130,14 @@ test('logs in and completes profile setup', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Add a video' })).toBeVisible();
     await expect(page.getByText('0 of 2 — add 2 more')).toBeVisible();
     await page.reload();
+    await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
+    await expect(page.getByText('Adidas — Origami Forever')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Commercial', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
+    await page.getByRole('button', { name: 'Continue — upload media' }).click();
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
 });
 

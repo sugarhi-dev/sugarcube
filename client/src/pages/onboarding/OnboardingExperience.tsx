@@ -18,7 +18,7 @@ import {
     type Position,
     type ProjectType,
 } from '../../api/catalog.ts';
-import { completeExperience } from '../../api/me.ts';
+import { completeExperience, returnToStep } from '../../api/me.ts';
 import {
     createProject,
     deleteProject,
@@ -33,6 +33,7 @@ import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
 import { OnboardingFrame } from './OnboardingFrame.tsx';
 import { onboardingMediaPath } from './OnboardingMedia.tsx';
+import { onboardingProfilePath } from './OnboardingProfile.tsx';
 
 export const onboardingExperiencePath = '/onboarding/experience';
 
@@ -85,6 +86,7 @@ export function OnboardingExperience() {
     const [removingId, setRemovingId] = useState<string | null>(null);
     const [selectedTypeIds, setSelectedTypeIds] = useState<string[]>([]);
     const [continuing, setContinuing] = useState(false);
+    const [returning, setReturning] = useState(false);
     const selectedTypeIdsRef = useRef<string[]>([]);
     const projectsRef = useRef<Project[]>([]);
     const saveQueue = useRef(Promise.resolve());
@@ -234,6 +236,23 @@ export function OnboardingExperience() {
         void persistProjectTypes(saveQueue, projectsRef, selectedTypeIdsRef, token).catch((error: unknown) => {
             message.error(error instanceof Error ? error.message : 'Could not update project types.');
         });
+    }
+
+    async function onBack(): Promise<void> {
+        if (!session || returning) {
+            return;
+        }
+
+        setReturning(true);
+        try {
+            const user = await returnToStep(session.accessToken, 'setup');
+            dispatch(profileLoaded({ user, forSubject: session.profile.subject }));
+            navigate(onboardingProfilePath);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not go back.');
+        } finally {
+            setReturning(false);
+        }
     }
 
     async function onContinue(): Promise<void> {
@@ -488,7 +507,15 @@ export function OnboardingExperience() {
                     </div>
 
                     <Flex justify="space-between" align="center" style={{ marginTop: 28 }}>
-                        <Button type="text" htmlType="button" icon={<ArrowLeftOutlined />} style={{ color: copyThat.muted }}>
+                        <Button
+                            type="text"
+                            htmlType="button"
+                            icon={<ArrowLeftOutlined />}
+                            loading={returning}
+                            disabled={continuing}
+                            onClick={() => void onBack()}
+                            style={{ color: copyThat.muted }}
+                        >
                             Back
                         </Button>
                         <Button

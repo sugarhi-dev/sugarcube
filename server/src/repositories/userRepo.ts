@@ -1,5 +1,5 @@
 import { Database, Repository, type Context } from '@sugarcube/server-core';
-import { UserSchema, type AccountType, type User } from '../entities/user.js';
+import { UserSchema, type AccountType, type User, type UserStatus } from '../entities/user.js';
 import type { UserLocale } from '../entities/userLocale.js';
 import type { UnionStatus } from '../entities/userWorkProfile.js';
 import { WorkProfileSchema, type WorkProfile } from '../entities/workProfile.js';
@@ -71,9 +71,9 @@ export class UserRepo extends Repository {
             `UPDATE user_profile
              SET phone = $2,
                  bio = $3,
-                 status = 'setup',
+                 status = CASE WHEN status = 'basic' THEN 'setup' ELSE status END,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status = 'basic'
+             WHERE id = $1 AND status IN ('basic', 'media', 'review')
              RETURNING ${userColumns}`,
             [userId, input.phone, input.bio],
         );
@@ -87,7 +87,7 @@ export class UserRepo extends Repository {
             `UPDATE user_profile
              SET photo = $2,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status = 'basic'
+             WHERE id = $1 AND status IN ('basic', 'media', 'review')
              RETURNING ${userColumns}`,
             [userId, photo],
         );
@@ -106,7 +106,7 @@ export class UserRepo extends Repository {
             const locked = await query<{ id: string }>(
                 `SELECT id
                  FROM user_profile
-                 WHERE id = $1 AND status = 'setup'
+                 WHERE id = $1 AND status IN ('setup', 'media', 'review')
                  FOR UPDATE`,
                 [userId],
             );
@@ -169,9 +169,9 @@ export class UserRepo extends Repository {
 
             const updated = await query<UserRow>(
                 `UPDATE user_profile
-                 SET status = 'experience',
+                 SET status = CASE WHEN status = 'setup' THEN 'experience' ELSE status END,
                      updated_at = CURRENT_TIMESTAMP
-                 WHERE id = $1 AND status = 'setup'
+                 WHERE id = $1 AND status IN ('setup', 'media', 'review')
                  RETURNING ${userColumns}`,
                 [userId],
             );
@@ -190,6 +190,20 @@ export class UserRepo extends Repository {
             [userId],
         );
         return result.rows.map((row) => WorkProfileSchema.parse(row));
+    }
+
+    async returnToStep(ctx: Context, userId: string, target: UserStatus, from: UserStatus): Promise<User | null> {
+        this.log.trace(`${ctx.traceId} return to step ${userId} ${target}`);
+        const result = await this.database.query<UserRow>(
+            `UPDATE user_profile
+             SET status = $2,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status IN ($2, $3)
+             RETURNING ${userColumns}`,
+            [userId, target, from],
+        );
+        const row = result.rows[0];
+        return row ? UserSchema.parse(row) : null;
     }
 
     async completeExperience(ctx: Context, userId: string): Promise<User | null> {

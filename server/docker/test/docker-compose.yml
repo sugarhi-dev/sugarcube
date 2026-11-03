@@ -77,7 +77,8 @@ services:
       - ../../config/test/cloudflare_origins.cert:/etc/nginx/certs/cloudflare_origins.cert:ro,z
       - ../../config/test/cloudflare_origins.key:/etc/nginx/certs/cloudflare_origins.key:ro,z
     depends_on:
-      - keycloak
+      - keycloakyou
+
       - seaweedfs
       - server
     networks:
@@ -115,15 +116,15 @@ services:
       S3_ENDPOINT: ${S3_ENDPOINT}
       S3_BUCKET: ${S3_BUCKET}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
       KEYCLOAK_JWKS_URL: ${KEYCLOAK_JWKS_URL}
       PORT: ${PORT:-3000}
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_healthy      
       seaweedfs:
         condition: service_healthy
       keycloak:

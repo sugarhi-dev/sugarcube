@@ -36,17 +36,62 @@ test('reviews the crew profile and submits it', async ({ page }) => {
 
     await continueReview.click();
     await expectReview(page);
-    await expect(page.getByRole('button', { name: 'Preview your full profile' })).toBeVisible();
-    const avatar = page.locator('.review-avatar img');
+    const avatar = page.locator('.crew-avatar img');
     await expect(avatar).toHaveAttribute('src', /^\/content\//);
     await expect(avatar).toHaveJSProperty('naturalWidth', 400);
-    await expect(page.getByText('Dev Sugarhi — Director')).toBeVisible();
-    await expect(page.getByText('Union · $2,000/day · Mexico City + 1 · 1 credit · 2 media')).toBeVisible();
-    await expect(page.getByText('Commercial', { exact: true })).toBeVisible();
-    await expect(page.getByText('Music Video', { exact: true })).toBeVisible();
-    await expect(page.locator('.review-cover img')).toHaveAttribute('src', /^blob:/);
+    await expect(page.getByRole('heading', { name: 'Director' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dev Sugarhi' })).toBeVisible();
+    await expect(page.getByText('Worked on Nike — Up In The Air.')).toBeVisible();
+    await expect(page.getByText('Union', { exact: true })).toBeVisible();
+    await expect(page.getByText('$2,000 per day')).toBeVisible();
+    await expect(page.getByText('Local in Mexico City · Los Angeles')).toBeVisible();
+    await expect(page.getByText('Producer and director based in Mexico City.')).toBeVisible();
+    await expect(page.getByText('Nike — Up In The Air', { exact: true })).toBeVisible();
+    await expect(page.getByText('Sarah Kim')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Commercial', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Music Video', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    const tiles = page.locator('.crew-tile');
+    await expect(tiles).toHaveCount(2);
+    await expect(page.locator('.crew-tile iframe')).toHaveCount(0);
+    await expect(tiles.nth(0).locator('img')).toBeVisible();
+    await expect(tiles.nth(1).locator('img')).toBeVisible();
+    await tiles.nth(0).getByRole('button', { name: 'Play YouTube video, cover' }).click();
+    await expect(tiles.nth(0).locator('iframe')).toHaveAttribute('src', 'https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1');
+    await expect(tiles.nth(1).locator('iframe')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Message' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Add to Project' })).toHaveCount(0);
+    await expect(page.getByText('Shoot start')).toHaveCount(0);
     await expect(page.getByText('Once approved you go Live — same dashboard as every account, plus your crew profile.')).toBeVisible();
     await expect(page.getByText('Review takes ~24h — you\'ll show as “Pending review” until approved.')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Edit profile' }).click();
+    await page.getByRole('textbox', { name: 'Bio' }).fill('Lights, camera, and a revised bio.');
+    const basicSaved = page.waitForResponse((response) =>
+        response.request().method() === 'PUT' && response.url().includes('/api/me/basic') && response.ok());
+    const setupSaved = page.waitForResponse((response) =>
+        response.request().method() === 'PUT' && response.url().includes('/api/me/setup') && response.ok());
+    await page.getByRole('button', { name: 'Save profile' }).click();
+    expect((await basicSaved).status()).toBe(200);
+    expect((await setupSaved).status()).toBe(200);
+    await expect(page.getByText('Lights, camera, and a revised bio.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Edit profile' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Edit Nike — Up In The Air' }).click();
+    await page.getByRole('textbox', { name: 'Project title for Nike — Up In The Air' }).fill('Nike — Revised');
+    const creditSaved = page.waitForResponse((response) =>
+        response.request().method() === 'PATCH' && response.url().includes('/api/me/projects/') && response.ok());
+    await page.getByRole('button', { name: 'Save Nike — Up In The Air' }).click();
+    expect((await creditSaved).status()).toBe(200);
+    await expect(page.getByText('Nike — Revised', { exact: true })).toBeVisible();
+    await expect(page.getByText('Worked on Nike — Revised.')).toBeVisible();
+
+    const removed = page.waitForResponse((response) =>
+        response.request().method() === 'DELETE' && response.url().includes('/api/me/media/') && response.ok());
+    await page.getByRole('button', { name: /Delete YouTube video/ }).first().click();
+    expect((await removed).status()).toBe(200);
+    await expect(page.getByRole('button', { name: 'Submit profile' })).toBeDisabled();
+    await addLink(page, videoUrls[0]);
+    await expect(page.getByRole('button', { name: 'Submit profile' })).toBeEnabled();
 
     await page.getByRole('button', { name: 'Go back' }).click();
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
@@ -71,21 +116,24 @@ test('reviews the crew profile and submits it', async ({ page }) => {
 });
 
 async function expectWait(page: Page): Promise<void> {
-    await expect(page.getByRole('heading', { name: 'Waiting for approval' })).toBeVisible();
-    await expect(page.getByText('Please wait while an administrator approves your account.')).toBeVisible();
-    await expect(page.getByText('STEP 6 OF 6')).toBeVisible();
+    await expect(page.getByText('Your profile is in review. An administrator will approve it before you go live.')).toBeVisible();
     await expect(page.getByRole('listitem').filter({ hasText: 'Wait for approval' })).toHaveAttribute('aria-current', 'step');
-    const cover = page.locator('.review-cover img');
-    await expect(cover).toHaveAttribute('src', /^\/content\//);
-    await expect(cover).toHaveJSProperty('naturalWidth', 400);
-    await expect(page.getByText('Dev Sugarhi — Director')).toBeVisible();
-    await expect(page.getByText('Union · $2,000/day · Mexico City + 1 · 1 credit · 2 media')).toBeVisible();
-    await expect(page.getByText('Pending review', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Director' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dev Sugarhi' })).toBeVisible();
+    const avatar = page.locator('.crew-avatar img');
+    await expect(avatar).toHaveAttribute('src', /^\/content\//);
+    await expect(avatar).toHaveJSProperty('naturalWidth', 400);
+    await expect(page.getByRole('button', { name: 'Edit profile' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Submit profile' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Go back' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Add credit' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Upload' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Commercial', exact: true })).toHaveCount(0);
 }
 
 async function expectReview(page: Page): Promise<void> {
-    await expect(page.getByRole('heading', { name: 'Review & go live' })).toBeVisible();
-    await expect(page.getByText('STEP 5 OF 6')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Edit profile' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Submit profile' })).toBeVisible();
     await expect(page.getByRole('listitem').filter({ hasText: 'Review & go live' })).toHaveAttribute('aria-current', 'step');
 }
 

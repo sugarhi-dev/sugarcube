@@ -23,6 +23,12 @@ const UpdateUserLocaleRequestSchema = z.object({
     'At least one field is required.',
 );
 
+const ReturnToStepRequestSchema = z.object({
+    status: z.enum(['new', 'basic', 'setup', 'experience', 'media']).meta({
+        description: 'Earlier onboarding step to return to. Only the previous step is allowed.',
+    }),
+});
+
 const ChooseAccountTypeRequestSchema = z.object({
     account_type: AccountTypeSchema.meta({ description: 'Whether the user is hiring crew or getting booked.' }),
 });
@@ -91,6 +97,7 @@ const SaveUserWorkProfileRequestSchema = z.object({
 
 export const userRequestSchemas = {
     UserLocaleId: UserLocaleIdSchema,
+    ReturnToStepRequest: ReturnToStepRequestSchema,
     ChooseAccountTypeRequest: ChooseAccountTypeRequestSchema,
     BasicProfileRequest: BasicProfileRequestSchema,
     SetupProfileRequest: SetupProfileRequestSchema,
@@ -122,6 +129,7 @@ export class UserController extends Controller {
         this.put('/api/me/photo', this.PUT_photo.bind(this), [], [readPhotoBody]);
         this.put('/api/me/setup', this.PUT_setup.bind(this));
         this.put('/api/me/experience', this.PUT_experience.bind(this));
+        this.put('/api/me/back', this.PUT_back.bind(this));
         this.get('/api/me/work-profiles', this.GET_work_profiles.bind(this));
         this.put('/api/me/review', this.PUT_review.bind(this));
         this.get('/api/me/locales', this.GET_locales.bind(this));
@@ -245,6 +253,18 @@ export class UserController extends Controller {
 
         const body = parseBody(SetupProfileRequestSchema, req.body);
         const updated = await this.userLogic.completeSetup(ctx, user.id, body);
+        this.checkAndRespond(ctx, res, updated);
+    }
+
+    protected async PUT_back(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const body = parseBody(ReturnToStepRequestSchema, req.body);
+        const updated = await this.userLogic.returnToStep(ctx, user.id, body.status);
         this.checkAndRespond(ctx, res, updated);
     }
 
