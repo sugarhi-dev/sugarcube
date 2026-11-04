@@ -13,7 +13,7 @@ import { mediaUrl, type Currency, type Project, type UserMedia } from '@sugarcub
 import { App as AntdApp, Button, DatePicker, Dropdown, Result, Spin, Switch, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
 import { useEffect, useState } from 'react';
-import { listCurrencies, listPositions, listProductionCities, listProjectTypes } from '../../api/catalog.ts';
+import { listCurrencies, listPositions, listProductionCities } from '../../api/catalog.ts';
 import { ApiError } from '../../api/http.ts';
 import { getMediaThumbnail, listMedia } from '../../api/media.ts';
 import {
@@ -23,8 +23,9 @@ import {
     listWorkProfiles,
     type UnionStatus,
 } from '../../api/me.ts';
-import { listProjectProjectTypes, listProjects } from '../../api/projects.ts';
+import { listProjects } from '../../api/projects.ts';
 import { Frame } from '../../components/Frame.tsx';
+import { ProjectCredit, projectFacts } from '../../components/ProjectCredit.tsx';
 import { useAppSelector, useSession } from '../../store/hooks.ts';
 
 export const profilePath = '/profile';
@@ -48,8 +49,11 @@ const currencySymbols: Record<string, string> = {
 type Credit = {
     id: string;
     name: string;
-    detail: string;
-    reference: string;
+    date: string;
+    position: string | null;
+    company: string | null;
+    hiringProducer: string | null;
+    leadProducer: string;
 };
 
 type DateWindow = {
@@ -97,10 +101,9 @@ export function ProfilePage() {
 
         void (async () => {
             try {
-                const [media, projects, projectTypes, positions, currencies, cities, locales, rates, workProfiles] = await Promise.all([
+                const [media, projects, positions, currencies, cities, locales, rates, workProfiles] = await Promise.all([
                     listMedia(token),
                     listProjects(token),
-                    listProjectTypes(token),
                     listPositions(token),
                     listCurrencies(token),
                     listProductionCities(token),
@@ -108,7 +111,6 @@ export function ProfilePage() {
                     loadRates(token),
                     listWorkProfiles(token),
                 ]);
-                const links = await Promise.all(projects.map((project) => listProjectProjectTypes(token, project.id)));
                 if (!active) {
                     return;
                 }
@@ -128,7 +130,7 @@ export function ProfilePage() {
                 });
                 setSnapshot({
                     media,
-                    credits: projects.map((project, index) => toCredit(project, links[index] ?? [], positions, projectTypes)),
+                    credits: projects.map((project) => toCredit(project, positions)),
                     positionNames,
                     unionLabel: rates ? unionLabels[rates.union_status] : null,
                     dayRate: rates?.day_rate ?? null,
@@ -218,7 +220,7 @@ export function ProfilePage() {
     const mediaClass = showAllMedia
         ? 'crew-media is-expanded'
         : mosaic
-            ? 'crew-media'
+            ? 'crew-media is-mosaic'
             : visibleMedia.length === 1
                 ? 'crew-media is-single'
                 : 'crew-media is-pair';
@@ -318,7 +320,9 @@ export function ProfilePage() {
 
                         {user.bio ? (
                             <section className="crew-about" aria-labelledby="crew-about-title">
-                                <h2 id="crew-about-title">About</h2>
+                                <div className="crew-about-head">
+                                    <h2 id="crew-about-title">About</h2>
+                                </div>
                                 <p>{user.bio}</p>
                             </section>
                         ) : null}
@@ -328,6 +332,14 @@ export function ProfilePage() {
                                 <strong>{snapshot.credits.length}</strong>
                                 <span>Projects completed</span>
                             </div>
+                            <div className="crew-stat">
+                                <strong>&lt; 12h</strong>
+                                <span>Average Response</span>
+                            </div>
+                            <div className="crew-stat">
+                                <strong>100%</strong>
+                                <span>Repeat Clients</span>
+                            </div>
                         </div>
 
                         {snapshot.credits.length > 0 ? (
@@ -335,15 +347,20 @@ export function ProfilePage() {
                                 <div className="crew-panel-head">
                                     <h2 id="crew-experience-title">Past experience</h2>
                                 </div>
-                                <ul className="crew-credits">
+                                <ul className="credit-list">
                                     {snapshot.credits.map((credit) => (
-                                        <li key={credit.id} className="crew-credit">
-                                            <div>
-                                                <div className="crew-credit-name">{credit.name}</div>
-                                                {credit.detail ? <div className="crew-credit-detail">{credit.detail}</div> : null}
-                                            </div>
-                                            <div className="crew-credit-ref">{credit.reference}</div>
-                                        </li>
+                                        <ProjectCredit
+                                            key={credit.id}
+                                            name={credit.name}
+                                            handle={false}
+                                            facts={projectFacts({
+                                                date: credit.date,
+                                                position: credit.position,
+                                                company: credit.company,
+                                                hiringProducer: credit.hiringProducer,
+                                                leadProducer: credit.leadProducer,
+                                            })}
+                                        />
                                     ))}
                                 </ul>
                             </section>
@@ -664,21 +681,15 @@ async function loadRates(accessToken: string) {
     }
 }
 
-function toCredit(
-    project: Project,
-    links: Array<{ project_type_id: string }>,
-    positions: Array<{ id: string; name: string }>,
-    projectTypes: Array<{ id: string; name: string }>,
-): Credit {
-    const position = positions.find((row) => row.id === project.position_id)?.name ?? null;
-    const selected = new Set(links.map((link) => link.project_type_id));
-    const types = projectTypes.filter((row) => selected.has(row.id)).map((row) => row.name);
-    const detail = [position, types.length > 0 ? types.join(', ') : null].filter((part): part is string => Boolean(part)).join(' · ');
+function toCredit(project: Project, positions: Array<{ id: string; name: string }>): Credit {
     return {
         id: project.id,
         name: project.name,
-        detail,
-        reference: project.lead_producer_name,
+        date: project.date,
+        position: positions.find((row) => row.id === project.position_id)?.name ?? null,
+        company: project.production_company,
+        hiringProducer: project.hiring_producer,
+        leadProducer: project.lead_producer_name,
     };
 }
 

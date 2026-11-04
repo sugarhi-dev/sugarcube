@@ -15,6 +15,12 @@ export { ProjectProjectTypeSchema, type ProjectProjectType } from './projectProj
 export { ProjectSchema, type Project } from './project.js';
 export { ProjectTypeSchema, type ProjectType } from './projectType.js';
 export { UserLocaleSchema, type UserLocale } from './userLocale.js';
+export {
+    AvailabilityCodeSchema,
+    UserAvailabilitySchema,
+    type AvailabilityCode,
+    type UserAvailability,
+} from './userAvailability.js';
 export { UserWorkProfileSchema, type UnionStatus, type UserWorkProfile } from './userWorkProfile.js';
 export { WorkProfileSchema, type WorkProfile } from './workProfile.js';
 export {

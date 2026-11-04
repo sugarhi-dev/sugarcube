@@ -9,7 +9,6 @@ import { onboardingExperiencePath } from '../pages/onboarding/OnboardingExperien
 import { onboardingMediaPath } from '../pages/onboarding/OnboardingMedia.tsx';
 import { onboardingProfilePath } from '../pages/onboarding/OnboardingProfile.tsx';
 import { onboardingReviewPath } from '../pages/onboarding/OnboardingReview.tsx';
-import { profilePath } from '../pages/profile/ProfilePage.tsx';
 import { useAppDispatch, useAppSelector, useSession } from '../store/hooks.ts';
 import { profileFailed, profileLoaded, profileRequested } from '../store/profileSlice.ts';
 import { sessionCleared } from '../store/sessionSlice.ts';
@@ -93,7 +92,6 @@ export function SignedIn() {
     const onExperience = location.pathname === onboardingExperiencePath;
     const onMedia = location.pathname === onboardingMediaPath;
     const onReview = location.pathname === onboardingReviewPath;
-    const onCrewProfile = location.pathname === profilePath;
     if (user.status === 'new' && !onAccountType) {
         return <Navigate to={onboardingAccountTypePath} replace />;
     }
@@ -106,10 +104,10 @@ export function SignedIn() {
     if (user.status === 'experience' && !onExperience) {
         return <Navigate to={onboardingExperiencePath} replace />;
     }
-    if (user.status === 'media' && !onMedia && !onReview) {
+    if (user.status === 'media' && !onMedia) {
         return <Navigate to={onboardingMediaPath} replace />;
     }
-    if (user.status === 'review' && !onReview && !onMedia && !onCrewProfile) {
+    if (user.status === 'review' && !onReview) {
         return <Navigate to={onboardingReviewPath} replace />;
     }
     if (user.status === 'admin-review' && !onReview) {

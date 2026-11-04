@@ -34,7 +34,10 @@ test('reviews the crew profile and submits it', async ({ page }) => {
     await expect(page.locator('.media-count')).toHaveText('2 of 2');
     await expect(continueReview).toBeEnabled();
 
+    const advanced = page.waitForResponse((response) =>
+        response.request().method() === 'PUT' && new URL(response.url()).pathname.endsWith('/api/me/media') && response.ok());
     await continueReview.click();
+    expect((await advanced).status()).toBe(200);
     await expectReview(page);
     const avatar = page.locator('.crew-avatar img');
     await expect(avatar).toHaveAttribute('src', /^\/content\//);
@@ -48,8 +51,8 @@ test('reviews the crew profile and submits it', async ({ page }) => {
     await expect(page.getByText('Producer and director based in Mexico City.')).toBeVisible();
     await expect(page.getByText('Nike — Up In The Air', { exact: true })).toBeVisible();
     await expect(page.getByText('Sarah Kim')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Commercial', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByRole('button', { name: 'Music Video', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Remove Commercial' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove Music Video' })).toBeVisible();
     const tiles = page.locator('.crew-tile');
     await expect(tiles).toHaveCount(2);
     await expect(page.locator('.crew-tile iframe')).toHaveCount(0);
@@ -61,7 +64,9 @@ test('reviews the crew profile and submits it', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Message' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Add to Project' })).toHaveCount(0);
     await expect(page.getByText('Shoot start')).toHaveCount(0);
-    await expect(page.getByText('Once approved you go Live — same dashboard as every account, plus your crew profile.')).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Setup steps' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /COPY\s*THAT/ })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Search crew, projects, resources' })).toBeDisabled();
     await expect(page.getByText('Review takes ~24h — you\'ll show as “Pending review” until approved.')).toBeVisible();
 
     await page.getByRole('button', { name: 'Edit profile' }).click();
@@ -99,8 +104,6 @@ test('reviews the crew profile and submits it', async ({ page }) => {
     await expectReview(page);
 
     await page.goto('./');
-    await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
-    await page.getByRole('button', { name: 'Continue — review' }).click();
     await expectReview(page);
 
     const submitted = page.waitForResponse((response) =>
@@ -117,24 +120,40 @@ test('reviews the crew profile and submits it', async ({ page }) => {
 
 async function expectWait(page: Page): Promise<void> {
     await expect(page.getByText('Your profile is in review. An administrator will approve it before you go live.')).toBeVisible();
-    await expect(page.getByRole('listitem').filter({ hasText: 'Wait for approval' })).toHaveAttribute('aria-current', 'step');
+    await expect(page.getByRole('list', { name: 'Setup steps' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /COPY\s*THAT/ })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Search crew, projects, resources' })).toBeDisabled();
     await expect(page.getByRole('heading', { name: 'Director' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Dev Sugarhi' })).toBeVisible();
     const avatar = page.locator('.crew-avatar img');
     await expect(avatar).toHaveAttribute('src', /^\/content\//);
     await expect(avatar).toHaveJSProperty('naturalWidth', 400);
     await expect(page.getByRole('button', { name: 'Edit profile' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Update Calendar' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Submit profile' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Go back' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Add credit' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Upload' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Commercial', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Remove Commercial' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Add project type' })).toHaveCount(0);
+    await expect(page.locator('.project-type-tag').filter({ hasText: 'Commercial' })).toBeVisible();
 }
 
 async function expectReview(page: Page): Promise<void> {
     await expect(page.getByRole('button', { name: 'Edit profile' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Submit profile' })).toBeVisible();
-    await expect(page.getByRole('listitem').filter({ hasText: 'Review & go live' })).toHaveAttribute('aria-current', 'step');
+    await expect(page.getByRole('complementary', { name: 'Your availability' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Update Calendar' })).toBeVisible();
+    await expect(page.getByText('Average Response')).toBeVisible();
+    await expect(page.getByText('< 12h')).toBeVisible();
+    await expect(page.getByText('Repeat Clients')).toBeVisible();
+    await expect(page.getByText('100%')).toBeVisible();
+    await expect(page.getByText('Years Active')).toBeVisible();
+    await expect(page.locator('.crew-stat').filter({ hasText: 'Years Active' }).locator('strong')).toHaveText(yearsActive('2024-03-12'));
+    await expect(page.getByRole('list', { name: 'Setup steps' })).toHaveCount(0);
+    await expect(page.getByRole('textbox', { name: 'Search crew, projects, resources' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Menu' }).click();
+    await expect(page.getByRole('menu')).toHaveCount(0);
 }
 
 async function openMedia(page: Page): Promise<void> {
@@ -177,19 +196,18 @@ async function openMedia(page: Page): Promise<void> {
     await page.getByLabel('Project title').fill('Nike — Up In The Air');
     await chooseOption(page, 'Position', 'Director', 'Director');
     await page.getByLabel('Lead producer').fill('Sarah Kim');
+    await page.getByLabel('Date').fill('2024-03-12');
     await page.getByRole('button', { name: 'Add' }).click();
     await expect(page.getByText('Nike — Up In The Air')).toBeVisible();
-    const commercial = page.getByRole('button', { name: 'Commercial', exact: true });
-    const music = page.getByRole('button', { name: 'Music Video', exact: true });
     await Promise.all([
         page.waitForResponse((response) =>
             response.request().method() === 'PUT' && response.url().includes('/project-types') && response.ok()),
-        commercial.click(),
+        chooseOption(page, 'Project types', 'Commercial', 'Commercial'),
     ]);
     await Promise.all([
         page.waitForResponse((response) =>
             response.request().method() === 'PUT' && response.url().includes('/project-types') && response.ok()),
-        music.click(),
+        chooseOption(page, 'Project types', 'Music Video', 'Music'),
     ]);
     await page.getByRole('button', { name: 'Continue — upload media' }).click();
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
@@ -238,6 +256,18 @@ function pngChunk(type: string, data: Buffer): Buffer {
     const crc = Buffer.alloc(4);
     crc.writeUInt32BE(crc32(Buffer.concat([tag, data])));
     return Buffer.concat([length, tag, data, crc]);
+}
+
+function yearsActive(isoDate: string, now = new Date()): string {
+    const [year, month, day] = isoDate.split('-').map(Number);
+    const oldest = new Date(year ?? 0, (month ?? 1) - 1, day);
+    let years = now.getFullYear() - oldest.getFullYear();
+    const beforeAnniversary = now.getMonth() < oldest.getMonth()
+        || (now.getMonth() === oldest.getMonth() && now.getDate() < oldest.getDate());
+    if (beforeAnniversary) {
+        years -= 1;
+    }
+    return years < 1 ? '< 1' : String(years);
 }
 
 async function chooseOption(page: Page, label: string, option: string, search?: string): Promise<void> {

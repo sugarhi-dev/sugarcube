@@ -220,6 +220,20 @@ export class UserRepo extends Repository {
         return row ? UserSchema.parse(row) : null;
     }
 
+    async completeMedia(ctx: Context, userId: string): Promise<User | null> {
+        this.log.trace(`${ctx.traceId} complete media ${userId}`);
+        const result = await this.database.query<UserRow>(
+            `UPDATE user_profile
+             SET status = 'review',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status = 'media'
+             RETURNING ${userColumns}`,
+            [userId],
+        );
+        const row = result.rows[0];
+        return row ? UserSchema.parse(row) : null;
+    }
+
     async submitForReview(ctx: Context, userId: string): Promise<SubmitForReviewResult> {
         this.log.trace(`${ctx.traceId} submit profile for review ${userId}`);
         return this.database.transaction(async (query) => {

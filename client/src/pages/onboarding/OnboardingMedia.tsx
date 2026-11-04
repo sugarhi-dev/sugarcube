@@ -1,13 +1,14 @@
 import { ArrowLeftOutlined, ArrowRightOutlined, DeleteOutlined, EditOutlined, HolderOutlined, LinkOutlined, PictureOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import { classifyMediaLink, mediaUrl, type UserMedia } from '@sugarcube/schema';
 import { App as AntdApp, Button, Flex, Input, Modal, Progress, Result, Spin, Typography } from 'antd';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { createMedia, deleteMedia, getMediaThumbnail, listMedia, reorderMedia, updateMedia, uploadMedia } from '../../api/media.ts';
-import { returnToStep } from '../../api/me.ts';
+import { completeMedia, returnToStep } from '../../api/me.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
+import { fileDragKind, fileDropHandlers, imageFile, isFileDrag, useKeepFileDrop } from './fileDrop.ts';
 import { onboardingExperiencePath } from './OnboardingExperience.tsx';
 import { OnboardingFrame } from './OnboardingFrame.tsx';
 import { onboardingReviewPath } from './OnboardingReview.tsx';
@@ -29,7 +30,6 @@ export function OnboardingMedia() {
     const dispatch = useAppDispatch();
     const session = useSession();
     const accountType = useAppSelector((state) => state.profile.user?.account_type);
-    const status = useAppSelector((state) => state.profile.user?.status);
     const accountLabel = accountType === 'client' ? 'CLIENT SETUP' : 'CREW SETUP';
     const { message } = AntdApp.useApp();
     const thumbRef = useRef<HTMLInputElement>(null);
@@ -54,6 +54,8 @@ export function OnboardingMedia() {
     const [thumbError, setThumbError] = useState<string | null>(null);
     const [adding, setAdding] = useState(false);
     const [draggingId, setDraggingId] = useState<string | null>(null);
+    const [videoOver, setVideoOver] = useState(false);
+    const [thumbOver, setThumbOver] = useState(false);
     const [removingId, setRemovingId] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editUrl, setEditUrl] = useState('');
@@ -68,6 +70,15 @@ export function OnboardingMedia() {
     useEffect(() => {
         document.title = 'Upload your media';
     }, []);
+
+    useKeepFileDrop(uploadOpen || linkOpen);
+
+    useEffect(() => {
+        if (!uploadOpen && !linkOpen) {
+            setVideoOver(false);
+            setThumbOver(false);
+        }
+    }, [uploadOpen, linkOpen]);
 
     useEffect(() => {
         if (!session) {
@@ -216,17 +227,18 @@ export function OnboardingMedia() {
     }
 
     async function chooseThumbnail(file: File): Promise<void> {
-        if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
+        const image = imageFile(file);
+        if (!image) {
             setThumbError('Use a JPG or PNG thumbnail.');
             return;
         }
-        if (file.size > thumbnailLimit) {
+        if (image.size > thumbnailLimit) {
             setThumbError('Use a thumbnail smaller than 8 MB.');
             return;
         }
 
         try {
-            const bitmap = await createImageBitmap(file);
+            const bitmap = await createImageBitmap(image);
             bitmap.close();
         } catch {
             setThumbError('Could not read that thumbnail.');
@@ -234,7 +246,93 @@ export function OnboardingMedia() {
         }
 
         setThumbError(null);
-        setThumbFile(file);
+        setThumbFile(image);
+    }
+
+    function takeDropped(file: File): void {
+        if (videoContentType(file)) {
+            chooseVideo(file);
+            return;
+        }
+        if (imageFile(file)) {
+            void chooseThumbnail(file);
+            return;
+        }
+        setVideoError('Use an MP4, MOV, or WebM video.');
+    }
+
+    function onUploadDragOver(event: DragEvent<HTMLDivElement>): void {
+        if (!isFileDrag(event.dataTransfer)) {
+            return;
+        }
+        event.preventDefault();
+        if (uploading) {
+            event.dataTransfer.dropEffect = 'none';
+            return;
+        }
+        event.dataTransfer.dropEffect = 'copy';
+        if (event.target !== event.currentTarget) {
+            return;
+        }
+        const kind = fileDragKind(event.dataTransfer);
+        if (kind === 'image') {
+            setThumbOver(true);
+            setVideoOver(false);
+        } else if (kind === 'video') {
+            setVideoOver(true);
+            setThumbOver(false);
+        }
+    }
+
+    function onUploadDrop(event: DragEvent<HTMLDivElement>): void {
+        const file = event.dataTransfer.files[0];
+        if (!file && !isFileDrag(event.dataTransfer)) {
+            return;
+        }
+        event.preventDefault();
+        setVideoOver(false);
+        setThumbOver(false);
+        if (uploading || !file) {
+            return;
+        }
+        takeDropped(file);
+    }
+
+    function leaveDrop(event: DragEvent<HTMLDivElement>): void {
+        const next = event.relatedTarget;
+        if (next instanceof Node && event.currentTarget.contains(next)) {
+            return;
+        }
+        setVideoOver(false);
+        setThumbOver(false);
+    }
+
+    function onThumbDragOver(event: DragEvent<HTMLDivElement>): void {
+        if (!isFileDrag(event.dataTransfer)) {
+            return;
+        }
+        event.preventDefault();
+        if (adding) {
+            event.dataTransfer.dropEffect = 'none';
+            return;
+        }
+        event.dataTransfer.dropEffect = 'copy';
+        if (event.target === event.currentTarget && fileDragKind(event.dataTransfer) === 'image') {
+            setThumbOver(true);
+        }
+    }
+
+    function onThumbDrop(event: DragEvent<HTMLDivElement>): void {
+        const file = event.dataTransfer.files[0];
+        if (!file && !isFileDrag(event.dataTransfer)) {
+            return;
+        }
+        event.preventDefault();
+        setThumbOver(false);
+        if (adding || !file) {
+            return;
+        }
+        void chooseThumbnail(file);
     }
 
     async function onAdd(): Promise<void> {
@@ -407,18 +505,21 @@ export function OnboardingMedia() {
     }
 
     async function onContinue(): Promise<void> {
-        if (continuing) {
+        if (!session || continuing) {
             return;
         }
 
         setContinuing(true);
         try {
             await writes.current;
-            const submitted = status === 'review';
-            if (itemsRef.current.length < minimumMedia && !submitted) {
+            if (itemsRef.current.length < minimumMedia) {
                 return;
             }
-            navigate(onboardingReviewPath);
+            const user = await completeMedia(session.accessToken);
+            dispatch(profileLoaded({ user, forSubject: session.profile.subject }));
+            navigate(onboardingReviewPath, { replace: true });
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not continue.');
         } finally {
             setContinuing(false);
         }
@@ -444,7 +545,7 @@ export function OnboardingMedia() {
         });
     }
 
-    const canReview = ready && (items.length >= minimumMedia || status === 'review');
+    const canReview = ready && items.length >= minimumMedia;
 
     return (
         <OnboardingFrame
@@ -581,11 +682,19 @@ export function OnboardingMedia() {
                                 {linkError}
                             </Typography.Text>
                         ) : null}
-                        <button type="button" className="media-thumb-pick" onClick={() => thumbRef.current?.click()}>
+                        <div onDragOver={onThumbDragOver} onDrop={onThumbDrop} onDragLeave={leaveDrop}>
+                        <button
+                            type="button"
+                            className={thumbOver ? 'media-thumb-pick is-dropping' : 'media-thumb-pick'}
+                            onClick={() => thumbRef.current?.click()}
+                            {...fileDropHandlers(() => setThumbOver(true), () => setThumbOver(false), (file) => {
+                                void chooseThumbnail(file);
+                            })}
+                        >
                             {thumbPreview ? (
-                                <img src={thumbPreview} alt="Selected thumbnail" />
+                                <img src={thumbPreview} alt="Selected thumbnail" draggable={false} />
                             ) : (
-                                <span><PictureOutlined /> Choose a thumbnail</span>
+                                <span><PictureOutlined /> Drop a thumbnail</span>
                             )}
                         </button>
                         <input
@@ -610,6 +719,7 @@ export function OnboardingMedia() {
                                 {thumbError}
                             </Typography.Text>
                         ) : null}
+                        </div>
                     </Modal>
                     <Modal
                         title="Upload a video"
@@ -625,8 +735,18 @@ export function OnboardingMedia() {
                         }}
                         onCancel={closeUpload}
                     >
-                        <button type="button" className="media-upload-note" onClick={() => videoRef.current?.click()} disabled={uploading}>
-                            {videoFile ? videoFile.name : 'Choose an MP4, MOV, or WebM'}
+                        <div onDragOver={onUploadDragOver} onDrop={onUploadDrop} onDragLeave={leaveDrop}>
+                        <button
+                            type="button"
+                            className={videoOver ? 'media-upload-note is-dropping' : 'media-upload-note'}
+                            onClick={() => videoRef.current?.click()}
+                            disabled={uploading}
+                            {...fileDropHandlers(() => {
+                                setVideoOver(true);
+                                setThumbOver(false);
+                            }, () => setVideoOver(false), chooseVideo)}
+                        >
+                            {videoFile ? videoFile.name : 'Drop an MP4, MOV, or WebM'}
                         </button>
                         <input
                             ref={videoRef}
@@ -650,11 +770,22 @@ export function OnboardingMedia() {
                                 {videoError}
                             </Typography.Text>
                         ) : null}
-                        <button type="button" className="media-thumb-pick" onClick={() => uploadThumbRef.current?.click()} disabled={uploading}>
+                        <button
+                            type="button"
+                            className={thumbOver ? 'media-thumb-pick is-dropping' : 'media-thumb-pick'}
+                            onClick={() => uploadThumbRef.current?.click()}
+                            disabled={uploading}
+                            {...fileDropHandlers(() => {
+                                setThumbOver(true);
+                                setVideoOver(false);
+                            }, () => setThumbOver(false), (file) => {
+                                void chooseThumbnail(file);
+                            })}
+                        >
                             {thumbPreview ? (
-                                <img src={thumbPreview} alt="Selected thumbnail" />
+                                <img src={thumbPreview} alt="Selected thumbnail" draggable={false} />
                             ) : (
-                                <span><PictureOutlined /> Choose a thumbnail</span>
+                                <span><PictureOutlined /> Drop a thumbnail</span>
                             )}
                         </button>
                         <input
@@ -687,6 +818,7 @@ export function OnboardingMedia() {
                                 aria-label="Upload progress"
                             />
                         ) : null}
+                        </div>
                     </Modal>
                     <Modal
                         title="Edit video link"

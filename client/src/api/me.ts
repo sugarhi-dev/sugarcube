@@ -85,6 +85,10 @@ export function completeExperience(accessToken: string): Promise<CurrentUser> {
     return readUser(accessToken, '/api/me/experience', { method: 'PUT' });
 }
 
+export function completeMedia(accessToken: string): Promise<CurrentUser> {
+    return readUser(accessToken, '/api/me/media', { method: 'PUT' });
+}
+
 export type OnboardingStep = 'new' | 'basic' | 'setup' | 'experience' | 'media';
 
 export function returnToStep(accessToken: string, status: OnboardingStep): Promise<CurrentUser> {

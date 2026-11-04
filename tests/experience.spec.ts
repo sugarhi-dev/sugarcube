@@ -14,18 +14,20 @@ test('saves credits and project types on the experience page', async ({ page }) 
     await expect(page.getByRole('listitem').filter({ hasText: 'Experience & project types' })).toHaveAttribute('aria-current', 'step');
     await expect(page.getByText('What kinds of projects will you work on?')).toBeVisible();
     await expect(page.getByText('Pick all that apply. Clients filter crew by project type.')).toBeVisible();
-    await expect(page.getByText('POST PRODUCTION ALSO INCLUDES')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Commercial', exact: true })).toHaveAttribute('aria-pressed', 'false');
-    await expect(page.getByRole('button', { name: 'Visual FX', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('combobox', { name: 'Project types' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add project type' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove Commercial' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Remove Visual FX' })).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Add' }).click();
     await expect(page.getByText('Enter a project title.')).toBeVisible();
     await expect(page.getByText('Choose a position.')).toBeVisible();
     await expect(page.getByText('Enter the lead producer.')).toBeVisible();
+    await expect(page.getByText('Enter a date.')).toBeVisible();
 
     await addCredit(page, 'Nike — Up In The Air', 'Director', 'Director', 'Sarah Kim');
     await expect(page.getByText('Nike — Up In The Air')).toBeVisible();
-    await expect(page.getByText('Lead producer: Sarah Kim')).toBeVisible();
+    await expect(page.getByText('Sarah Kim')).toBeVisible();
 
     await page.getByRole('button', { name: 'Edit Nike — Up In The Air' }).click();
     await page.getByLabel('Project title for Nike — Up In The Air').fill('Nike — Air');
@@ -34,43 +36,41 @@ test('saves credits and project types on the experience page', async ({ page }) 
     await page.getByRole('button', { name: 'Save Nike — Up In The Air' }).click();
     await expect(page.getByText('Nike — Air')).toBeVisible();
     await expect(page.getByText('Director of Photography')).toBeVisible();
-    await expect(page.getByText('Lead producer: Jamie Chen')).toBeVisible();
+    await expect(page.getByText('Jamie Chen')).toBeVisible();
     await expect(page.getByText('Nike — Up In The Air')).toHaveCount(0);
-    await expect(page.getByText('Lead producer: Sarah Kim')).toHaveCount(0);
+    await expect(page.getByText('Sarah Kim')).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Remove Nike — Air' }).click();
     await expect(page.getByText('Nike — Air')).toHaveCount(0);
 
     await addCredit(page, 'Adidas — Origami Forever', 'Director', 'Director', 'Todd Martinez');
     await expect(page.getByText('Adidas — Origami Forever')).toBeVisible();
-    await expect(page.getByText('Lead producer: Todd Martinez')).toBeVisible();
+    await expect(page.getByText('Todd Martinez')).toBeVisible();
 
-    const commercial = page.getByRole('button', { name: 'Commercial', exact: true });
-    const visualFx = page.getByRole('button', { name: 'Visual FX', exact: true });
-    await toggleType(page, commercial);
-    await toggleType(page, visualFx);
-    await expect(commercial).toHaveAttribute('aria-pressed', 'true');
-    await expect(visualFx).toHaveAttribute('aria-pressed', 'true');
+    await chooseType(page, 'Commercial');
+    await chooseType(page, 'Visual FX');
+    await expect(page.getByRole('button', { name: 'Remove Commercial' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove Visual FX' })).toBeVisible();
 
     await addCredit(page, 'Spotify — Wrapped', 'Editor', 'Editor', 'Priya Shah', 2);
     await expect(page.getByText('Spotify — Wrapped')).toBeVisible();
-    await expect(page.getByText('Lead producer: Priya Shah')).toBeVisible();
+    await expect(page.getByText('Priya Shah')).toBeVisible();
 
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
     await expect(page.getByText('Adidas — Origami Forever')).toBeVisible();
     await expect(page.getByText('Spotify — Wrapped')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Commercial', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByRole('button', { name: 'Visual FX', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByRole('button', { name: 'Podcast', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('button', { name: 'Remove Commercial' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove Visual FX' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove Podcast' })).toHaveCount(0);
 
-    await toggleType(page, page.getByRole('button', { name: 'Visual FX', exact: true }), 2);
-    await expect(page.getByRole('button', { name: 'Visual FX', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    await removeType(page, 'Visual FX', 2);
+    await expect(page.getByRole('button', { name: 'Remove Visual FX' })).toHaveCount(0);
 
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Commercial', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByRole('button', { name: 'Visual FX', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('button', { name: 'Remove Commercial' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove Visual FX' })).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Continue — upload media' }).click();
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
@@ -116,14 +116,21 @@ async function addCredit(
     await page.getByLabel('Project title').fill(title);
     await chooseOption(page, 'Position', position, positionSearch);
     await page.getByLabel('Lead producer').fill(producer);
+    await page.getByLabel('Date').fill('2024-03-12');
     const saves = typeSaves > 0 ? waitForTypeSaves(page, typeSaves) : null;
     await page.getByRole('button', { name: 'Add' }).click();
     await saves;
 }
 
-async function toggleType(page: Page, chip: ReturnType<Page['getByRole']>, saves = 1): Promise<void> {
+async function chooseType(page: Page, name: string, saves = 1): Promise<void> {
     const pending = waitForTypeSaves(page, saves);
-    await chip.click();
+    await chooseOption(page, 'Project types', name, name);
+    await pending;
+}
+
+async function removeType(page: Page, name: string, saves = 1): Promise<void> {
+    const pending = waitForTypeSaves(page, saves);
+    await page.getByRole('button', { name: `Remove ${name}` }).click();
     await pending;
 }
 

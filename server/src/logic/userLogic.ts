@@ -212,6 +212,15 @@ export class UserLogic extends Logic {
         return user;
     }
 
+    async completeMedia(ctx: Context, userId: string): Promise<User | null> {
+        const user = await this.userRepo.completeMedia(ctx, userId);
+        if (!user) {
+            ctx.error('Media can only be completed while your account is on the media step.', 409);
+            return null;
+        }
+        return user;
+    }
+
     listWorkProfiles(ctx: Context, userId: string): Promise<WorkProfile[]> {
         return this.userRepo.listWorkProfiles(ctx, userId);
     }

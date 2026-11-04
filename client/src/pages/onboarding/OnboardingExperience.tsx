@@ -4,7 +4,6 @@ import {
     CheckOutlined,
     DeleteOutlined,
     EditOutlined,
-    HolderOutlined,
     PlusOutlined,
 } from '@ant-design/icons';
 import { App as AntdApp, Button, Flex, Form, Input, Result, Select, Spin, Typography } from 'antd';
@@ -28,34 +27,18 @@ import {
     updateProjectProjectTypes,
     type Project,
 } from '../../api/projects.ts';
+import { ProjectCredit, projectFacts } from '../../components/ProjectCredit.tsx';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
 import { OnboardingFrame } from './OnboardingFrame.tsx';
 import { onboardingMediaPath } from './OnboardingMedia.tsx';
 import { onboardingProfilePath } from './OnboardingProfile.tsx';
+import { ProjectTypeField } from './ProjectTypeField.tsx';
 
 export const onboardingExperiencePath = '/onboarding/experience';
 
 const disciplineOrder = ['Shooting', 'Post Production'];
-
-const typeOrder: Record<string, string[]> = {
-    Shooting: [
-        'Social Content',
-        'Podcast',
-        'Product Demo',
-        'Brand Film',
-        'Tabletop',
-        'Music Video',
-        'Feature Film',
-        'Indie Film',
-        'TV Show',
-        'Longform Art Film',
-        'Still Photography',
-        'Commercial',
-    ],
-    'Post Production': ['Stop Motion', 'Animated', 'Visual FX', 'AI Content'],
-};
 
 type ExperienceCatalog = {
     projects: Project[];
@@ -68,6 +51,9 @@ type CreditFormValues = {
     name: string;
     position_id: string;
     lead_producer_name: string;
+    date: string;
+    production_company?: string;
+    hiring_producer?: string;
 };
 
 export function OnboardingExperience() {
@@ -152,11 +138,7 @@ export function OnboardingExperience() {
 
         setAdding(true);
         try {
-            const project = await createProject(session.accessToken, {
-                name: values.name.trim(),
-                position_id: values.position_id,
-                lead_producer_name: values.lead_producer_name.trim(),
-            });
+            const project = await createProject(session.accessToken, creditInput(values));
             replaceProjects(projectsRef, setCatalog, [...projectsRef.current, project]);
             form.resetFields();
         } catch (error) {
@@ -203,11 +185,7 @@ export function OnboardingExperience() {
 
         setSavingId(project.id);
         try {
-            const updated = await updateProject(session.accessToken, project.id, {
-                name: values.name.trim(),
-                position_id: values.position_id,
-                lead_producer_name: values.lead_producer_name.trim(),
-            });
+            const updated = await updateProject(session.accessToken, project.id, creditInput(values));
             setCatalog((current) => {
                 if (!current) {
                     return current;
@@ -224,14 +202,12 @@ export function OnboardingExperience() {
         }
     }
 
-    function toggleType(id: string): void {
+    function changeTypes(typeIds: string[]): void {
         if (!session) {
             return;
         }
 
-        const current = selectedTypeIdsRef.current;
-        const next = current.includes(id) ? current.filter((row) => row !== id) : [...current, id];
-        rememberTypeIds(selectedTypeIdsRef, setSelectedTypeIds, next);
+        rememberTypeIds(selectedTypeIdsRef, setSelectedTypeIds, typeIds);
         const token = session.accessToken;
         void persistProjectTypes(saveQueue, projectsRef, selectedTypeIdsRef, token).catch((error: unknown) => {
             message.error(error instanceof Error ? error.message : 'Could not update project types.');
@@ -276,7 +252,6 @@ export function OnboardingExperience() {
     const accountLabel = accountType === 'client' ? 'CLIENT SETUP' : 'CREW SETUP';
     const positionName = new Map(catalog?.positions.map((position) => [position.id, position.name]));
     const positionOptions = catalog ? positionSelectOptions(catalog.disciplines, catalog.positions) : [];
-    const groups = catalog ? typeGroups(catalog.disciplines, catalog.projectTypes) : [];
 
     return (
         <OnboardingFrame
@@ -310,95 +285,103 @@ export function OnboardingExperience() {
                 <Spin size="large" description="Loading your experience…" />
             ) : (
                 <>
-                    <Flex vertical gap={10} style={{ marginBottom: 12 }}>
+                    <ul className="credit-list">
                         {catalog.projects.map((project) => (
                             editingId === project.id ? (
-                                <Form
-                                    key={project.id}
-                                    className="credit-card"
-                                    requiredMark={false}
-                                    initialValues={{
-                                        name: project.name,
-                                        position_id: project.position_id,
-                                        lead_producer_name: project.lead_producer_name,
-                                    }}
-                                    onFinish={(values: CreditFormValues) => void onSave(project, values)}
-                                >
-                                    <Flex align="flex-start" gap={12}>
-                                        <Flex align="center" justify="center" className="credit-mark" aria-hidden>
-                                            <HolderOutlined />
-                                        </Flex>
-                                        <Flex vertical gap={6} style={{ minWidth: 0, flex: 1 }}>
+                                <li key={project.id} className="credit-card is-editing">
+                                    <Form
+                                        className="review-credit-form"
+                                        requiredMark={false}
+                                        initialValues={{
+                                            name: project.name,
+                                            position_id: project.position_id,
+                                            lead_producer_name: project.lead_producer_name,
+                                            date: project.date,
+                                            production_company: project.production_company ?? '',
+                                            hiring_producer: project.hiring_producer ?? '',
+                                        }}
+                                        onFinish={(values: CreditFormValues) => void onSave(project, values)}
+                                    >
+                                        <Form.Item
+                                            name="name"
+                                            style={{ marginBottom: 8 }}
+                                            rules={[{ required: true, whitespace: true, message: 'Enter a project title.' }]}
+                                        >
+                                            <Input
+                                                autoFocus
+                                                aria-label={`Project title for ${project.name}`}
+                                                maxLength={255}
+                                            />
+                                        </Form.Item>
+                                        <Flex gap={8} wrap="wrap" align="flex-start">
                                             <Form.Item
-                                                name="name"
-                                                style={{ marginBottom: 0 }}
-                                                rules={[{ required: true, whitespace: true, message: 'Enter a project title.' }]}
+                                                name="position_id"
+                                                style={{ flex: '1 1 180px', marginBottom: 0 }}
+                                                rules={[{ required: true, message: 'Choose a position.' }]}
                                             >
-                                                <Input
-                                                    autoFocus
-                                                    aria-label={`Project title for ${project.name}`}
-                                                    maxLength={255}
+                                                <Select
+                                                    showSearch
+                                                    popupMatchSelectWidth={false}
+                                                    aria-label={`Position for ${project.name}`}
+                                                    placeholder="Position"
+                                                    optionFilterProp="label"
+                                                    options={positionOptions}
                                                 />
                                             </Form.Item>
-                                            <Flex className="credit-meta" align="flex-start" gap={8}>
-                                                <Form.Item
-                                                    name="position_id"
-                                                    style={{ flex: '1 1 160px', minWidth: 0, marginBottom: 0 }}
-                                                    rules={[{ required: true, message: 'Choose a position.' }]}
-                                                >
-                                                    <Select
-                                                        showSearch
-                                                        popupMatchSelectWidth={false}
-                                                        aria-label={`Position for ${project.name}`}
-                                                        placeholder="Position"
-                                                        optionFilterProp="label"
-                                                        options={positionOptions}
-                                                    />
-                                                </Form.Item>
-                                                <Form.Item
-                                                    name="lead_producer_name"
-                                                    style={{ flex: '0 1 220px', marginBottom: 0 }}
-                                                    rules={[{ required: true, whitespace: true, message: 'Enter the lead producer.' }]}
-                                                >
-                                                    <Input aria-label={`Lead producer for ${project.name}`} />
-                                                </Form.Item>
-                                                <Button
-                                                    htmlType="submit"
-                                                    type="text"
-                                                    className="credit-edit"
-                                                    aria-label={`Save ${project.name}`}
-                                                    icon={<CheckOutlined />}
-                                                    loading={savingId === project.id}
-                                                />
-                                                <Button
-                                                    htmlType="button"
-                                                    type="text"
-                                                    className="credit-remove"
-                                                    aria-label={`Remove ${project.name}`}
-                                                    icon={<DeleteOutlined />}
-                                                    loading={removingId === project.id}
-                                                    disabled={savingId === project.id}
-                                                    onClick={() => void onRemove(project)}
-                                                />
-                                            </Flex>
-                                        </Flex>
-                                    </Flex>
-                                </Form>
-                            ) : (
-                                <Flex key={project.id} className="credit-card" align="flex-start" gap={12}>
-                                    <Flex align="center" justify="center" className="credit-mark" aria-hidden>
-                                        <HolderOutlined />
-                                    </Flex>
-                                    <Flex vertical gap={2} style={{ minWidth: 0, flex: 1 }}>
-                                        <Typography.Text strong ellipsis>{project.name}</Typography.Text>
-                                        <Flex className="credit-meta" align="center" gap={8}>
-                                            <Typography.Text type="secondary" ellipsis style={{ fontSize: 13, flex: '1 1 auto', minWidth: 0 }}>
-                                                {positionName.get(project.position_id)}
-                                            </Typography.Text>
-                                            <Typography.Text type="secondary" className="credit-producer">
-                                                Lead producer: {project.lead_producer_name}
-                                            </Typography.Text>
+                                            <Form.Item
+                                                name="lead_producer_name"
+                                                style={{ flex: '1 1 180px', marginBottom: 0 }}
+                                                rules={[{ required: true, whitespace: true, message: 'Enter the lead producer.' }]}
+                                            >
+                                                <Input aria-label={`Lead producer for ${project.name}`} />
+                                            </Form.Item>
+                                            <Form.Item
+                                                name="date"
+                                                style={{ flex: '0 1 150px', marginBottom: 0 }}
+                                                rules={[{ required: true, message: 'Enter a date.' }]}
+                                            >
+                                                <Input type="date" aria-label={`Date for ${project.name}`} />
+                                            </Form.Item>
+                                            <Form.Item name="production_company" style={{ flex: '1 1 160px', marginBottom: 0 }}>
+                                                <Input aria-label={`Production company for ${project.name}`} placeholder="Production company" />
+                                            </Form.Item>
+                                            <Form.Item name="hiring_producer" style={{ flex: '1 1 160px', marginBottom: 0 }}>
+                                                <Input aria-label={`Hiring producer for ${project.name}`} placeholder="Hiring producer" />
+                                            </Form.Item>
                                             <Button
+                                                htmlType="submit"
+                                                type="text"
+                                                aria-label={`Save ${project.name}`}
+                                                icon={<CheckOutlined />}
+                                                loading={savingId === project.id}
+                                            />
+                                            <Button
+                                                htmlType="button"
+                                                type="text"
+                                                aria-label={`Remove ${project.name}`}
+                                                icon={<DeleteOutlined />}
+                                                loading={removingId === project.id}
+                                                disabled={savingId === project.id}
+                                                onClick={() => void onRemove(project)}
+                                            />
+                                        </Flex>
+                                    </Form>
+                                </li>
+                            ) : (
+                                <ProjectCredit
+                                    key={project.id}
+                                    name={project.name}
+                                    facts={projectFacts({
+                                        date: project.date,
+                                        position: positionName.get(project.position_id),
+                                        company: project.production_company,
+                                        hiringProducer: project.hiring_producer,
+                                        leadProducer: project.lead_producer_name,
+                                    })}
+                                    actions={(
+                                        <>
+                                            <Button
+                                                htmlType="button"
                                                 type="text"
                                                 className="credit-edit"
                                                 aria-label={`Edit ${project.name}`}
@@ -406,6 +389,7 @@ export function OnboardingExperience() {
                                                 onClick={() => setEditingId(project.id)}
                                             />
                                             <Button
+                                                htmlType="button"
                                                 type="text"
                                                 className="credit-remove"
                                                 aria-label={`Remove ${project.name}`}
@@ -413,12 +397,12 @@ export function OnboardingExperience() {
                                                 loading={removingId === project.id}
                                                 onClick={() => void onRemove(project)}
                                             />
-                                        </Flex>
-                                    </Flex>
-                                </Flex>
+                                        </>
+                                    )}
+                                />
                             )
                         ))}
-                    </Flex>
+                    </ul>
 
                     <Form
                         form={form}
@@ -455,6 +439,19 @@ export function OnboardingExperience() {
                             >
                                 <Input placeholder="Lead producer" aria-label="Lead producer" />
                             </Form.Item>
+                            <Form.Item
+                                name="date"
+                                style={{ flex: '0 1 150px', marginBottom: 0 }}
+                                rules={[{ required: true, message: 'Enter a date.' }]}
+                            >
+                                <Input type="date" aria-label="Date" />
+                            </Form.Item>
+                            <Form.Item name="production_company" style={{ flex: '1 1 160px', marginBottom: 0 }}>
+                                <Input placeholder="Production company" aria-label="Production company" />
+                            </Form.Item>
+                            <Form.Item name="hiring_producer" style={{ flex: '1 1 160px', marginBottom: 0 }}>
+                                <Input placeholder="Hiring producer" aria-label="Hiring producer" />
+                            </Form.Item>
                             <Button
                                 htmlType="submit"
                                 className="experience-add"
@@ -466,45 +463,15 @@ export function OnboardingExperience() {
                         </Flex>
                     </Form>
 
-                    <Typography.Text style={{ display: 'block', marginTop: 36, color: copyThat.pink, fontWeight: 700 }}>
+                    <Typography.Text style={{ display: 'block', marginTop: 36, marginBottom: 12, color: copyThat.pink, fontWeight: 700 }}>
                         What kinds of projects will you work on?
                     </Typography.Text>
-                    <Typography.Paragraph type="secondary" style={{ margin: '8px 0 16px', fontSize: 13 }}>
-                        Pick all that apply. Clients filter crew by project type.
-                    </Typography.Paragraph>
-
-                    <div role="group" aria-label="What kinds of projects will you work on?">
-                        {groups.map((group) => (
-                            <div key={group.id}>
-                                {group.also ? (
-                                    <Typography.Text className="project-type-also">
-                                        {group.name.toUpperCase()} ALSO INCLUDES
-                                    </Typography.Text>
-                                ) : null}
-                                <Flex gap={8} wrap="wrap" style={{ margin: group.also ? '8px 0 0' : 0 }}>
-                                    {group.types.map((projectType) => {
-                                        const selected = selectedTypeIds.includes(projectType.id);
-                                        const chipClass = [
-                                            'project-type-chip',
-                                            group.also ? 'is-post' : '',
-                                            selected ? 'is-selected' : '',
-                                        ].filter(Boolean).join(' ');
-                                        return (
-                                            <button
-                                                key={projectType.id}
-                                                type="button"
-                                                className={chipClass}
-                                                aria-pressed={selected}
-                                                onClick={() => toggleType(projectType.id)}
-                                            >
-                                                {projectType.name}
-                                            </button>
-                                        );
-                                    })}
-                                </Flex>
-                            </div>
-                        ))}
-                    </div>
+                    <ProjectTypeField
+                        disciplines={catalog.disciplines}
+                        projectTypes={catalog.projectTypes}
+                        value={selectedTypeIds}
+                        onChange={changeTypes}
+                    />
 
                     <Flex justify="space-between" align="center" style={{ marginTop: 28 }}>
                         <Button
@@ -538,6 +505,22 @@ export function OnboardingExperience() {
             )}
         </OnboardingFrame>
     );
+}
+
+function creditInput(values: CreditFormValues) {
+    return {
+        name: values.name.trim(),
+        position_id: values.position_id,
+        lead_producer_name: values.lead_producer_name.trim(),
+        date: values.date,
+        production_company: blankToNull(values.production_company),
+        hiring_producer: blankToNull(values.hiring_producer),
+    };
+}
+
+function blankToNull(value: string | undefined): string | null {
+    const trimmed = value?.trim() ?? '';
+    return trimmed.length > 0 ? trimmed : null;
 }
 
 function rememberTypeIds(
@@ -582,24 +565,6 @@ function positionSelectOptions(disciplines: Discipline[], positions: Position[])
             .filter((position) => position.discipline_id === discipline.id)
             .map((position) => ({ value: position.id, label: position.name })),
     }));
-}
-
-function typeGroups(disciplines: Discipline[], projectTypes: ProjectType[]): Array<{
-    id: string;
-    name: string;
-    also: boolean;
-    types: ProjectType[];
-}> {
-    return disciplines.flatMap((discipline, index) => {
-        const types = orderNamed(
-            projectTypes.filter((projectType) => projectType.discipline_id === discipline.id),
-            typeOrder[discipline.name] ?? [],
-        );
-        if (types.length === 0) {
-            return [];
-        }
-        return [{ id: discipline.id, name: discipline.name, also: index > 0, types }];
-    });
 }
 
 function orderNamed<T extends { name: string }>(rows: T[], preferred: string[]): T[] {

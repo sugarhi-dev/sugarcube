@@ -8,12 +8,18 @@ export type ProjectWrite = {
     name: string;
     position_id: string;
     lead_producer_name: string;
+    date: string;
+    production_company: string | null;
+    hiring_producer: string | null;
 };
 
 export type ProjectPatch = {
     name?: string;
     position_id?: string;
     lead_producer_name?: string;
+    date?: string;
+    production_company?: string | null;
+    hiring_producer?: string | null;
 };
 
 const projectConstraints = {
@@ -49,6 +55,9 @@ export class ProjectLogic extends Logic {
             name: input.name,
             position_id: input.position_id,
             lead_producer_name: input.lead_producer_name,
+            date: input.date,
+            production_company: input.production_company,
+            hiring_producer: input.hiring_producer,
         });
         try {
             return await this.projectRepo.createProject(ctx, project);
@@ -74,6 +83,13 @@ export class ProjectLogic extends Logic {
             name: input.name ?? existing.name,
             position_id: input.position_id ?? existing.position_id,
             lead_producer_name: input.lead_producer_name ?? existing.lead_producer_name,
+            date: input.date ?? existing.date,
+            production_company: input.production_company !== undefined
+                ? input.production_company
+                : existing.production_company,
+            hiring_producer: input.hiring_producer !== undefined
+                ? input.hiring_producer
+                : existing.hiring_producer,
         });
         try {
             const updated = await this.projectRepo.updateProject(ctx, project);

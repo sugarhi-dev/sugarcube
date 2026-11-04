@@ -11,7 +11,7 @@ const apiProxy = {
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
     return {
-        base: env.BASE_PATH || '/sugarhi/',
+        base: env.BASE_PATH || '/sugarcube/',
         plugins: [react()],
         server: {
             host: '127.0.0.1',

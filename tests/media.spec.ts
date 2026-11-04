@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { devUser, prepareDevUser } from './reset.ts';
 
 const mediaDir = join(import.meta.dirname, 'media');
@@ -66,12 +66,24 @@ test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) =>
     await page.getByRole('button', { name: 'Upload' }).click();
     const upload = page.getByRole('dialog', { name: 'Upload a video' });
     await expect(upload.getByText('MP4, MOV, or WebM · up to 200 MB.')).toBeVisible();
-    await upload.getByLabel('Video file').setInputFiles({
+    await dropFile(upload.getByRole('button', { name: 'Drop an MP4, MOV, or WebM' }), {
+        name: 'notes.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('nope'),
+    });
+    await expect(upload.getByRole('alert')).toHaveText('Use an MP4, MOV, or WebM video.');
+    await dropFile(upload.getByText('MP4, MOV, or WebM · up to 200 MB.'), {
         name: 'clip.mp4',
         mimeType: 'video/mp4',
         buffer: Buffer.from([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]),
     });
-    await upload.getByLabel('Thumbnail').setInputFiles(thumbnail);
+    await dropFile(upload.getByRole('button', { name: 'Drop a thumbnail' }), {
+        name: 'notes.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('nope'),
+    });
+    await expect(upload.getByRole('alert')).toHaveText('Use a JPG or PNG thumbnail.');
+    await dropFile(upload.getByRole('button', { name: 'Drop a thumbnail' }), thumbnail);
     await expect(upload.getByText('clip.mp4')).toBeVisible();
     await expect(upload.getByRole('img', { name: 'Selected thumbnail' })).toBeVisible();
     await page.route('**/api/me/media/upload', async (route) => {
@@ -162,6 +174,26 @@ test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) =>
     await expect(page.locator('.media-grid').getByRole('listitem')).toHaveCount(1);
     await expect(page.locator('.media-grid').locator('img')).toHaveAttribute('src', /^blob:/);
 });
+
+async function dropFile(target: Locator, file: { name: string; mimeType: string; buffer: Buffer }): Promise<void> {
+    await target.evaluate((element, payload) => {
+        const binary = atob(payload.base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) {
+            bytes[index] = binary.charCodeAt(index);
+        }
+        const dropped = new File([bytes], payload.name, { type: payload.mimeType });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(dropped);
+        for (const type of ['dragenter', 'dragover', 'drop']) {
+            element.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }));
+        }
+    }, {
+        base64: file.buffer.toString('base64'),
+        name: file.name,
+        mimeType: file.mimeType,
+    });
+}
 
 async function openMedia(page: Page): Promise<void> {
     await page.goto('sign-in');

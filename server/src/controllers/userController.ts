@@ -129,6 +129,7 @@ export class UserController extends Controller {
         this.put('/api/me/photo', this.PUT_photo.bind(this), [], [readPhotoBody]);
         this.put('/api/me/setup', this.PUT_setup.bind(this));
         this.put('/api/me/experience', this.PUT_experience.bind(this));
+        this.put('/api/me/media', this.PUT_media.bind(this));
         this.put('/api/me/back', this.PUT_back.bind(this));
         this.get('/api/me/work-profiles', this.GET_work_profiles.bind(this));
         this.put('/api/me/review', this.PUT_review.bind(this));
@@ -276,6 +277,17 @@ export class UserController extends Controller {
         }
 
         const updated = await this.userLogic.completeExperience(ctx, user.id);
+        this.checkAndRespond(ctx, res, updated);
+    }
+
+    protected async PUT_media(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const updated = await this.userLogic.completeMedia(ctx, user.id);
         this.checkAndRespond(ctx, res, updated);
     }
 

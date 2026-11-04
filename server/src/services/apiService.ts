@@ -8,6 +8,7 @@ import { ProductionCityController } from '../controllers/productionCityControlle
 import { ProjectController } from '../controllers/projectController.js';
 import { ProjectProjectTypeController } from '../controllers/projectProjectTypeController.js';
 import { ProjectTypeController } from '../controllers/projectTypeController.js';
+import { UserAvailabilityController } from '../controllers/userAvailabilityController.js';
 import { UserController } from '../controllers/userController.js';
 import { UserMediaController } from '../controllers/userMediaController.js';
 import { CurrencyLogic } from '../logic/currencyLogic.js';
@@ -17,6 +18,7 @@ import { ProductionCityLogic } from '../logic/productionCityLogic.js';
 import { ProjectLogic } from '../logic/projectLogic.js';
 import { ProjectProjectTypeLogic } from '../logic/projectProjectTypeLogic.js';
 import { ProjectTypeLogic } from '../logic/projectTypeLogic.js';
+import { UserAvailabilityLogic } from '../logic/userAvailabilityLogic.js';
 import { UserLocaleLogic } from '../logic/userLocaleLogic.js';
 import { UserLogic } from '../logic/userLogic.js';
 import { UserMediaLogic } from '../logic/userMediaLogic.js';
@@ -28,6 +30,7 @@ import { ProductionCityRepo } from '../repositories/productionCityRepo.js';
 import { ProjectRepo } from '../repositories/projectRepo.js';
 import { ProjectProjectTypeRepo } from '../repositories/projectProjectTypeRepo.js';
 import { ProjectTypeRepo } from '../repositories/projectTypeRepo.js';
+import { UserAvailabilityRepo } from '../repositories/userAvailabilityRepo.js';
 import { UserLocaleRepo } from '../repositories/userLocaleRepo.js';
 import { UserRepo } from '../repositories/userRepo.js';
 import { UserMediaRepo } from '../repositories/userMediaRepo.js';
@@ -54,6 +57,7 @@ export class ApiService extends RestService {
         const projectRepo = new ProjectRepo(this.database);
         const projectProjectTypeRepo = new ProjectProjectTypeRepo(this.database);
         const projectTypeRepo = new ProjectTypeRepo(this.database);
+        const userAvailabilityRepo = new UserAvailabilityRepo(this.database);
         const userLocaleRepo = new UserLocaleRepo(this.database);
         const userMediaRepo = new UserMediaRepo(this.database);
         const userWorkProfileRepo = new UserWorkProfileRepo(this.database);
@@ -67,6 +71,7 @@ export class ApiService extends RestService {
         const projectLogic = new ProjectLogic(projectRepo);
         const projectProjectTypeLogic = new ProjectProjectTypeLogic(projectProjectTypeRepo);
         const projectTypeLogic = new ProjectTypeLogic(projectTypeRepo);
+        const userAvailabilityLogic = new UserAvailabilityLogic(userAvailabilityRepo);
         const userLocaleLogic = new UserLocaleLogic(userLocaleRepo);
         const userMediaLogic = new UserMediaLogic(userMediaRepo, binary);
         const userWorkProfileLogic = new UserWorkProfileLogic(userWorkProfileRepo);
@@ -80,6 +85,7 @@ export class ApiService extends RestService {
         this.addController(new ProjectController(this.app, userLogic, projectLogic));
         this.addController(new ProjectProjectTypeController(this.app, userLogic, projectProjectTypeLogic));
         this.addController(new UserController(this.app, userLogic, userLocaleLogic, userWorkProfileLogic));
+        this.addController(new UserAvailabilityController(this.app, userLogic, userAvailabilityLogic));
         this.addController(new UserMediaController(this.app, userLogic, userMediaLogic));
     }
 }

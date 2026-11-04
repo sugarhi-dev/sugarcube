@@ -8,6 +8,7 @@ import type {
     ProjectProjectType as ClientProjectProjectType,
     ProjectType as ClientProjectType,
     UserMedia as ClientUserMedia,
+    UserAvailability as ClientUserAvailability,
 } from '@sugarcube/schema';
 import type { Currency } from './currency.js';
 import type { Discipline } from './discipline.js';
@@ -17,6 +18,7 @@ import type { Project } from './project.js';
 import type { ProjectProjectType } from './projectProjectType.js';
 import type { ProjectType } from './projectType.js';
 import type { User } from './user.js';
+import type { UserAvailability } from './userAvailability.js';
 import type { UserMedia } from './userMedia.js';
 
 type Expect<T extends true> = T;
@@ -34,10 +36,12 @@ type _projectProjectType = Expect<Subset<ProjectProjectType, ClientProjectProjec
 type _projectType = Expect<Subset<ProjectType, ClientProjectType>>;
 type _user = Expect<Subset<User, CurrentUser>>;
 type _userMedia = Expect<Subset<UserMedia, ClientUserMedia>>;
+type _userAvailability = Expect<Subset<UserAvailability, ClientUserAvailability>>;
 
 type _hideKeycloakId = Expect<Hidden<CurrentUser, 'keycloak_id'>>;
 type _hideProjectOwner = Expect<Hidden<ClientProject, 'user_profile_id'>>;
 type _hideMediaOwner = Expect<Hidden<ClientUserMedia, 'user_profile_id'>>;
+type _hideAvailabilityOwner = Expect<Hidden<ClientUserAvailability, 'user_profile_id'>>;
 type _hideMediaOrder = Expect<Hidden<ClientUserMedia, 'sort_order'>>;
 type _hideMediaThumbnail = Expect<Hidden<ClientUserMedia, 'thumbnail'>>;
 type _hideLatitude = Expect<Hidden<ClientProductionCity, 'latitude'>>;

@@ -8,6 +8,9 @@ export type ProjectInput = {
     name: string;
     position_id: string;
     lead_producer_name: string;
+    date: string;
+    production_company: string | null;
+    hiring_producer: string | null;
 };
 
 export function listProjects(accessToken: string): Promise<Project[]> {

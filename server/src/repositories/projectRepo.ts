@@ -7,7 +7,14 @@ type ProjectRow = {
     name: string;
     position_id: string;
     lead_producer_name: string;
+    date: string;
+    production_company: string | null;
+    hiring_producer: string | null;
 };
+
+const projectColumns = `id, user_profile_id, name, position_id, lead_producer_name,
+    to_char(date, 'YYYY-MM-DD') AS date,
+    production_company, hiring_producer`;
 
 export class ProjectRepo extends Repository {
     constructor(database: Database) {
@@ -17,7 +24,7 @@ export class ProjectRepo extends Repository {
     async listProjects(ctx: Context, userProfileId: string): Promise<Project[]> {
         this.log.trace(`${ctx.traceId} select projects ${userProfileId}`);
         const result = await this.database.query<ProjectRow>(
-            `SELECT id, user_profile_id, name, position_id, lead_producer_name
+            `SELECT ${projectColumns}
              FROM projects
              WHERE user_profile_id = $1
              ORDER BY created_at`,
@@ -29,7 +36,7 @@ export class ProjectRepo extends Repository {
     async findProject(ctx: Context, userProfileId: string, id: string): Promise<Project | null> {
         this.log.trace(`${ctx.traceId} select projects ${id}`);
         const result = await this.database.query<ProjectRow>(
-            `SELECT id, user_profile_id, name, position_id, lead_producer_name
+            `SELECT ${projectColumns}
              FROM projects
              WHERE id = $1 AND user_profile_id = $2`,
             [id, userProfileId],
@@ -41,10 +48,22 @@ export class ProjectRepo extends Repository {
     async createProject(ctx: Context, project: Project): Promise<Project> {
         this.log.trace(`${ctx.traceId} insert projects ${project.id}`);
         const result = await this.database.query<ProjectRow>(
-            `INSERT INTO projects (id, user_profile_id, name, position_id, lead_producer_name)
-             VALUES ($1, $2, $3, $4, $5)
-             RETURNING id, user_profile_id, name, position_id, lead_producer_name`,
-            [project.id, project.user_profile_id, project.name, project.position_id, project.lead_producer_name],
+            `INSERT INTO projects (
+                 id, user_profile_id, name, position_id, lead_producer_name,
+                 date, production_company, hiring_producer
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             RETURNING ${projectColumns}`,
+            [
+                project.id,
+                project.user_profile_id,
+                project.name,
+                project.position_id,
+                project.lead_producer_name,
+                project.date,
+                project.production_company,
+                project.hiring_producer,
+            ],
         );
         return requiredRow(result.rows[0], `insert projects ${project.id}`);
     }
@@ -56,10 +75,22 @@ export class ProjectRepo extends Repository {
              SET name = $3,
                  position_id = $4,
                  lead_producer_name = $5,
+                 date = $6,
+                 production_company = $7,
+                 hiring_producer = $8,
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = $1 AND user_profile_id = $2
-             RETURNING id, user_profile_id, name, position_id, lead_producer_name`,
-            [project.id, project.user_profile_id, project.name, project.position_id, project.lead_producer_name],
+             RETURNING ${projectColumns}`,
+            [
+                project.id,
+                project.user_profile_id,
+                project.name,
+                project.position_id,
+                project.lead_producer_name,
+                project.date,
+                project.production_company,
+                project.hiring_producer,
+            ],
         );
         const row = result.rows[0];
         return row ? ProjectSchema.parse(row) : null;

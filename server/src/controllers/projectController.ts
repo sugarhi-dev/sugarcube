@@ -8,18 +8,31 @@ import { parseBody } from './httpHelpers.js';
 
 const ProjectIdSchema = z.ulid().meta({ description: 'Project id.' });
 
+const optionalName = z.string().trim().min(1).nullable();
+
 const SaveProjectRequestSchema = z.object({
     name: z.string().trim().min(1).max(255).meta({ description: 'Project name.' }),
     position_id: z.ulid().meta({ description: 'Position the user held on the project.' }),
     lead_producer_name: z.string().trim().min(1).meta({ description: 'Lead producer name.' }),
+    date: z.iso.date().meta({ description: 'Project date.' }),
+    production_company: optionalName.default(null).meta({ description: 'Production company.' }),
+    hiring_producer: optionalName.default(null).meta({ description: 'Hiring producer.' }),
 });
 
 const UpdateProjectRequestSchema = z.object({
     name: z.string().trim().min(1).max(255).optional().meta({ description: 'Project name.' }),
     position_id: z.ulid().optional().meta({ description: 'Position the user held on the project.' }),
     lead_producer_name: z.string().trim().min(1).optional().meta({ description: 'Lead producer name.' }),
+    date: z.iso.date().optional().meta({ description: 'Project date.' }),
+    production_company: optionalName.optional().meta({ description: 'Production company. Null clears it.' }),
+    hiring_producer: optionalName.optional().meta({ description: 'Hiring producer. Null clears it.' }),
 }).refine(
-    (row) => row.name !== undefined || row.position_id !== undefined || row.lead_producer_name !== undefined,
+    (row) => row.name !== undefined
+        || row.position_id !== undefined
+        || row.lead_producer_name !== undefined
+        || row.date !== undefined
+        || row.production_company !== undefined
+        || row.hiring_producer !== undefined,
     'At least one field is required.',
 );
 

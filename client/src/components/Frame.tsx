@@ -14,7 +14,13 @@ const accountMenu: MenuProps['items'] = [
     { key: 'sign-out', label: 'Sign out' },
 ];
 
-export function Frame({ children }: { children: ReactNode }) {
+type FrameProps = {
+    children: ReactNode;
+    menu?: boolean;
+    search?: boolean;
+};
+
+export function Frame({ children, menu = true, search = true }: FrameProps) {
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const session = useSession();
@@ -66,11 +72,17 @@ export function Frame({ children }: { children: ReactNode }) {
             <div className="app-frame">
                 <header className="app-bar">
                     <div className="app-brand">
-                        <Dropdown menu={{ items: accountMenu, onClick: onAccount }} trigger={['click']} placement="bottomLeft">
+                        {menu ? (
+                            <Dropdown menu={{ items: accountMenu, onClick: onAccount }} trigger={['click']} placement="bottomLeft">
+                                <button type="button" className="app-icon-btn" aria-label="Menu">
+                                    <MenuOutlined />
+                                </button>
+                            </Dropdown>
+                        ) : (
                             <button type="button" className="app-icon-btn" aria-label="Menu">
                                 <MenuOutlined />
                             </button>
-                        </Dropdown>
+                        )}
                         <Link to="/" className="app-logo">
                             COPY
                             <span style={{ color: copyThat.accent }}>THAT</span>
@@ -82,7 +94,8 @@ export function Frame({ children }: { children: ReactNode }) {
                             prefix={<SearchOutlined />}
                             placeholder="Search crew, projects, resources..."
                             aria-label="Search crew, projects, resources"
-                            allowClear
+                            allowClear={search}
+                            disabled={!search}
                         />
                     </div>
                     <div className="app-tools">

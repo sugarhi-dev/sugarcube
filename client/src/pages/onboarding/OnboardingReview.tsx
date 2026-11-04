@@ -17,9 +17,9 @@ import {
     UploadOutlined,
     VideoCameraOutlined,
 } from '@ant-design/icons';
-import { classifyMediaLink, mediaUrl, type Currency, type Project, type ProjectType, type UserMedia } from '@sugarcube/schema';
+import { classifyMediaLink, mediaUrl, type Currency, type Project, type ProjectType, type UserAvailability, type UserMedia } from '@sugarcube/schema';
 import { App as AntdApp, Button, Flex, Form, Input, InputNumber, Modal, Progress, Radio, Result, Select, Spin, Switch, Typography } from 'antd';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import {
     listCurrencies,
@@ -31,6 +31,7 @@ import {
     type Position,
     type ProductionCity,
 } from '../../api/catalog.ts';
+import { listAvailability } from '../../api/availability.ts';
 import { createMedia, deleteMedia, getMediaThumbnail, listMedia, updateMedia, uploadMedia } from '../../api/media.ts';
 import {
     getProfilePhotoUrl,
@@ -53,11 +54,15 @@ import {
     updateProject,
     updateProjectProjectTypes,
 } from '../../api/projects.ts';
+import { Frame } from '../../components/Frame.tsx';
+import { ProjectCredit, projectFacts } from '../../components/ProjectCredit.tsx';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
+import { AvailabilityCalendar } from './AvailabilityCalendar.tsx';
+import { fileDragKind, fileDropHandlers, imageFile, isFileDrag, useKeepFileDrop } from './fileDrop.ts';
 import { LocaleField } from './LocaleField.tsx';
-import { OnboardingFrame } from './OnboardingFrame.tsx';
+import { ProjectTypeField } from './ProjectTypeField.tsx';
 import { onboardingMediaPath } from './OnboardingMedia.tsx';
 
 export const onboardingReviewPath = '/onboarding/review';
@@ -89,24 +94,6 @@ const currencySymbols: Record<string, string> = {
 
 const disciplineOrder = ['Shooting', 'Post Production'];
 
-const typeOrder: Record<string, string[]> = {
-    Shooting: [
-        'Social Content',
-        'Podcast',
-        'Product Demo',
-        'Brand Film',
-        'Tabletop',
-        'Music Video',
-        'Feature Film',
-        'Indie Film',
-        'TV Show',
-        'Longform Art Film',
-        'Still Photography',
-        'Commercial',
-    ],
-    'Post Production': ['Stop Motion', 'Animated', 'Visual FX', 'AI Content'],
-};
-
 type ReviewData = {
     media: UserMedia[];
     projects: Project[];
@@ -122,6 +109,7 @@ type ReviewData = {
     currencyId: string | null;
     flatFee: boolean;
     locales: SetupCity[];
+    availability: UserAvailability[];
 };
 
 type ProfileEditValues = {
@@ -140,6 +128,9 @@ type CreditFormValues = {
     name: string;
     position_id: string;
     lead_producer_name: string;
+    date: string;
+    production_company?: string;
+    hiring_producer?: string;
 };
 
 export function OnboardingReview() {
@@ -170,6 +161,8 @@ export function OnboardingReview() {
     const [thumbFile, setThumbFile] = useState<File | null>(null);
     const [thumbPreview, setThumbPreview] = useState<string | null>(null);
     const [thumbError, setThumbError] = useState<string | null>(null);
+    const [videoOver, setVideoOver] = useState(false);
+    const [thumbOver, setThumbOver] = useState(false);
     const [addingMedia, setAddingMedia] = useState(false);
     const [removingMediaId, setRemovingMediaId] = useState<string | null>(null);
     const [editingMediaId, setEditingMediaId] = useState<string | null>(null);
@@ -196,6 +189,15 @@ export function OnboardingReview() {
         document.title = readOnly ? 'Profile in review' : 'Review & go live';
     }, [readOnly]);
 
+    useKeepFileDrop(uploadOpen || linkOpen);
+
+    useEffect(() => {
+        if (!uploadOpen && !linkOpen) {
+            setVideoOver(false);
+            setThumbOver(false);
+        }
+    }, [uploadOpen, linkOpen]);
+
     useEffect(() => {
         if (!session) {
             return;
@@ -208,7 +210,7 @@ export function OnboardingReview() {
 
         void (async () => {
             try {
-                const [media, projects, projectTypes, positions, currencies, cities, locales, rates, workProfiles, disciplines] = await Promise.all([
+                const [media, projects, projectTypes, positions, currencies, cities, locales, rates, workProfiles, disciplines, availability] = await Promise.all([
                     listMedia(token),
                     listProjects(token),
                     listProjectTypes(token),
@@ -219,6 +221,7 @@ export function OnboardingReview() {
                     getWorkProfile(token),
                     listWorkProfiles(token),
                     listDisciplines(token),
+                    listAvailability(token),
                 ]);
                 const links = await Promise.all(projects.map((project) => listProjectProjectTypes(token, project.id)));
                 if (!active) {
@@ -253,6 +256,7 @@ export function OnboardingReview() {
                         production_city_id: locale.production_city_id,
                         home_city: locale.home_city,
                     })),
+                    availability,
                 });
             } catch (error: unknown) {
                 if (active) {
@@ -456,23 +460,110 @@ export function OnboardingReview() {
     }
 
     async function chooseThumbnail(file: File): Promise<void> {
-        if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
+        const image = imageFile(file);
+        if (!image) {
             setThumbError('Use a JPG or PNG thumbnail.');
             return;
         }
-        if (file.size > thumbnailLimit) {
+        if (image.size > thumbnailLimit) {
             setThumbError('Use a thumbnail smaller than 8 MB.');
             return;
         }
         try {
-            const bitmap = await createImageBitmap(file);
+            const bitmap = await createImageBitmap(image);
             bitmap.close();
         } catch {
             setThumbError('Could not read that thumbnail.');
             return;
         }
         setThumbError(null);
-        setThumbFile(file);
+        setThumbFile(image);
+    }
+
+    function takeDropped(file: File): void {
+        if (videoContentType(file)) {
+            chooseVideo(file);
+            return;
+        }
+        if (imageFile(file)) {
+            void chooseThumbnail(file);
+            return;
+        }
+        setVideoError('Use an MP4, MOV, or WebM video.');
+    }
+
+    function onUploadDragOver(event: DragEvent<HTMLDivElement>): void {
+        if (!isFileDrag(event.dataTransfer)) {
+            return;
+        }
+        event.preventDefault();
+        if (uploading) {
+            event.dataTransfer.dropEffect = 'none';
+            return;
+        }
+        event.dataTransfer.dropEffect = 'copy';
+        if (event.target !== event.currentTarget) {
+            return;
+        }
+        const kind = fileDragKind(event.dataTransfer);
+        if (kind === 'image') {
+            setThumbOver(true);
+            setVideoOver(false);
+        } else if (kind === 'video') {
+            setVideoOver(true);
+            setThumbOver(false);
+        }
+    }
+
+    function onUploadDrop(event: DragEvent<HTMLDivElement>): void {
+        const file = event.dataTransfer.files[0];
+        if (!file && !isFileDrag(event.dataTransfer)) {
+            return;
+        }
+        event.preventDefault();
+        setVideoOver(false);
+        setThumbOver(false);
+        if (uploading || !file) {
+            return;
+        }
+        takeDropped(file);
+    }
+
+    function leaveDrop(event: DragEvent<HTMLDivElement>): void {
+        const next = event.relatedTarget;
+        if (next instanceof Node && event.currentTarget.contains(next)) {
+            return;
+        }
+        setVideoOver(false);
+        setThumbOver(false);
+    }
+
+    function onThumbDragOver(event: DragEvent<HTMLDivElement>): void {
+        if (!isFileDrag(event.dataTransfer)) {
+            return;
+        }
+        event.preventDefault();
+        if (addingMedia) {
+            event.dataTransfer.dropEffect = 'none';
+            return;
+        }
+        event.dataTransfer.dropEffect = 'copy';
+        if (event.target === event.currentTarget && fileDragKind(event.dataTransfer) === 'image') {
+            setThumbOver(true);
+        }
+    }
+
+    function onThumbDrop(event: DragEvent<HTMLDivElement>): void {
+        const file = event.dataTransfer.files[0];
+        if (!file && !isFileDrag(event.dataTransfer)) {
+            return;
+        }
+        event.preventDefault();
+        setThumbOver(false);
+        if (addingMedia || !file) {
+            return;
+        }
+        void chooseThumbnail(file);
     }
 
     async function onAddLink(): Promise<void> {
@@ -606,11 +697,7 @@ export function OnboardingReview() {
         }
         setAddingCredit(true);
         try {
-            const project = await createProject(session.accessToken, {
-                name: values.name.trim(),
-                position_id: values.position_id,
-                lead_producer_name: values.lead_producer_name.trim(),
-            });
+            const project = await createProject(session.accessToken, creditInput(values));
             rememberProjects([...projectsRef.current, project]);
             creditForm.resetFields();
         } catch (error) {
@@ -633,11 +720,7 @@ export function OnboardingReview() {
         }
         setSavingCreditId(project.id);
         try {
-            const updated = await updateProject(session.accessToken, project.id, {
-                name: values.name.trim(),
-                position_id: values.position_id,
-                lead_producer_name: values.lead_producer_name.trim(),
-            });
+            const updated = await updateProject(session.accessToken, project.id, creditInput(values));
             rememberProjects(projectsRef.current.map((row) => row.id === updated.id ? updated : row));
             setEditingCreditId(null);
         } catch (error) {
@@ -664,20 +747,17 @@ export function OnboardingReview() {
         }
     }
 
-    function toggleType(id: string): void {
+    function changeTypes(typeIds: string[]): void {
         if (!session) {
             return;
         }
-        const current = selectedTypeIdsRef.current;
-        const next = current.includes(id) ? current.filter((row) => row !== id) : [...current, id];
-        rememberTypeIds(next);
+        rememberTypeIds(typeIds);
         const token = session.accessToken;
         void persistTypes(saveQueue, projectsRef, selectedTypeIdsRef, token).catch((error: unknown) => {
             message.error(error instanceof Error ? error.message : 'Could not update project types.');
         });
     }
 
-    const accountLabel = user?.account_type === 'client' ? 'CLIENT SETUP' : 'CREW SETUP';
     const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Your profile';
     const positionName = data ? data.positions.find((position) => position.id === data.positionId)?.name ?? null : null;
     const title = positionName ?? displayName;
@@ -686,29 +766,25 @@ export function OnboardingReview() {
     const rateLabel = data ? formatPerDay(data.dayRate, currency) : null;
     const role = [positionName, rateLabel].filter((part): part is string => Boolean(part)).join(' · ');
     const where = data ? cityLine(data.locales, data.cities) : null;
+    const homeLocale = data?.locales.find((locale) => locale.home_city) ?? data?.locales[0];
+    const homeCity = data?.cities.find((city) => city.id === homeLocale?.production_city_id)?.name ?? null;
+    const appliesTo = [positionName, homeCity].filter((part): part is string => Boolean(part)).join(' · ');
     const visibleMedia = data && !showAllMedia ? data.media.slice(0, 4) : data?.media ?? [];
     const moreMedia = Boolean(data && data.media.length > 4 && !showAllMedia);
     const mosaic = !showAllMedia && visibleMedia.length >= 3;
     const mediaClass = showAllMedia
         ? 'crew-media is-expanded'
         : mosaic
-            ? 'crew-media'
+            ? 'crew-media is-mosaic'
             : visibleMedia.length === 1
                 ? 'crew-media is-single'
                 : 'crew-media is-pair';
     const canSubmit = (data?.media.length ?? 0) >= minimumMedia;
     const positionOptions = data ? positionSelectOptions(data.disciplines, data.positions) : [];
-    const groups = data ? typeGroups(data.disciplines, data.projectTypes) : [];
-    const typeName = new Map(data?.projectTypes.map((projectType) => [projectType.id, projectType.name]));
     const positionById = new Map(data?.positions.map((position) => [position.id, position.name]));
 
-    return (
-        <OnboardingFrame
-            step={readOnly ? 6 : 5}
-            accountLabel={accountLabel}
-            contentWidth={960}
-            note="Once approved you go Live — same dashboard as every account, plus your crew profile."
-        >
+    const review = (
+        <>
             {loadError ? (
                 <Result
                     status="error"
@@ -822,6 +898,8 @@ export function OnboardingReview() {
                             </div>
                         )}
 
+                        <div className="review-columns">
+                            <div>
                         {editingProfile ? (
                             <ProfileEditor
                                 data={data}
@@ -851,10 +929,22 @@ export function OnboardingReview() {
                                         ) : null}
                                     </div>
                                 </div>
-                                {user.bio ? (
+                                {user.bio || !readOnly ? (
                                     <section className="crew-about" aria-labelledby="crew-about-title">
-                                        <h2 id="crew-about-title">About</h2>
-                                        <p>{user.bio}</p>
+                                        <div className="crew-about-head">
+                                            <h2 id="crew-about-title">About</h2>
+                                            {readOnly ? null : (
+                                                <Button
+                                                    htmlType="button"
+                                                    className="review-edit"
+                                                    icon={<EditOutlined />}
+                                                    onClick={() => setEditingProfile(true)}
+                                                >
+                                                    Edit bio
+                                                </Button>
+                                            )}
+                                        </div>
+                                        {user.bio ? <p>{user.bio}</p> : null}
                                     </section>
                                 ) : null}
                             </>
@@ -864,6 +954,18 @@ export function OnboardingReview() {
                             <div className="crew-stat">
                                 <strong>{data.projects.length}</strong>
                                 <span>Projects completed</span>
+                            </div>
+                            <div className="crew-stat">
+                                <strong>&lt; 12h</strong>
+                                <span>Average Response</span>
+                            </div>
+                            <div className="crew-stat">
+                                <strong>100%</strong>
+                                <span>Repeat Clients</span>
+                            </div>
+                            <div className="crew-stat">
+                                <strong>{yearsActive(data.projects)}</strong>
+                                <span>Years Active</span>
                             </div>
                         </div>
 
@@ -876,11 +978,10 @@ export function OnboardingReview() {
                                     {readOnly ? 'No credits yet.' : 'Add a credit so clients can see where you have worked.'}
                                 </p>
                             ) : (
-                                <ul className="crew-credits">
-                                    {data.projects.map((project) => {
-                                        const detail = creditDetail(project, positionById, selectedTypeIds, typeName);
-                                        return !readOnly && editingCreditId === project.id ? (
-                                            <li key={project.id} className="crew-credit is-editing">
+                                <ul className="credit-list">
+                                    {data.projects.map((project) => (
+                                        !readOnly && editingCreditId === project.id ? (
+                                            <li key={project.id} className="credit-plain is-editing">
                                                 <Form
                                                     className="review-credit-form"
                                                     requiredMark={false}
@@ -888,6 +989,9 @@ export function OnboardingReview() {
                                                         name: project.name,
                                                         position_id: project.position_id,
                                                         lead_producer_name: project.lead_producer_name,
+                                                        date: project.date,
+                                                        production_company: project.production_company ?? '',
+                                                        hiring_producer: project.hiring_producer ?? '',
                                                     }}
                                                     onFinish={(values: CreditFormValues) => void onSaveCredit(project, values)}
                                                 >
@@ -924,6 +1028,19 @@ export function OnboardingReview() {
                                                         >
                                                             <Input aria-label={`Lead producer for ${project.name}`} />
                                                         </Form.Item>
+                                                        <Form.Item
+                                                            name="date"
+                                                            style={{ flex: '0 1 150px', marginBottom: 0 }}
+                                                            rules={[{ required: true, message: 'Enter a date.' }]}
+                                                        >
+                                                            <Input type="date" aria-label={`Date for ${project.name}`} />
+                                                        </Form.Item>
+                                                        <Form.Item name="production_company" style={{ flex: '1 1 160px', marginBottom: 0 }}>
+                                                            <Input aria-label={`Production company for ${project.name}`} placeholder="Production company" />
+                                                        </Form.Item>
+                                                        <Form.Item name="hiring_producer" style={{ flex: '1 1 160px', marginBottom: 0 }}>
+                                                            <Input aria-label={`Hiring producer for ${project.name}`} placeholder="Hiring producer" />
+                                                        </Form.Item>
                                                         <Button
                                                             htmlType="submit"
                                                             type="text"
@@ -944,36 +1061,41 @@ export function OnboardingReview() {
                                                 </Form>
                                             </li>
                                         ) : (
-                                            <li key={project.id} className="crew-credit">
-                                                <div>
-                                                    <div className="crew-credit-name">{project.name}</div>
-                                                    {detail ? <div className="crew-credit-detail">{detail}</div> : null}
-                                                </div>
-                                                <div className="crew-credit-side">
-                                                    <div className="crew-credit-ref">{project.lead_producer_name}</div>
-                                                    {readOnly ? null : (
-                                                        <>
-                                                            <Button
-                                                                htmlType="button"
-                                                                type="text"
-                                                                aria-label={`Edit ${project.name}`}
-                                                                icon={<EditOutlined />}
-                                                                onClick={() => setEditingCreditId(project.id)}
-                                                            />
-                                                            <Button
-                                                                htmlType="button"
-                                                                type="text"
-                                                                aria-label={`Remove ${project.name}`}
-                                                                icon={<DeleteOutlined />}
-                                                                loading={removingCreditId === project.id}
-                                                                onClick={() => void onRemoveCredit(project)}
-                                                            />
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </li>
-                                        );
-                                    })}
+                                            <ProjectCredit
+                                                key={project.id}
+                                                boxed={false}
+                                                name={project.name}
+                                                facts={projectFacts({
+                                                    date: project.date,
+                                                    position: positionById.get(project.position_id),
+                                                    company: project.production_company,
+                                                    hiringProducer: project.hiring_producer,
+                                                    leadProducer: project.lead_producer_name,
+                                                })}
+                                                actions={readOnly ? undefined : (
+                                                    <>
+                                                        <Button
+                                                            htmlType="button"
+                                                            type="text"
+                                                            className="credit-edit"
+                                                            aria-label={`Edit ${project.name}`}
+                                                            icon={<EditOutlined />}
+                                                            onClick={() => setEditingCreditId(project.id)}
+                                                        />
+                                                        <Button
+                                                            htmlType="button"
+                                                            type="text"
+                                                            className="credit-remove"
+                                                            aria-label={`Remove ${project.name}`}
+                                                            icon={<DeleteOutlined />}
+                                                            loading={removingCreditId === project.id}
+                                                            onClick={() => void onRemoveCredit(project)}
+                                                        />
+                                                    </>
+                                                )}
+                                            />
+                                        )
+                                    ))}
                                 </ul>
                             )}
 
@@ -1013,6 +1135,19 @@ export function OnboardingReview() {
                                     >
                                         <Input placeholder="Lead producer" aria-label="Lead producer" />
                                     </Form.Item>
+                                    <Form.Item
+                                        name="date"
+                                        style={{ flex: '0 1 150px', marginBottom: 0 }}
+                                        rules={[{ required: true, message: 'Enter a date.' }]}
+                                    >
+                                        <Input type="date" aria-label="Date" />
+                                    </Form.Item>
+                                    <Form.Item name="production_company" style={{ flex: '1 1 150px', marginBottom: 0 }}>
+                                        <Input placeholder="Production company" aria-label="Production company" />
+                                    </Form.Item>
+                                    <Form.Item name="hiring_producer" style={{ flex: '1 1 150px', marginBottom: 0 }}>
+                                        <Input placeholder="Hiring producer" aria-label="Hiring producer" />
+                                    </Form.Item>
                                     <Button htmlType="submit" className="experience-add" icon={<PlusOutlined />} loading={addingCredit}>
                                         Add credit
                                     </Button>
@@ -1021,35 +1156,14 @@ export function OnboardingReview() {
                             )}
 
                             <Typography.Text className="review-types-label">Project types</Typography.Text>
-                            <div role="group" aria-label="Project types">
-                                {groups.map((group) => (
-                                    <Flex key={group.id} gap={8} wrap="wrap" style={{ marginTop: 8 }}>
-                                        {group.types.map((projectType) => {
-                                            const selected = selectedTypeIds.includes(projectType.id);
-                                            const chipClass = [
-                                                'project-type-chip',
-                                                group.also ? 'is-post' : '',
-                                                selected ? 'is-selected' : '',
-                                                readOnly ? 'is-static' : '',
-                                            ].filter(Boolean).join(' ');
-                                            return readOnly ? (
-                                                <span key={projectType.id} className={chipClass}>
-                                                    {projectType.name}
-                                                </span>
-                                            ) : (
-                                                <button
-                                                    key={projectType.id}
-                                                    type="button"
-                                                    className={chipClass}
-                                                    aria-pressed={selected}
-                                                    onClick={() => toggleType(projectType.id)}
-                                                >
-                                                    {projectType.name}
-                                                </button>
-                                            );
-                                        })}
-                                    </Flex>
-                                ))}
+                            <div style={{ marginTop: 8 }}>
+                                <ProjectTypeField
+                                    disciplines={data.disciplines}
+                                    projectTypes={data.projectTypes}
+                                    value={selectedTypeIds}
+                                    onChange={changeTypes}
+                                    readOnly={readOnly}
+                                />
                             </div>
                         </section>
 
@@ -1082,6 +1196,17 @@ export function OnboardingReview() {
                             </Button>
                         </div>
                         )}
+                            </div>
+                            <AvailabilityCalendar
+                                rows={data.availability}
+                                appliesTo={appliesTo}
+                                editable={!readOnly}
+                                accessToken={session.accessToken}
+                                onSaved={(availability) => {
+                                    setData((current) => current ? { ...current, availability } : current);
+                                }}
+                            />
+                        </div>
                     </div>
 
                     <Modal
@@ -1124,11 +1249,19 @@ export function OnboardingReview() {
                                 {linkError}
                             </Typography.Text>
                         ) : null}
-                        <button type="button" className="media-thumb-pick" onClick={() => thumbRef.current?.click()}>
+                        <div onDragOver={onThumbDragOver} onDrop={onThumbDrop} onDragLeave={leaveDrop}>
+                        <button
+                            type="button"
+                            className={thumbOver ? 'media-thumb-pick is-dropping' : 'media-thumb-pick'}
+                            onClick={() => thumbRef.current?.click()}
+                            {...fileDropHandlers(() => setThumbOver(true), () => setThumbOver(false), (file) => {
+                                void chooseThumbnail(file);
+                            })}
+                        >
                             {thumbPreview ? (
-                                <img src={thumbPreview} alt="Selected thumbnail" />
+                                <img src={thumbPreview} alt="Selected thumbnail" draggable={false} />
                             ) : (
-                                <span><PictureOutlined /> Choose a thumbnail</span>
+                                <span><PictureOutlined /> Drop a thumbnail</span>
                             )}
                         </button>
                         <input
@@ -1153,6 +1286,7 @@ export function OnboardingReview() {
                                 {thumbError}
                             </Typography.Text>
                         ) : null}
+                        </div>
                     </Modal>
                     <Modal
                         title="Upload a video"
@@ -1168,8 +1302,18 @@ export function OnboardingReview() {
                         }}
                         onCancel={closeUpload}
                     >
-                        <button type="button" className="media-upload-note" onClick={() => videoRef.current?.click()} disabled={uploading}>
-                            {videoFile ? videoFile.name : 'Choose an MP4, MOV, or WebM'}
+                        <div onDragOver={onUploadDragOver} onDrop={onUploadDrop} onDragLeave={leaveDrop}>
+                        <button
+                            type="button"
+                            className={videoOver ? 'media-upload-note is-dropping' : 'media-upload-note'}
+                            onClick={() => videoRef.current?.click()}
+                            disabled={uploading}
+                            {...fileDropHandlers(() => {
+                                setVideoOver(true);
+                                setThumbOver(false);
+                            }, () => setVideoOver(false), chooseVideo)}
+                        >
+                            {videoFile ? videoFile.name : 'Drop an MP4, MOV, or WebM'}
                         </button>
                         <input
                             ref={videoRef}
@@ -1193,11 +1337,22 @@ export function OnboardingReview() {
                                 {videoError}
                             </Typography.Text>
                         ) : null}
-                        <button type="button" className="media-thumb-pick" onClick={() => uploadThumbRef.current?.click()} disabled={uploading}>
+                        <button
+                            type="button"
+                            className={thumbOver ? 'media-thumb-pick is-dropping' : 'media-thumb-pick'}
+                            onClick={() => uploadThumbRef.current?.click()}
+                            disabled={uploading}
+                            {...fileDropHandlers(() => {
+                                setThumbOver(true);
+                                setVideoOver(false);
+                            }, () => setThumbOver(false), (file) => {
+                                void chooseThumbnail(file);
+                            })}
+                        >
                             {thumbPreview ? (
-                                <img src={thumbPreview} alt="Selected thumbnail" />
+                                <img src={thumbPreview} alt="Selected thumbnail" draggable={false} />
                             ) : (
-                                <span><PictureOutlined /> Choose a thumbnail</span>
+                                <span><PictureOutlined /> Drop a thumbnail</span>
                             )}
                         </button>
                         <input
@@ -1222,6 +1377,7 @@ export function OnboardingReview() {
                                 aria-label="Upload progress"
                             />
                         ) : null}
+                        </div>
                     </Modal>
                     <Modal
                         title="Edit video link"
@@ -1269,7 +1425,13 @@ export function OnboardingReview() {
             <Typography.Paragraph className="review-footnote">
                 Review takes ~24h — you'll show as “Pending review” until approved.
             </Typography.Paragraph>
-        </OnboardingFrame>
+        </>
+    );
+
+    return (
+        <Frame menu={false} search={false}>
+            <div className="review-sheet">{review}</div>
+        </Frame>
     );
 }
 
@@ -1659,18 +1821,52 @@ function persistTypes(
     return run;
 }
 
-function creditDetail(
-    project: Project,
-    positionById: Map<string, string>,
-    typeIds: string[],
-    typeName: Map<string, string>,
-): string {
-    const position = positionById.get(project.position_id) ?? null;
-    const types = typeIds.flatMap((id) => {
-        const name = typeName.get(id);
-        return name ? [name] : [];
-    });
-    return [position, types.length > 0 ? types.join(', ') : null].filter((part): part is string => Boolean(part)).join(' · ');
+function creditInput(values: CreditFormValues) {
+    return {
+        name: values.name.trim(),
+        position_id: values.position_id,
+        lead_producer_name: values.lead_producer_name.trim(),
+        date: values.date,
+        production_company: blankToNull(values.production_company),
+        hiring_producer: blankToNull(values.hiring_producer),
+    };
+}
+
+function blankToNull(value: string | undefined): string | null {
+    const trimmed = value?.trim() ?? '';
+    return trimmed.length > 0 ? trimmed : null;
+}
+
+function yearsActive(projects: Project[], now = new Date()): string {
+    const oldest = projects.reduce<Date | null>((earliest, project) => {
+        const date = projectDate(project.date);
+        if (!date) {
+            return earliest;
+        }
+        return !earliest || date < earliest ? date : earliest;
+    }, null);
+    if (!oldest) {
+        return '—';
+    }
+    let years = now.getFullYear() - oldest.getFullYear();
+    const beforeAnniversary = now.getMonth() < oldest.getMonth()
+        || (now.getMonth() === oldest.getMonth() && now.getDate() < oldest.getDate());
+    if (beforeAnniversary) {
+        years -= 1;
+    }
+    return years < 1 ? '< 1' : String(years);
+}
+
+function projectDate(value: string): Date | null {
+    const [year, month, day] = value.split('-').map(Number);
+    if (!year || !month || !day) {
+        return null;
+    }
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+        return null;
+    }
+    return date;
 }
 
 function positionSelectOptions(disciplines: Discipline[], positions: Position[]): Array<{
@@ -1683,24 +1879,6 @@ function positionSelectOptions(disciplines: Discipline[], positions: Position[])
             .filter((position) => position.discipline_id === discipline.id)
             .map((position) => ({ value: position.id, label: position.name })),
     }));
-}
-
-function typeGroups(disciplines: Discipline[], projectTypes: ProjectType[]): Array<{
-    id: string;
-    name: string;
-    also: boolean;
-    types: ProjectType[];
-}> {
-    return disciplines.flatMap((discipline, index) => {
-        const types = orderNamed(
-            projectTypes.filter((projectType) => projectType.discipline_id === discipline.id),
-            typeOrder[discipline.name] ?? [],
-        );
-        if (types.length === 0) {
-            return [];
-        }
-        return [{ id: discipline.id, name: discipline.name, also: index > 0, types }];
-    });
 }
 
 function orderNamed<T extends { name: string }>(rows: T[], preferred: string[]): T[] {
