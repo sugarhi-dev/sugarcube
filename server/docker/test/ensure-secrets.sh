@@ -20,6 +20,7 @@ keycloak_admin_password="$(rand)"
 aws_access_key_id="sc$(rand | cut -c1-20)"
 aws_secret_access_key="$(rand)"
 oauth_client_secret="$(rand)"
+oauth_admin_client_secret="$(rand)"
 
 umask 077
 cat >"$env_file" <<EOF
@@ -34,6 +35,7 @@ S3_BUCKET=sugarcube
 S3_ENDPOINT=http://seaweedfs:8333
 OAUTH_CLIENT_ID=sugarcube
 OAUTH_CLIENT_SECRET=${oauth_client_secret}
+OAUTH_ADMIN_CLIENT_SECRET=${oauth_admin_client_secret}
 KEYCLOAK_ISSUER=https://test.sugarcube.tv/idp/realms/sugarcube
 KEYCLOAK_JWKS_URL=http://keycloak:8080/idp/realms/sugarcube/protocol/openid-connect/certs
 PORT=3000

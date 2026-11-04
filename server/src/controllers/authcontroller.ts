@@ -15,10 +15,12 @@ const OidcCallbackRequestSchema = z.object({
 
 export const authRequestSchemas = { OidcCallbackRequest: OidcCallbackRequestSchema };
 
+const adminClientId = 'sugarcube_admin';
 
 export class AuthController extends Controller {    
     private readonly userLogic: UserLogic;
     private readonly clientSecret: string;
+    private readonly adminClientSecret: string;
     private readonly keycloakIssuer: string;
 
     constructor(config: Config, app: Express, userLogic: UserLogic)
@@ -26,14 +28,33 @@ export class AuthController extends Controller {
         super(app);        
         this.userLogic = userLogic;
         this.clientSecret = config.require('OAUTH_CLIENT_SECRET');
+        this.adminClientSecret = config.optional('OAUTH_ADMIN_CLIENT_SECRET', '');
         this.keycloakIssuer = config.require('KEYCLOAK_ISSUER');
         this.post('/api/auth/oidc/callback', this.POST_oidc_callback.bind(this));
+        this.post('/api/auth/oidc/admin/callback', this.POST_oidc_admin_callback.bind(this));
     }
 
     protected async POST_oidc_callback(ctx: Context, req: Request, res: Response): Promise<void>
     {        
         const { code, session_state, redirect_uri, client_id } = parseBody(OidcCallbackRequestSchema, req.body);
         await this.authorizeClient(ctx, res, code, session_state, redirect_uri, client_id, this.clientSecret);
+    }
+
+    protected async POST_oidc_admin_callback(ctx: Context, req: Request, res: Response): Promise<void>
+    {
+        const { code, session_state, redirect_uri, client_id } = parseBody(OidcCallbackRequestSchema, req.body);
+        if (client_id !== adminClientId) {
+            ctx.error('This sign-in endpoint only accepts the sugarcube_admin client.', 400);
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+        if (!this.adminClientSecret) {
+            this.log.error(`${ctx.traceId} OAUTH_ADMIN_CLIENT_SECRET is not set.`);
+            ctx.error('Admin sign-in is not configured.', 500);
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+        await this.authorizeClient(ctx, res, code, session_state, redirect_uri, adminClientId, this.adminClientSecret);
     }
 
     private async authorizeClient(

@@ -38,7 +38,7 @@ export class ApiService extends RestService {
     private readonly config: Config;
 
     constructor(config: Config, app: Express, database: Database) {
-        super(config, 'ApiService', app, ['/api/auth/oidc/callback']);
+        super(config, 'ApiService', app, ['/api/auth/oidc/callback', '/api/auth/oidc/admin/callback']);
         this.database = database;
         this.config = config;
     }

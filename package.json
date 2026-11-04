@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "workspaces": [
+    "admin",
     "client",
     "client/schema",
     "server",
@@ -10,13 +11,14 @@
     "tests"
   ],
   "scripts": {
-    "build": "tsc -b && npm run build -w @sugarcube/client",
+    "build": "tsc -b && npm run build -w @sugarcube/client && npm run build -w @sugarcube/admin",
     "clean": "tsc -b --clean",
     "dev:client": "npm run dev -w @sugarcube/client",
+    "dev:admin": "npm run dev -w @sugarcube/admin",
     "client-tests": "npm run test -w @sugarcube/tests",
     "local-up": "docker compose -f server/docker/local/docker-compose.yml up -d --wait",
     "local-down": "docker compose -f server/docker/local/docker-compose.yml down",
-    "typecheck": "tsc -b --pretty false && npm run typecheck -w @sugarcube/client"
+    "typecheck": "tsc -b --pretty false && npm run typecheck -w @sugarcube/client && npm run typecheck -w @sugarcube/admin"
   },
   "engines": {
     "node": ">=24"

@@ -1,0 +1,16 @@
+name: sugarcube-admin-test
+
+services:
+  admin:
+    image: sugarcube-admin:test
+    build:
+      context: ../../..
+      dockerfile: admin/docker/test/Dockerfile
+    container_name: sugarcube-admin-test
+    restart: unless-stopped
+    networks:
+      - sugarcube-test
+
+networks:
+  sugarcube-test:
+    external: true

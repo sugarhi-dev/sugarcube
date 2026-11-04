@@ -1,0 +1,3 @@
+* Drag and drop upload should work
+* Calendar back in the profile view during onboarding
+* Placeholders for response time, projects client rating

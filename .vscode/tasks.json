@@ -7,7 +7,7 @@
 			"group": "build",
 			"problemMatcher": [],
 			"label": "npm: build",
-			"detail": "tsc -b && npm run build -w @sugarcube/client"
+			"detail": "tsc -b && npm run build -w @sugarcube/client && npm run build -w @sugarcube/admin"
 		}
 	]
 }
