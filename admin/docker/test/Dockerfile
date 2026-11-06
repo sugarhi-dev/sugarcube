@@ -14,10 +14,12 @@ COPY tests/package.json ./tests/
 
 RUN npm ci
 
+COPY client ./client
 COPY admin ./admin
 COPY admin/config/test/.env /app/admin/.env
 
-RUN npm run build -w @sugarcube/admin
+RUN npm run build -w @sugarcube/schema \
+ && npm run build -w @sugarcube/admin
 
 FROM node:24-bookworm-slim AS runtime
 
