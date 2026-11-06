@@ -18,6 +18,7 @@
     "client-tests": "npm run test -w @sugarcube/tests",
     "local-up": "docker compose -f server/docker/local/docker-compose.yml up -d --wait",
     "local-down": "docker compose -f server/docker/local/docker-compose.yml down",
+    "local-start": "node scripts/local-start.js",
     "typecheck": "tsc -b --pretty false && npm run typecheck -w @sugarcube/client && npm run typecheck -w @sugarcube/admin"
   },
   "engines": {

@@ -144,15 +144,13 @@ async function expectReview(page: Page): Promise<void> {
     await expect(page.getByRole('button', { name: 'Submit profile' })).toBeVisible();
     await expect(page.getByRole('complementary', { name: 'Your availability' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Update Calendar' })).toBeVisible();
-    await expect(page.getByText('Average Response')).toBeVisible();
-    await expect(page.getByText('< 12h')).toBeVisible();
-    await expect(page.getByText('Repeat Clients')).toBeVisible();
-    await expect(page.getByText('100%')).toBeVisible();
-    await expect(page.getByText('Years Active')).toBeVisible();
-    await expect(page.locator('.crew-stat').filter({ hasText: 'Years Active' }).locator('strong')).toHaveText(yearsActive('2024-03-12'));
+    await expect(page.locator('.crew-stat').filter({ hasText: 'Projects completed' }).locator('strong')).toHaveText('18');
+    await expect(page.locator('.crew-stat').filter({ hasText: 'Average Response' }).locator('strong')).toHaveText('< 12h');
+    await expect(page.locator('.crew-stat').filter({ hasText: 'Repeat Clients' }).locator('strong')).toHaveText('100%');
+    await expect(page.locator('.crew-stat').filter({ hasText: 'Years Active' }).locator('strong')).toHaveText('3');
     await expect(page.getByRole('list', { name: 'Setup steps' })).toHaveCount(0);
     await expect(page.getByRole('textbox', { name: 'Search crew, projects, resources' })).toBeDisabled();
-    await page.getByRole('button', { name: 'Menu' }).click();
+    await page.getByRole('button', { name: 'Menu', exact: true }).click();
     await expect(page.getByRole('menu')).toHaveCount(0);
 }
 
@@ -195,9 +193,10 @@ async function openMedia(page: Page): Promise<void> {
     await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
     await page.getByLabel('Project title').fill('Nike — Up In The Air');
     await chooseOption(page, 'Position', 'Director', 'Director');
-    await page.getByLabel('Lead producer').fill('Sarah Kim');
+    await page.getByLabel('Lead producer', { exact: true }).fill('Sarah Kim');
+    await page.getByLabel('Lead producer email').fill('sarah.kim@example.com');
     await page.getByLabel('Date').fill('2024-03-12');
-    await page.getByRole('button', { name: 'Add' }).click();
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
     await expect(page.getByText('Nike — Up In The Air')).toBeVisible();
     await Promise.all([
         page.waitForResponse((response) =>
@@ -209,6 +208,7 @@ async function openMedia(page: Page): Promise<void> {
             response.request().method() === 'PUT' && response.url().includes('/project-types') && response.ok()),
         chooseOption(page, 'Project types', 'Music Video', 'Music'),
     ]);
+    await fillTrackRecord(page);
     await page.getByRole('button', { name: 'Continue — upload media' }).click();
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
 }
@@ -258,16 +258,10 @@ function pngChunk(type: string, data: Buffer): Buffer {
     return Buffer.concat([length, tag, data, crc]);
 }
 
-function yearsActive(isoDate: string, now = new Date()): string {
-    const [year, month, day] = isoDate.split('-').map(Number);
-    const oldest = new Date(year ?? 0, (month ?? 1) - 1, day);
-    let years = now.getFullYear() - oldest.getFullYear();
-    const beforeAnniversary = now.getMonth() < oldest.getMonth()
-        || (now.getMonth() === oldest.getMonth() && now.getDate() < oldest.getDate());
-    if (beforeAnniversary) {
-        years -= 1;
-    }
-    return years < 1 ? '< 1' : String(years);
+async function fillTrackRecord(page: Page): Promise<void> {
+    await page.getByLabel('Projects completed').fill('18');
+    await page.getByLabel('Years in the business').fill('3');
+    await chooseOption(page, 'Response time', '< 12 hours');
 }
 
 async function chooseOption(page: Page, label: string, option: string, search?: string): Promise<void> {

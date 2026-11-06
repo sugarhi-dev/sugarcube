@@ -11,6 +11,9 @@ export const UserWorkProfileSchema = z.object({
     currency_id: z.ulid().nullable().default(null),
     union_status: UnionStatusSchema,
     flat_fee: z.boolean().default(false),
+    projects_completed: z.number().int().min(0).nullable().default(null),
+    years_in_business: z.number().int().min(0).nullable().default(null),
+    response_time_hours: z.number().int().min(1).nullable().default(null),
 }).refine(
     (row) => (row.day_rate === null) === (row.currency_id === null),
     'day_rate and currency_id must both be set or both be null',

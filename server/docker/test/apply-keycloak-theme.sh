@@ -13,10 +13,10 @@ for _ in $(seq 1 60); do
     && docker exec "$container" /opt/keycloak/bin/kcadm.sh update "clients/${client_id}" -r sugarcube \
       -s 'rootUrl=https://test.sugarcube.tv' \
       -s 'baseUrl=https://test.sugarcube.tv/' \
-      -s 'redirectUris=["https://test.sugarcube.tv/auth/callback"]' \
+      -s 'redirectUris=["https://test.sugarcube.tv/auth/client/callback"]' \
       -s 'webOrigins=["https://test.sugarcube.tv"]'; then
     echo "Keycloak realm sugarcube is using login theme copythat"
-    echo "Keycloak client sugarcube accepts https://test.sugarcube.tv/auth/callback"
+    echo "Keycloak client sugarcube accepts https://test.sugarcube.tv/auth/client/callback"
     exit 0
   fi
   sleep 5

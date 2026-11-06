@@ -47,6 +47,7 @@ test('uploads a video and thumbnail', async ({ page }) => {
 
     const uploaded = page.getByRole('listitem', { name: /Uploaded video, cover/ });
     await expect(uploaded.locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(uploaded.locator('.media-mark .anticon-video-camera')).toBeVisible();
     await expect(page.getByText('1 of 2 — add 1 more')).toBeVisible();
 
     const reloadedThumb = page.waitForResponse((response) =>
@@ -57,6 +58,94 @@ test('uploads a video and thumbnail', async ({ page }) => {
     expect(loaded.headers()['content-type']).toContain('image/jpeg');
     await expect(page.getByRole('listitem', { name: /Uploaded video, cover/ }).locator('img')).toHaveAttribute('src', /^blob:/);
     await expect(page.getByText('1 of 2 — add 1 more')).toBeVisible();
+});
+
+test('uploads a photo', async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMedia(page);
+
+    await page.getByRole('button', { name: 'Photo' }).click();
+    const upload = page.getByRole('dialog', { name: 'Upload a photo' });
+    await dropFile(upload.getByRole('button', { name: 'Drop a JPG or PNG' }), {
+        name: 'notes.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('nope'),
+    });
+    await expect(upload.getByRole('alert')).toHaveText('Use a JPG or PNG photo.');
+    await upload.getByLabel('Photo').setInputFiles(thumbnailPath);
+    await expect(upload.getByRole('img', { name: 'Selected photo' })).toBeVisible();
+
+    const stored = page.waitForResponse((response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/api/me/media/photo') && response.ok());
+    await upload.getByRole('button', { name: 'Upload', exact: true }).click();
+    const response = await stored;
+    expect(response.status()).toBe(201);
+    expect(response.request().headers()['content-type']).toContain('image/jpeg');
+    await expect(upload).toBeHidden();
+
+    const photo = page.getByRole('listitem', { name: /Photo, cover/ });
+    await expect(photo.locator('img')).toHaveAttribute('src', /^blob:/);
+    const mark = photo.locator('.media-mark');
+    await expect(mark.locator('.anticon-picture')).toBeVisible();
+    const remove = photo.getByRole('button', { name: /^Delete / });
+    await expect(mark).toBeVisible();
+    const cardBox = await photo.boundingBox();
+    const markBox = await mark.boundingBox();
+    const removeBox = await remove.boundingBox();
+    if (!cardBox || !markBox || !removeBox) {
+        throw new Error('Could not measure the photo mark.');
+    }
+    expect(markBox.width).toBeCloseTo(removeBox.width, 0);
+    expect(markBox.height).toBeCloseTo(removeBox.height, 0);
+    expect(markBox.x).toBeGreaterThan(cardBox.x + cardBox.width / 2);
+    expect(markBox.y).toBeGreaterThan(cardBox.y + cardBox.height / 2);
+    await expect(photo.getByRole('button', { name: /^Edit / })).toHaveCount(0);
+    await expect(page.getByText('1 of 2 — add 1 more')).toBeVisible();
+
+    const reloaded = page.waitForResponse((response) =>
+        response.request().method() === 'GET'
+        && response.url().includes('/api/me/media/')
+        && response.url().includes('/thumbnail')
+        && response.ok());
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
+    const loaded = await reloaded;
+    expect(loaded.headers()['content-type']).toContain('image/jpeg');
+    await expect(page.getByRole('listitem', { name: /Photo, cover/ }).locator('img')).toHaveAttribute('src', /^blob:/);
+});
+
+test('enlarges a profile photo', async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMedia(page);
+
+    await page.getByRole('button', { name: 'Photo' }).click();
+    const upload = page.getByRole('dialog', { name: 'Upload a photo' });
+    await upload.getByLabel('Photo').setInputFiles(thumbnailPath);
+    await expect(upload.getByRole('img', { name: 'Selected photo' })).toBeVisible();
+    const stored = page.waitForResponse((response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/api/me/media/photo') && response.ok());
+    await upload.getByRole('button', { name: 'Upload', exact: true }).click();
+    await stored;
+    await expect(upload).toBeHidden();
+
+    await addLink(page, youtubeUrl);
+    await page.getByRole('button', { name: 'Continue — review' }).click();
+    await expect(page.getByRole('button', { name: 'Edit profile' })).toBeVisible();
+
+    const tile = page.locator('.crew-tile').filter({ has: page.getByRole('button', { name: 'View photo' }) });
+    const tileBox = await tile.boundingBox();
+    await tile.getByRole('button', { name: 'View photo' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Photo' });
+    const image = dialog.locator('img');
+    await expect(image).toBeVisible();
+    const imageBox = await image.boundingBox();
+    if (!tileBox || !imageBox) {
+        throw new Error('Could not measure the enlarged photo.');
+    }
+    expect(imageBox.width).toBeGreaterThan(tileBox.width);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
 });
 
 test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) => {
@@ -222,6 +311,7 @@ async function openMedia(page: Page): Promise<void> {
     await page.getByRole('button', { name: 'Continue — experience' }).click();
 
     await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
+    await fillTrackRecord(page);
     await page.getByRole('button', { name: 'Continue — upload media' }).click();
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add a video' })).toBeVisible();
@@ -257,6 +347,12 @@ async function dragCard(page: Page, source: ReturnType<Page['getByRole']>, targe
     await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 12 });
     await page.mouse.up();
     await saved;
+}
+
+async function fillTrackRecord(page: Page): Promise<void> {
+    await page.getByLabel('Projects completed').fill('18');
+    await page.getByLabel('Years in the business').fill('3');
+    await chooseOption(page, 'Response time', '< 12 hours');
 }
 
 async function chooseOption(page: Page, label: string, option: string, search?: string): Promise<void> {

@@ -32,3 +32,17 @@ export const UserSchema = z.object({
 }).strip();
 
 export type User = z.infer<typeof UserSchema>;
+
+export const AdminUserSchema = z.object({
+    id: z.ulid(),
+    first_name: z.string().max(255),
+    last_name: z.string().max(255),
+    email: z.email().max(255),
+    phone: z.string().nullable(),
+    status: UserStatusSchema,
+    account_type: AccountTypeSchema.nullable(),
+    created_at: z.coerce.date(),
+    updated_at: z.coerce.date(),
+}).strip();
+
+export type AdminUser = z.infer<typeof AdminUserSchema>;

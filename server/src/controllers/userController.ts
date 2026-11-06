@@ -85,6 +85,18 @@ const readPhotoBody: RequestHandler = (req, res, next) => {
     });
 };
 
+const CompleteExperienceRequestSchema = z.object({
+    projects_completed: z.number().int().min(0).max(1_000_000).meta({
+        description: 'Number of projects the user has completed.',
+    }),
+    years_in_business: z.number().int().min(0).max(100).meta({
+        description: 'Years the user has worked in the business.',
+    }),
+    response_time_hours: z.number().int().min(1).max(999).meta({
+        description: 'Average response time in hours. A value of 12 is shown as < 12h.',
+    }),
+});
+
 const SaveUserWorkProfileRequestSchema = z.object({
     day_rate: z.number().min(0).nullable().default(null).meta({ description: 'Day rate. Empty when no rate is set.' }),
     currency_id: z.ulid().nullable().default(null).meta({ description: 'Currency for the day rate. Required when day rate is set.' }),
@@ -101,6 +113,7 @@ export const userRequestSchemas = {
     ChooseAccountTypeRequest: ChooseAccountTypeRequestSchema,
     BasicProfileRequest: BasicProfileRequestSchema,
     SetupProfileRequest: SetupProfileRequestSchema,
+    CompleteExperienceRequest: CompleteExperienceRequestSchema,
     CreateUserLocaleRequest: CreateUserLocaleRequestSchema,
     UpdateUserLocaleRequest: UpdateUserLocaleRequestSchema,
     SaveUserWorkProfileRequest: SaveUserWorkProfileRequestSchema,
@@ -276,7 +289,8 @@ export class UserController extends Controller {
             return;
         }
 
-        const updated = await this.userLogic.completeExperience(ctx, user.id);
+        const body = parseBody(CompleteExperienceRequestSchema, req.body);
+        const updated = await this.userLogic.completeExperience(ctx, user.id, body);
         this.checkAndRespond(ctx, res, updated);
     }
 

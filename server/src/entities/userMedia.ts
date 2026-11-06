@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const MediaTypeSchema = z.enum(['youtube', 'vimeo', 'upload']);
+export const MediaTypeSchema = z.enum(['youtube', 'vimeo', 'upload', 'photo']);
 
 export const UserMediaSchema = z.object({
     id: z.ulid(),

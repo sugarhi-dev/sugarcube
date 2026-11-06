@@ -49,15 +49,15 @@ export function projectFacts(input: {
     date: string;
     position: string | null | undefined;
     company: string | null;
-    hiringProducer: string | null;
     leadProducer: string;
+    leadProducerEmail: string | null;
 }): CreditFact[] {
     return [
         { label: 'Date', value: formatCreditDate(input.date) },
         { label: 'Position', value: input.position ?? null },
         { label: 'Production company', value: input.company },
-        { label: 'Hiring producer', value: input.hiringProducer },
         { label: 'Lead producer', value: input.leadProducer },
+        { label: 'Lead producer email', value: input.leadProducerEmail },
     ];
 }
 

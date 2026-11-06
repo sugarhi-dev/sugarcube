@@ -1,6 +1,31 @@
+:root {
+    --font-text: Inter, "Segoe UI", Arial, sans-serif;
+    --font-heading: Helvetica, "Helvetica Neue", Arial, sans-serif;
+}
+
 body {
     margin: 0;
-    font-family: Inter, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-family: var(--font-text);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+/* Repeated class beats Ant Design's hashed .ant-typography font-family. */
+.ant-typography.ant-typography:is(h1, h2, h3, h4, h5),
+.ant-modal-title,
+.ant-drawer-title,
+.ant-result-title,
+.ant-card-head-title,
+.app-logo {
+    font-family: var(--font-heading);
+}
+
+:is(h1, h2, h3, h4, h5, h6) .ant-typography.ant-typography {
+    font-family: inherit;
 }
 
 .onboarding-role-card:focus-visible {
@@ -341,6 +366,10 @@ body {
     margin-left: auto;
 }
 
+.media-thumb-pick.is-primary {
+    margin-top: 0;
+}
+
 .media-thumb-pick {
     display: flex;
     align-items: center;
@@ -567,6 +596,13 @@ body {
 .media-card-edit:focus-visible {
     outline: 2px solid #e2186c;
     outline-offset: 2px;
+}
+
+.media-card .media-mark {
+    right: 10px;
+    bottom: 10px;
+    width: 34px;
+    height: 34px;
 }
 
 .media-card-cover {
@@ -1012,6 +1048,14 @@ body {
     outline-offset: 2px;
 }
 
+.crew-tile .media-mark {
+    right: 8px;
+    bottom: 8px;
+    width: 32px;
+    height: 32px;
+    box-shadow: 0 4px 12px rgba(23, 20, 18, 0.16);
+}
+
 .review-media-actions {
     display: flex;
     flex-wrap: wrap;
@@ -1420,6 +1464,38 @@ body {
     margin-left: 2px;
 }
 
+.photo-lightbox-body {
+    padding: 0;
+}
+
+.photo-lightbox-body img {
+    display: block;
+    width: 100%;
+    max-height: min(80vh, 900px);
+    object-fit: contain;
+    background: #171412;
+    border-radius: 12px;
+}
+
+.photo-lightbox-status {
+    margin: 28px 0 8px;
+    text-align: center;
+    color: #8a837c;
+}
+
+.media-mark {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #fff;
+    color: #171412;
+    box-shadow: 0 4px 12px rgba(23, 20, 18, 0.18);
+    pointer-events: none;
+}
+
 .crew-show-all {
     position: absolute;
     right: 10px;
@@ -1495,7 +1571,7 @@ body {
 .crew-name-row h2 {
     margin: 0;
     color: #16130e;
-    font-family: Inter, sans-serif;
+    font-family: var(--font-heading);
     font-size: 24px;
     font-weight: 800;
     letter-spacing: -0.03em;
@@ -1506,7 +1582,7 @@ body {
 .crew-panel h2 {
     margin: 0;
     color: #1c1c1c;
-    font-family: Inter, sans-serif;
+    font-family: var(--font-heading);
     font-size: 16px;
     font-weight: 700;
 }
@@ -1519,7 +1595,7 @@ body {
     border: 1px solid #e4ddd6;
     border-radius: 999px;
     color: #6d675f;
-    font-family: Inter, sans-serif;
+    font-family: var(--font-text);
     font-size: 13px;
     font-weight: 500;
 }
@@ -1528,7 +1604,7 @@ body {
 .crew-where {
     margin: 2px 0 0;
     color: #8a8172;
-    font-family: Inter, sans-serif;
+    font-family: var(--font-text);
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
@@ -1564,7 +1640,7 @@ body {
 .crew-about p {
     margin: 10px 0 0;
     color: #3b372f;
-    font-family: Inter, sans-serif;
+    font-family: var(--font-text);
     font-size: 15px;
     font-weight: 400;
     line-height: 1.55;

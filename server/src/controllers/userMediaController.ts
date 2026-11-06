@@ -44,6 +44,23 @@ const readThumbnailBody: RequestHandler = (req, res, next) => {
     });
 };
 
+const readPhotoBody: RequestHandler = (req, res, next) => {
+    express.raw({
+        limit: thumbnailLimit,
+        type: ['image/jpeg', 'image/png'],
+    })(req, res, (error: unknown) => {
+        if (!error) {
+            next();
+            return;
+        }
+        if (payloadTooLarge(error)) {
+            res.status(413).json({ error_message: 'Use a photo smaller than 8 MB.' });
+            return;
+        }
+        next(error);
+    });
+};
+
 const readVideoBody: RequestHandler = (req, res, next) => {
     express.raw({
         limit: videoLimit,
@@ -79,6 +96,7 @@ export class UserMediaController extends Controller {
         this.get('/api/me/media', this.GET_media.bind(this));
         this.post('/api/me/media', this.POST_media.bind(this));
         this.post('/api/me/media/upload', this.POST_media_upload.bind(this), [], [readVideoBody]);
+        this.post('/api/me/media/photo', this.POST_media_photo.bind(this), [], [readPhotoBody]);
         this.put('/api/me/media/order', this.PUT_media_order.bind(this));
         this.get('/api/me/media/:id/thumbnail', this.GET_media_thumbnail.bind(this));
         this.put('/api/me/media/:id/thumbnail', this.PUT_media_thumbnail.bind(this), [], [readThumbnailBody]);
@@ -128,6 +146,25 @@ export class UserMediaController extends Controller {
         this.checkAndRespond(ctx, res, media, 201);
     }
 
+    protected async POST_media_photo(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await currentUser(ctx, req, this.userLogic);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const contentType = imageContentType(req.header('content-type'));
+        const body = req.body;
+        if (!contentType || !Buffer.isBuffer(body) || !isImage(body, contentType)) {
+            ctx.error('Use a JPG or PNG photo.', 400);
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const media = await this.userMediaLogic.createPhotoMedia(ctx, user.id, body, contentType);
+        this.checkAndRespond(ctx, res, media, 201);
+    }
+
     protected async PUT_media_order(ctx: Context, req: Request, res: Response): Promise<void> {
         const user = await currentUser(ctx, req, this.userLogic);
         if (!user) {
@@ -167,7 +204,7 @@ export class UserMediaController extends Controller {
         }
 
         const id = UserMediaIdSchema.parse(req.params.id);
-        const contentType = thumbnailContentType(req.header('content-type'));
+        const contentType = imageContentType(req.header('content-type'));
         const body = req.body;
         if (!contentType || !Buffer.isBuffer(body) || !isImage(body, contentType)) {
             ctx.error('Use a JPG or PNG thumbnail.', 400);
@@ -231,7 +268,7 @@ function isVideo(data: Buffer, contentType: VideoContentType): boolean {
         && data[7] === 0x70;
 }
 
-function thumbnailContentType(header: string | undefined): 'image/jpeg' | 'image/png' | null {
+function imageContentType(header: string | undefined): 'image/jpeg' | 'image/png' | null {
     const type = header?.split(';', 1)[0]?.trim().toLowerCase();
     if (type === 'image/jpeg' || type === 'image/png') {
         return type;

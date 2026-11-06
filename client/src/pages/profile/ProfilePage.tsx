@@ -1,6 +1,8 @@
 import {
     ArrowRightOutlined,
     CaretRightFilled,
+    PictureFilled,
+    VideoCameraFilled,
     EllipsisOutlined,
     EnvironmentOutlined,
     HeartOutlined,
@@ -11,16 +13,19 @@ import {
 } from '@ant-design/icons';
 import { mediaUrl, type Currency, type Project, type UserMedia } from '@sugarcube/schema';
 import { App as AntdApp, Button, DatePicker, Dropdown, Result, Spin, Switch, Tooltip } from 'antd';
+import { PhotoLightbox } from './PhotoLightbox.tsx';
 import type { MenuProps } from 'antd';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { listCurrencies, listPositions, listProductionCities } from '../../api/catalog.ts';
 import { ApiError } from '../../api/http.ts';
 import { getMediaThumbnail, listMedia } from '../../api/media.ts';
 import {
+    getMe,
     getProfilePhotoUrl,
     getWorkProfile,
     listLocales,
     listWorkProfiles,
+    type CurrentUser,
     type UnionStatus,
 } from '../../api/me.ts';
 import { listProjects } from '../../api/projects.ts';
@@ -52,13 +57,33 @@ type Credit = {
     date: string;
     position: string | null;
     company: string | null;
-    hiringProducer: string | null;
     leadProducer: string;
+    leadProducerEmail: string | null;
 };
 
 type DateWindow = {
     start: string | null;
     end: string | null;
+};
+
+type ProfilePaths = {
+    media: string;
+    projects: string;
+    locales: string;
+    workProfile: string;
+    workProfiles: string;
+    photo: string;
+    thumbnail: (id: string) => string;
+};
+
+const ownPaths: ProfilePaths = {
+    media: '/api/me/media',
+    projects: '/api/me/projects',
+    locales: '/api/me/locales',
+    workProfile: '/api/me/work-profile',
+    workProfiles: '/api/me/work-profiles',
+    photo: '/api/me/photo/url',
+    thumbnail: (id) => `/api/me/media/${encodeURIComponent(id)}/thumbnail`,
 };
 
 type ProfileSnapshot = {
@@ -69,32 +94,169 @@ type ProfileSnapshot = {
     dayRate: number | null;
     currency: Currency | undefined;
     flatFee: boolean;
+    projectsCompleted: number | null;
+    yearsInBusiness: number | null;
+    responseTimeHours: number | null;
     homeCity: string | null;
     otherCities: string[];
 };
 
-export function ProfilePage() {
+export type ProfilePageProps = {
+    userId?: string;
+    accessToken?: string;
+    embedded?: boolean;
+    titleSuffix?: string;
+};
+
+export function ProfilePage({
+    userId,
+    accessToken,
+    embedded = false,
+    titleSuffix = 'CopyThat',
+}: ProfilePageProps = {}) {
+    if (userId) {
+        return (
+            <ProfileForUser
+                userId={userId}
+                accessToken={accessToken ?? null}
+                embedded={embedded}
+                titleSuffix={titleSuffix}
+            />
+        );
+    }
+    return <OwnProfilePage />;
+}
+
+function OwnProfilePage() {
     const session = useSession();
     const user = useAppSelector((state) => state.profile.user);
+    return (
+        <ProfileScreen
+            accessToken={session?.accessToken ?? null}
+            user={user}
+            paths={ownPaths}
+            framed
+            titleSuffix="CopyThat"
+        />
+    );
+}
+
+function ProfileForUser({
+    userId,
+    accessToken,
+    embedded,
+    titleSuffix,
+}: {
+    userId: string;
+    accessToken: string | null;
+    embedded: boolean;
+    titleSuffix: string;
+}) {
+    const [user, setUser] = useState<CurrentUser | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [attempt, setAttempt] = useState(0);
+    const paths = useMemo(() => profilePaths(userId), [userId]);
+
+    useEffect(() => {
+        if (!accessToken) {
+            return;
+        }
+
+        let active = true;
+        setUser(null);
+        setError(null);
+        void getMe(accessToken, `/api/admin/users/${encodeURIComponent(userId)}`)
+            .then((row) => {
+                if (active) {
+                    setUser(row);
+                }
+            })
+            .catch((cause: unknown) => {
+                if (active) {
+                    setError(cause instanceof Error ? cause.message : 'Could not load this profile.');
+                }
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [accessToken, attempt, userId]);
+
+    if (!accessToken) {
+        return null;
+    }
+    if (error) {
+        return (
+            <Result
+                status="error"
+                title="Could not load this profile"
+                subTitle={error}
+                extra={(
+                    <Button type="primary" onClick={() => setAttempt((value) => value + 1)}>
+                        Try again
+                    </Button>
+                )}
+            />
+        );
+    }
+
+    return (
+        <ProfileScreen
+            accessToken={accessToken}
+            user={user}
+            paths={paths}
+            framed={!embedded}
+            titleSuffix={titleSuffix}
+        />
+    );
+}
+
+function profilePaths(userId: string): ProfilePaths {
+    const root = `/api/admin/users/${encodeURIComponent(userId)}`;
+    return {
+        media: `${root}/media`,
+        projects: `${root}/projects`,
+        locales: `${root}/locales`,
+        workProfile: `${root}/work-profile`,
+        workProfiles: `${root}/work-profiles`,
+        photo: `${root}/photo/url`,
+        thumbnail: (id) => `${root}/media/${encodeURIComponent(id)}/thumbnail`,
+    };
+}
+
+function ProfileScreen({
+    accessToken,
+    user,
+    paths,
+    framed,
+    titleSuffix,
+}: {
+    accessToken: string | null;
+    user: CurrentUser | null;
+    paths: ProfilePaths;
+    framed: boolean;
+    titleSuffix: string;
+}) {
     const { message } = AntdApp.useApp();
     const [snapshot, setSnapshot] = useState<ProfileSnapshot | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [attempt, setAttempt] = useState(0);
     const [photoUrl, setPhotoUrl] = useState<string | null>(null);
     const [showAllMedia, setShowAllMedia] = useState(false);
+    const [enlargedPhotoId, setEnlargedPhotoId] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
         const name = user ? publicName(user.first_name, user.last_name) : 'Profile';
-        document.title = `${name} — CopyThat`;
-    }, [user]);
+        document.title = `${name} — ${titleSuffix}`;
+    }, [titleSuffix, user]);
 
     useEffect(() => {
-        if (!session) {
+        if (!accessToken) {
             return;
         }
 
-        const token = session.accessToken;
+        const token = accessToken;
         let active = true;
         setSnapshot(null);
         setLoadError(null);
@@ -102,14 +264,14 @@ export function ProfilePage() {
         void (async () => {
             try {
                 const [media, projects, positions, currencies, cities, locales, rates, workProfiles] = await Promise.all([
-                    listMedia(token),
-                    listProjects(token),
+                    listMedia(token, paths.media),
+                    listProjects(token, paths.projects),
                     listPositions(token),
                     listCurrencies(token),
                     listProductionCities(token),
-                    listLocales(token),
-                    loadRates(token),
-                    listWorkProfiles(token),
+                    listLocales(token, paths.locales),
+                    loadRates(token, paths.workProfile),
+                    listWorkProfiles(token, paths.workProfiles),
                 ]);
                 if (!active) {
                     return;
@@ -136,6 +298,9 @@ export function ProfilePage() {
                     dayRate: rates?.day_rate ?? null,
                     currency,
                     flatFee: rates?.flat_fee ?? false,
+                    projectsCompleted: rates?.projects_completed ?? null,
+                    yearsInBusiness: rates?.years_in_business ?? null,
+                    responseTimeHours: rates?.response_time_hours ?? null,
                     homeCity: named[0] ?? null,
                     otherCities: named.slice(1),
                 });
@@ -149,18 +314,18 @@ export function ProfilePage() {
         return () => {
             active = false;
         };
-    }, [attempt, session]);
+    }, [accessToken, attempt, paths]);
 
     useEffect(() => {
-        if (!session || !user?.photo) {
+        if (!accessToken || !user?.photo) {
             setPhotoUrl(null);
             return;
         }
 
-        const token = session.accessToken;
+        const token = accessToken;
         let active = true;
         setPhotoUrl(null);
-        void getProfilePhotoUrl(token).then((link) => {
+        void getProfilePhotoUrl(token, paths.photo).then((link) => {
             if (active) {
                 setPhotoUrl(link.url);
             }
@@ -173,7 +338,7 @@ export function ProfilePage() {
         return () => {
             active = false;
         };
-    }, [session, user?.photo]);
+    }, [accessToken, paths.photo, user?.photo]);
 
     async function onShare(): Promise<void> {
         const url = window.location.href;
@@ -203,7 +368,7 @@ export function ProfilePage() {
         message.info("Messaging isn't available yet.");
     }
 
-    if (!session) {
+    if (!accessToken) {
         return null;
     }
 
@@ -226,8 +391,8 @@ export function ProfilePage() {
                 : 'crew-media is-pair';
     const moreMenu: MenuProps['items'] = [{ key: 'copy', label: 'Copy profile link' }];
 
-    return (
-        <Frame>
+    const content = (
+        <>
             {loadError ? (
                 <Result
                     status="error"
@@ -281,11 +446,18 @@ export function ProfilePage() {
                                     <MediaTile
                                         key={item.id}
                                         item={item}
-                                        accessToken={session.accessToken}
+                                        accessToken={accessToken}
+                                        thumbnailPath={paths.thumbnail(item.id)}
                                         featured={mosaic && index === 0}
-                                        play={index === 0}
+                                        play={index === 0 && item.media_type !== 'photo'}
                                         showAll={moreMedia && index === visibleMedia.length - 1}
-                                        onOpen={() => openMedia(item, message)}
+                                        onOpen={() => {
+                                            if (item.media_type === 'photo') {
+                                                setEnlargedPhotoId(item.id);
+                                                return;
+                                            }
+                                            openMedia(item, message);
+                                        }}
                                         onShowAll={() => setShowAllMedia(true)}
                                     />
                                 ))}
@@ -293,6 +465,12 @@ export function ProfilePage() {
                         ) : (
                             <div className="crew-media-empty">No media yet</div>
                         )}
+                        <PhotoLightbox
+                            accessToken={accessToken}
+                            id={enlargedPhotoId}
+                            path={enlargedPhotoId ? paths.thumbnail(enlargedPhotoId) : null}
+                            onClose={() => setEnlargedPhotoId(null)}
+                        />
                         {showAllMedia && snapshot.media.length > 4 ? (
                             <button type="button" className="crew-show-less" onClick={() => setShowAllMedia(false)}>
                                 Show less
@@ -329,16 +507,20 @@ export function ProfilePage() {
 
                         <div className="crew-stats">
                             <div className="crew-stat">
-                                <strong>{snapshot.credits.length}</strong>
+                                <strong>{countLabel(snapshot.projectsCompleted)}</strong>
                                 <span>Projects completed</span>
                             </div>
                             <div className="crew-stat">
-                                <strong>&lt; 12h</strong>
+                                <strong>{responseLabel(snapshot.responseTimeHours)}</strong>
                                 <span>Average Response</span>
                             </div>
                             <div className="crew-stat">
                                 <strong>100%</strong>
                                 <span>Repeat Clients</span>
+                            </div>
+                            <div className="crew-stat">
+                                <strong>{countLabel(snapshot.yearsInBusiness)}</strong>
+                                <span>Years Active</span>
                             </div>
                         </div>
 
@@ -357,8 +539,8 @@ export function ProfilePage() {
                                                 date: credit.date,
                                                 position: credit.position,
                                                 company: credit.company,
-                                                hiringProducer: credit.hiringProducer,
                                                 leadProducer: credit.leadProducer,
+                                                leadProducerEmail: credit.leadProducerEmail,
                                             })}
                                         />
                                     ))}
@@ -376,8 +558,10 @@ export function ProfilePage() {
                     />
                 </div>
             )}
-        </Frame>
+        </>
     );
+
+    return framed ? <Frame>{content}</Frame> : content;
 }
 
 function BookingCard({
@@ -594,6 +778,7 @@ function ExtraDays({
 function MediaTile({
     item,
     accessToken,
+    thumbnailPath,
     featured,
     play,
     showAll,
@@ -602,16 +787,26 @@ function MediaTile({
 }: {
     item: UserMedia;
     accessToken: string;
+    thumbnailPath: string;
     featured: boolean;
     play: boolean;
     showAll: boolean;
     onOpen: () => void;
     onShowAll: () => void;
 }) {
+    const photo = item.media_type === 'photo';
     return (
         <div className={featured ? 'crew-tile crew-tile-hero' : 'crew-tile'}>
-            <button type="button" className="crew-tile-open" onClick={onOpen} aria-label={play ? 'Play video' : 'Open video'}>
-                <MediaThumb id={item.id} accessToken={accessToken} />
+            <button
+                type="button"
+                className="crew-tile-open"
+                onClick={onOpen}
+                aria-label={photo ? 'View photo' : play ? 'Play video' : 'Open video'}
+            >
+                <MediaThumb id={item.id} accessToken={accessToken} path={thumbnailPath} fallback={photo ? 'Photo' : 'Video'} />
+                <span className="media-mark" aria-hidden="true">
+                    {photo ? <PictureFilled /> : <VideoCameraFilled />}
+                </span>
                 {play ? (
                     <span className="crew-play" aria-hidden="true">
                         <CaretRightFilled />
@@ -627,14 +822,24 @@ function MediaTile({
     );
 }
 
-function MediaThumb({ id, accessToken }: { id: string; accessToken: string }) {
+function MediaThumb({
+    id,
+    accessToken,
+    path,
+    fallback = 'Video',
+}: {
+    id: string;
+    accessToken: string;
+    path: string;
+    fallback?: string;
+}) {
     const [src, setSrc] = useState<string | null>(null);
 
     useEffect(() => {
         let active = true;
         let url: string | null = null;
         setSrc(null);
-        void getMediaThumbnail(accessToken, id).then((blob) => {
+        void getMediaThumbnail(accessToken, id, path).then((blob) => {
             if (!active) {
                 return;
             }
@@ -652,16 +857,19 @@ function MediaThumb({ id, accessToken }: { id: string; accessToken: string }) {
                 URL.revokeObjectURL(url);
             }
         };
-    }, [accessToken, id]);
+    }, [accessToken, id, path]);
 
     if (!src) {
-        return <span className="crew-tile-fallback">Video</span>;
+        return <span className="crew-tile-fallback">{fallback}</span>;
     }
 
     return <img src={src} alt="" />;
 }
 
 function openMedia(item: UserMedia, message: ReturnType<typeof AntdApp.useApp>['message']): void {
+    if (item.media_type === 'photo') {
+        return;
+    }
     const url = mediaUrl(item);
     if (!url) {
         message.info("Playback for uploaded videos isn't available here yet.");
@@ -670,15 +878,23 @@ function openMedia(item: UserMedia, message: ReturnType<typeof AntdApp.useApp>['
     window.open(url, '_blank', 'noopener,noreferrer');
 }
 
-async function loadRates(accessToken: string) {
+async function loadRates(accessToken: string, path: string) {
     try {
-        return await getWorkProfile(accessToken);
+        return await getWorkProfile(accessToken, path);
     } catch (error: unknown) {
         if (error instanceof ApiError && error.status === 404) {
             return null;
         }
         throw error;
     }
+}
+
+function countLabel(value: number | null): string {
+    return value === null ? '—' : String(value);
+}
+
+function responseLabel(hours: number | null): string {
+    return hours === null ? '—' : `< ${hours}h`;
 }
 
 function toCredit(project: Project, positions: Array<{ id: string; name: string }>): Credit {
@@ -688,8 +904,8 @@ function toCredit(project: Project, positions: Array<{ id: string; name: string 
         date: project.date,
         position: positions.find((row) => row.id === project.position_id)?.name ?? null,
         company: project.production_company,
-        hiringProducer: project.hiring_producer,
         leadProducer: project.lead_producer_name,
+        leadProducerEmail: project.lead_producer_email,
     };
 }
 

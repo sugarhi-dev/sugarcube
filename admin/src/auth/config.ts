@@ -11,7 +11,7 @@ export function oidcClientId(): string {
 }
 
 export function redirectUri(): string {
-    return new URL(`${import.meta.env.BASE_URL}auth/callback`, window.location.origin).toString();
+    return new URL(`${import.meta.env.BASE_URL}auth/admin/callback`, window.location.origin).toString();
 }
 
 export function apiBase(): string {

@@ -24,7 +24,7 @@ export function exchangeCode(code: string, sessionState: string): Promise<Sessio
 async function requestSession(code: string, sessionState: string): Promise<Session> {
     let response: Response;
     try {
-        response = await fetch(`${apiBase()}/api/auth/oidc/callback`, {
+        response = await fetch(`${apiBase()}/api/auth/client/callback`, {
             method: 'POST',
             headers: {
                 Accept: 'application/json',

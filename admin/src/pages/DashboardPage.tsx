@@ -6,7 +6,7 @@ export function DashboardPage() {
     const session = useSession();
 
     useEffect(() => {
-        document.title = 'Dashboard — Sugarcube Admin';
+        document.title = 'Overview — Sugarcube Admin';
     }, []);
 
     const name = [session?.profile.givenName, session?.profile.familyName].filter(Boolean).join(' ');

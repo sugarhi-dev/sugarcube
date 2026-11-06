@@ -30,8 +30,8 @@ export class AuthController extends Controller {
         this.clientSecret = config.require('OAUTH_CLIENT_SECRET');
         this.adminClientSecret = config.optional('OAUTH_ADMIN_CLIENT_SECRET', '');
         this.keycloakIssuer = config.require('KEYCLOAK_ISSUER');
-        this.post('/api/auth/oidc/callback', this.POST_oidc_callback.bind(this));
-        this.post('/api/auth/oidc/admin/callback', this.POST_oidc_admin_callback.bind(this));
+        this.post('/api/auth/client/callback', this.POST_oidc_callback.bind(this));
+        this.post('/api/auth/admin/callback', this.POST_oidc_admin_callback.bind(this));
     }
 
     protected async POST_oidc_callback(ctx: Context, req: Request, res: Response): Promise<void>

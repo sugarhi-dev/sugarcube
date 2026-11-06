@@ -33,7 +33,7 @@ export function App() {
                             <Route path={onboardingReviewPath} element={<OnboardingReview />} />
                         </Route>
                         <Route path="/sign-in" element={<SignInPage />} />
-                        <Route path="/auth/callback" element={<CallbackPage />} />
+                        <Route path="/auth/client/callback" element={<CallbackPage />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                 </BrowserRouter>

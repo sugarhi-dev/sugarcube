@@ -1,10 +1,17 @@
 import express from 'express';
+import { setDefaultResultOrder } from 'node:dns';
+import { setDefaultAutoSelectFamilyAttemptTimeout } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { Config, Database } from '@sugarcube/server-core';
 import { resolveEnvFile } from './envFile.js';
 import { ApiService } from './services/apiService.js';
+
+// This host resolves IPv6 for api.resend.com, but IPv6 is unreachable. Node then
+// aborts the IPv4 attempt within 250ms and fetch fails before Resend is contacted.
+setDefaultResultOrder('ipv4first');
+setDefaultAutoSelectFamilyAttemptTimeout(500);
 
 const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 

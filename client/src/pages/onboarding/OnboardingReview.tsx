@@ -10,11 +10,13 @@ import {
     LinkOutlined,
     MailOutlined,
     PhoneOutlined,
+    PictureFilled,
     PictureOutlined,
     PlaySquareOutlined,
     PlusOutlined,
     SendOutlined,
     UploadOutlined,
+    VideoCameraFilled,
     VideoCameraOutlined,
 } from '@ant-design/icons';
 import { classifyMediaLink, mediaUrl, type Currency, type Project, type ProjectType, type UserAvailability, type UserMedia } from '@sugarcube/schema';
@@ -32,7 +34,7 @@ import {
     type ProductionCity,
 } from '../../api/catalog.ts';
 import { listAvailability } from '../../api/availability.ts';
-import { createMedia, deleteMedia, getMediaThumbnail, listMedia, updateMedia, uploadMedia } from '../../api/media.ts';
+import { createMedia, deleteMedia, getMediaThumbnail, listMedia, updateMedia, uploadMedia, uploadPhoto } from '../../api/media.ts';
 import {
     getProfilePhotoUrl,
     getWorkProfile,
@@ -64,12 +66,14 @@ import { fileDragKind, fileDropHandlers, imageFile, isFileDrag, useKeepFileDrop 
 import { LocaleField } from './LocaleField.tsx';
 import { ProjectTypeField } from './ProjectTypeField.tsx';
 import { onboardingMediaPath } from './OnboardingMedia.tsx';
+import { PhotoLightbox } from '../profile/PhotoLightbox.tsx';
 
 export const onboardingReviewPath = '/onboarding/review';
 
 const minimumMedia = 2;
 const bioLimit = 300;
 const thumbnailLimit = 8 * 1024 * 1024;
+const photoLimit = 8 * 1024 * 1024;
 const videoLimit = 200 * 1024 * 1024;
 
 const unionOptions: Array<{ value: UnionStatus; label: string }> = [
@@ -108,6 +112,9 @@ type ReviewData = {
     dayRate: number | null;
     currencyId: string | null;
     flatFee: boolean;
+    projectsCompleted: number | null;
+    yearsInBusiness: number | null;
+    responseTimeHours: number | null;
     locales: SetupCity[];
     availability: UserAvailability[];
 };
@@ -128,9 +135,9 @@ type CreditFormValues = {
     name: string;
     position_id: string;
     lead_producer_name: string;
+    lead_producer_email: string;
     date: string;
     production_company?: string;
-    hiring_producer?: string;
 };
 
 export function OnboardingReview() {
@@ -147,10 +154,16 @@ export function OnboardingReview() {
     const [returning, setReturning] = useState(false);
     const [photoUrl, setPhotoUrl] = useState<string | null>(null);
     const [showAllMedia, setShowAllMedia] = useState(false);
+    const [enlargedPhotoId, setEnlargedPhotoId] = useState<string | null>(null);
     const [editingProfile, setEditingProfile] = useState(false);
     const [savingProfile, setSavingProfile] = useState(false);
     const [linkOpen, setLinkOpen] = useState(false);
     const [uploadOpen, setUploadOpen] = useState(false);
+    const [photoOpen, setPhotoOpen] = useState(false);
+    const [photoFile, setPhotoFile] = useState<File | null>(null);
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const [photoError, setPhotoError] = useState<string | null>(null);
+    const [photoOver, setPhotoOver] = useState(false);
     const [videoFile, setVideoFile] = useState<File | null>(null);
     const [videoType, setVideoType] = useState<string | null>(null);
     const [videoError, setVideoError] = useState<string | null>(null);
@@ -183,20 +196,22 @@ export function OnboardingReview() {
     const thumbRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLInputElement>(null);
     const uploadThumbRef = useRef<HTMLInputElement>(null);
+    const photoRef = useRef<HTMLInputElement>(null);
     const uploadAbort = useRef<AbortController | null>(null);
 
     useEffect(() => {
         document.title = readOnly ? 'Profile in review' : 'Review & go live';
     }, [readOnly]);
 
-    useKeepFileDrop(uploadOpen || linkOpen);
+    useKeepFileDrop(uploadOpen || linkOpen || photoOpen);
 
     useEffect(() => {
-        if (!uploadOpen && !linkOpen) {
+        if (!uploadOpen && !linkOpen && !photoOpen) {
             setVideoOver(false);
             setThumbOver(false);
+            setPhotoOver(false);
         }
-    }, [uploadOpen, linkOpen]);
+    }, [uploadOpen, linkOpen, photoOpen]);
 
     useEffect(() => {
         if (!session) {
@@ -252,6 +267,9 @@ export function OnboardingReview() {
                     dayRate: rates.day_rate,
                     currencyId: rates.currency_id,
                     flatFee: rates.flat_fee,
+                    projectsCompleted: rates.projects_completed,
+                    yearsInBusiness: rates.years_in_business,
+                    responseTimeHours: rates.response_time_hours,
                     locales: orderedLocales.map((locale) => ({
                         production_city_id: locale.production_city_id,
                         home_city: locale.home_city,
@@ -305,6 +323,18 @@ export function OnboardingReview() {
             URL.revokeObjectURL(url);
         };
     }, [thumbFile]);
+
+    useEffect(() => {
+        if (!photoFile) {
+            setPhotoPreview(null);
+            return;
+        }
+        const url = URL.createObjectURL(photoFile);
+        setPhotoPreview(url);
+        return () => {
+            URL.revokeObjectURL(url);
+        };
+    }, [photoFile]);
 
     function rememberMedia(next: UserMedia[]): void {
         mediaRef.current = next;
@@ -438,6 +468,16 @@ export function OnboardingReview() {
         setThumbError(null);
         setUploadPercent(0);
         setUploadOpen(true);
+    }
+
+    function openPhotoDialog(): void {
+        if (uploading) {
+            return;
+        }
+        setPhotoFile(null);
+        setPhotoError(null);
+        setUploadPercent(0);
+        setPhotoOpen(true);
     }
 
     function chooseVideo(file: File): void {
@@ -641,6 +681,71 @@ export function OnboardingReview() {
         setUploadOpen(false);
     }
 
+    async function choosePhoto(file: File): Promise<void> {
+        const image = imageFile(file);
+        if (!image) {
+            setPhotoFile(null);
+            setPhotoError('Use a JPG or PNG photo.');
+            return;
+        }
+        if (image.size > photoLimit) {
+            setPhotoFile(null);
+            setPhotoError('Use a photo smaller than 8 MB.');
+            return;
+        }
+        try {
+            const bitmap = await createImageBitmap(image);
+            bitmap.close();
+        } catch {
+            setPhotoFile(null);
+            setPhotoError('Could not read that photo.');
+            return;
+        }
+        setPhotoError(null);
+        setPhotoFile(image);
+    }
+
+    async function onUploadPhoto(): Promise<void> {
+        if (!session || uploading || !photoFile) {
+            return;
+        }
+
+        const controller = new AbortController();
+        uploadAbort.current = controller;
+        setPhotoError(null);
+        setUploadPercent(0);
+        setUploading(true);
+        try {
+            await writes.current;
+            const created = await uploadPhoto(
+                session.accessToken,
+                photoFile,
+                photoFile.type,
+                setUploadPercent,
+                controller.signal,
+            );
+            rememberMedia([...mediaRef.current, created]);
+            setPhotoOpen(false);
+        } catch (error: unknown) {
+            if (isAbort(error)) {
+                setPhotoOpen(false);
+                return;
+            }
+            message.error(error instanceof Error ? error.message : 'Could not upload that photo.');
+        } finally {
+            uploadAbort.current = null;
+            setUploading(false);
+        }
+    }
+
+    function closePhoto(): void {
+        if (uploading) {
+            uploadAbort.current?.abort();
+            return;
+        }
+        setPhotoOpen(false);
+    }
+
     function onRemoveMedia(id: string): void {
         if (!session || removingMediaId) {
             return;
@@ -825,6 +930,7 @@ export function OnboardingReview() {
                                 {visibleMedia.map((item, index) => {
                                     const label = mediaLabel(item, index, visibleMedia.length);
                                     const embed = embedSrc(item);
+                                    const photo = item.media_type === 'photo';
                                     return (
                                         <div key={item.id} className={mosaic && index === 0 ? 'crew-tile crew-tile-hero' : 'crew-tile'}>
                                             {embed ? (
@@ -834,6 +940,18 @@ export function OnboardingReview() {
                                                     accessToken={session.accessToken}
                                                     label={label}
                                                 />
+                                            ) : photo ? (
+                                                <button
+                                                    type="button"
+                                                    className="crew-tile-open"
+                                                    aria-label="View photo"
+                                                    onClick={() => setEnlargedPhotoId(item.id)}
+                                                >
+                                                    <MediaThumb id={item.id} accessToken={session.accessToken} fallback="Photo" />
+                                                    <span className="media-mark" aria-hidden="true">
+                                                        <PictureFilled />
+                                                    </span>
+                                                </button>
                                             ) : (
                                                 <button
                                                     type="button"
@@ -842,6 +960,9 @@ export function OnboardingReview() {
                                                     onClick={() => openMedia(item, message)}
                                                 >
                                                     <MediaThumb id={item.id} accessToken={session.accessToken} />
+                                                    <span className="media-mark" aria-hidden="true">
+                                                        <VideoCameraFilled />
+                                                    </span>
                                                     {index === 0 ? (
                                                         <span className="crew-play" aria-hidden="true">
                                                             <CaretRightFilled />
@@ -851,14 +972,16 @@ export function OnboardingReview() {
                                             )}
                                             {readOnly ? null : (
                                                 <div className="crew-tile-tools">
-                                                    <button
-                                                        type="button"
-                                                        className="crew-tile-tool"
-                                                        aria-label={`Edit ${label}`}
-                                                        onClick={() => onEditMedia(item)}
-                                                    >
-                                                        <EditOutlined />
-                                                    </button>
+                                                    {photo ? null : (
+                                                        <button
+                                                            type="button"
+                                                            className="crew-tile-tool"
+                                                            aria-label={`Edit ${label}`}
+                                                            onClick={() => onEditMedia(item)}
+                                                        >
+                                                            <EditOutlined />
+                                                        </button>
+                                                    )}
                                                     <button
                                                         type="button"
                                                         className="crew-tile-tool"
@@ -887,10 +1010,19 @@ export function OnboardingReview() {
                                 Show less
                             </button>
                         ) : null}
+                        <PhotoLightbox
+                            accessToken={session.accessToken}
+                            id={enlargedPhotoId}
+                            path={enlargedPhotoId ? `/api/me/media/${encodeURIComponent(enlargedPhotoId)}/thumbnail` : null}
+                            onClose={() => setEnlargedPhotoId(null)}
+                        />
                         {readOnly ? null : (
                             <div className="review-media-actions">
                                 <Button htmlType="button" className="media-upload" icon={<UploadOutlined />} onClick={openUploadDialog}>
                                     Upload
+                                </Button>
+                                <Button htmlType="button" className="media-upload" icon={<PictureOutlined />} onClick={openPhotoDialog}>
+                                    Photo
                                 </Button>
                                 <Button htmlType="button" className="media-add" icon={<LinkOutlined />} onClick={openLinkDialog}>
                                     YouTube / Vimeo
@@ -952,11 +1084,11 @@ export function OnboardingReview() {
 
                         <div className="crew-stats">
                             <div className="crew-stat">
-                                <strong>{data.projects.length}</strong>
+                                <strong>{countLabel(data.projectsCompleted)}</strong>
                                 <span>Projects completed</span>
                             </div>
                             <div className="crew-stat">
-                                <strong>&lt; 12h</strong>
+                                <strong>{responseLabel(data.responseTimeHours)}</strong>
                                 <span>Average Response</span>
                             </div>
                             <div className="crew-stat">
@@ -964,7 +1096,7 @@ export function OnboardingReview() {
                                 <span>Repeat Clients</span>
                             </div>
                             <div className="crew-stat">
-                                <strong>{yearsActive(data.projects)}</strong>
+                                <strong>{countLabel(data.yearsInBusiness)}</strong>
                                 <span>Years Active</span>
                             </div>
                         </div>
@@ -989,9 +1121,9 @@ export function OnboardingReview() {
                                                         name: project.name,
                                                         position_id: project.position_id,
                                                         lead_producer_name: project.lead_producer_name,
+                                                        lead_producer_email: project.lead_producer_email ?? '',
                                                         date: project.date,
                                                         production_company: project.production_company ?? '',
-                                                        hiring_producer: project.hiring_producer ?? '',
                                                     }}
                                                     onFinish={(values: CreditFormValues) => void onSaveCredit(project, values)}
                                                 >
@@ -1029,6 +1161,18 @@ export function OnboardingReview() {
                                                             <Input aria-label={`Lead producer for ${project.name}`} />
                                                         </Form.Item>
                                                         <Form.Item
+                                                            name="lead_producer_email"
+                                                            style={{ flex: '1 1 200px', marginBottom: 0 }}
+                                                            rules={leadProducerEmailRules}
+                                                        >
+                                                            <Input
+                                                                type="email"
+                                                                inputMode="email"
+                                                                autoComplete="off"
+                                                                aria-label={`Lead producer email for ${project.name}`}
+                                                            />
+                                                        </Form.Item>
+                                                        <Form.Item
                                                             name="date"
                                                             style={{ flex: '0 1 150px', marginBottom: 0 }}
                                                             rules={[{ required: true, message: 'Enter a date.' }]}
@@ -1037,9 +1181,6 @@ export function OnboardingReview() {
                                                         </Form.Item>
                                                         <Form.Item name="production_company" style={{ flex: '1 1 160px', marginBottom: 0 }}>
                                                             <Input aria-label={`Production company for ${project.name}`} placeholder="Production company" />
-                                                        </Form.Item>
-                                                        <Form.Item name="hiring_producer" style={{ flex: '1 1 160px', marginBottom: 0 }}>
-                                                            <Input aria-label={`Hiring producer for ${project.name}`} placeholder="Hiring producer" />
                                                         </Form.Item>
                                                         <Button
                                                             htmlType="submit"
@@ -1069,8 +1210,8 @@ export function OnboardingReview() {
                                                     date: project.date,
                                                     position: positionById.get(project.position_id),
                                                     company: project.production_company,
-                                                    hiringProducer: project.hiring_producer,
                                                     leadProducer: project.lead_producer_name,
+                                                    leadProducerEmail: project.lead_producer_email,
                                                 })}
                                                 actions={readOnly ? undefined : (
                                                     <>
@@ -1136,6 +1277,19 @@ export function OnboardingReview() {
                                         <Input placeholder="Lead producer" aria-label="Lead producer" />
                                     </Form.Item>
                                     <Form.Item
+                                        name="lead_producer_email"
+                                        style={{ flex: '1 1 180px', marginBottom: 0 }}
+                                        rules={leadProducerEmailRules}
+                                    >
+                                        <Input
+                                            type="email"
+                                            inputMode="email"
+                                            autoComplete="off"
+                                            placeholder="Lead producer email"
+                                            aria-label="Lead producer email"
+                                        />
+                                    </Form.Item>
+                                    <Form.Item
                                         name="date"
                                         style={{ flex: '0 1 150px', marginBottom: 0 }}
                                         rules={[{ required: true, message: 'Enter a date.' }]}
@@ -1144,9 +1298,6 @@ export function OnboardingReview() {
                                     </Form.Item>
                                     <Form.Item name="production_company" style={{ flex: '1 1 150px', marginBottom: 0 }}>
                                         <Input placeholder="Production company" aria-label="Production company" />
-                                    </Form.Item>
-                                    <Form.Item name="hiring_producer" style={{ flex: '1 1 150px', marginBottom: 0 }}>
-                                        <Input placeholder="Hiring producer" aria-label="Hiring producer" />
                                     </Form.Item>
                                     <Button htmlType="submit" className="experience-add" icon={<PlusOutlined />} loading={addingCredit}>
                                         Add credit
@@ -1168,7 +1319,7 @@ export function OnboardingReview() {
                         </section>
 
                         {readOnly || canSubmit ? null : (
-                            <p className="review-minimum">Add at least 2 videos before you submit.</p>
+                            <p className="review-minimum">Add at least 2 items before you submit.</p>
                         )}
                         {readOnly ? null : (
                         <div className="review-submit-row">
@@ -1378,6 +1529,66 @@ export function OnboardingReview() {
                             />
                         ) : null}
                         </div>
+                    </Modal>
+                    <Modal
+                        title="Upload a photo"
+                        open={photoOpen}
+                        okText="Upload"
+                        cancelText="Cancel"
+                        confirmLoading={uploading}
+                        okButtonProps={{ disabled: !photoFile }}
+                        destroyOnHidden
+                        width={440}
+                        onOk={() => {
+                            void onUploadPhoto();
+                        }}
+                        onCancel={closePhoto}
+                    >
+                        <button
+                            type="button"
+                            className={photoOver ? 'media-thumb-pick is-primary is-dropping' : 'media-thumb-pick is-primary'}
+                            onClick={() => photoRef.current?.click()}
+                            disabled={uploading}
+                            {...fileDropHandlers(() => setPhotoOver(true), () => setPhotoOver(false), (file) => {
+                                void choosePhoto(file);
+                            })}
+                        >
+                            {photoPreview ? (
+                                <img src={photoPreview} alt="Selected photo" draggable={false} />
+                            ) : (
+                                <span><PictureOutlined /> Drop a JPG or PNG</span>
+                            )}
+                        </button>
+                        <input
+                            ref={photoRef}
+                            type="file"
+                            accept="image/jpeg,image/png"
+                            hidden
+                            aria-label="Photo"
+                            onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = '';
+                                if (file) {
+                                    void choosePhoto(file);
+                                }
+                            }}
+                        />
+                        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                            JPG or PNG · up to 8 MB.
+                        </Typography.Text>
+                        {photoError ? (
+                            <Typography.Text type="danger" role="alert" style={{ display: 'block', marginTop: 8, fontSize: 13 }}>
+                                {photoError}
+                            </Typography.Text>
+                        ) : null}
+                        {uploading ? (
+                            <Progress
+                                percent={uploadPercent}
+                                strokeColor={copyThat.pink}
+                                style={{ marginTop: 16 }}
+                                aria-label="Upload progress"
+                            />
+                        ) : null}
                     </Modal>
                     <Modal
                         title="Edit video link"
@@ -1725,6 +1936,9 @@ function MediaEmbed({
         return (
             <button type="button" className="crew-tile-open" aria-label={`Play ${label}`} onClick={() => setPlaying(true)}>
                 <MediaThumb id={id} accessToken={accessToken} />
+                <span className="media-mark" aria-hidden="true">
+                    <VideoCameraFilled />
+                </span>
                 <span className="crew-play" aria-hidden="true">
                     <CaretRightFilled />
                 </span>
@@ -1744,7 +1958,7 @@ function MediaEmbed({
     );
 }
 
-function MediaThumb({ id, accessToken }: { id: string; accessToken: string }) {
+function MediaThumb({ id, accessToken, fallback = 'Video' }: { id: string; accessToken: string; fallback?: string }) {
     const [src, setSrc] = useState<string | null>(null);
 
     useEffect(() => {
@@ -1772,7 +1986,7 @@ function MediaThumb({ id, accessToken }: { id: string; accessToken: string }) {
     }, [accessToken, id]);
 
     if (!src) {
-        return <span className="crew-tile-fallback">Video</span>;
+        return <span className="crew-tile-fallback">{fallback}</span>;
     }
 
     return <img src={src} alt="" />;
@@ -1785,7 +1999,7 @@ function withAutoplay(src: string): string {
 }
 
 function embedSrc(item: UserMedia): string | null {
-    if (item.media_type === 'upload') {
+    if (item.media_type === 'upload' || item.media_type === 'photo') {
         return null;
     }
     const link = classifyMediaLink(item.ref);
@@ -1799,6 +2013,9 @@ function embedSrc(item: UserMedia): string | null {
 }
 
 function openMedia(item: UserMedia, message: ReturnType<typeof AntdApp.useApp>['message']): void {
+    if (item.media_type === 'photo') {
+        return;
+    }
     const url = mediaUrl(item);
     if (!url) {
         message.info("Playback for uploaded videos isn't available here yet.");
@@ -1826,47 +2043,28 @@ function creditInput(values: CreditFormValues) {
         name: values.name.trim(),
         position_id: values.position_id,
         lead_producer_name: values.lead_producer_name.trim(),
+        lead_producer_email: values.lead_producer_email.trim(),
         date: values.date,
         production_company: blankToNull(values.production_company),
-        hiring_producer: blankToNull(values.hiring_producer),
     };
 }
+
+const leadProducerEmailRules = [
+    { required: true, whitespace: true, message: 'Enter the lead producer email.' },
+    { type: 'email' as const, message: 'Enter a valid email address.' },
+];
 
 function blankToNull(value: string | undefined): string | null {
     const trimmed = value?.trim() ?? '';
     return trimmed.length > 0 ? trimmed : null;
 }
 
-function yearsActive(projects: Project[], now = new Date()): string {
-    const oldest = projects.reduce<Date | null>((earliest, project) => {
-        const date = projectDate(project.date);
-        if (!date) {
-            return earliest;
-        }
-        return !earliest || date < earliest ? date : earliest;
-    }, null);
-    if (!oldest) {
-        return '—';
-    }
-    let years = now.getFullYear() - oldest.getFullYear();
-    const beforeAnniversary = now.getMonth() < oldest.getMonth()
-        || (now.getMonth() === oldest.getMonth() && now.getDate() < oldest.getDate());
-    if (beforeAnniversary) {
-        years -= 1;
-    }
-    return years < 1 ? '< 1' : String(years);
+function countLabel(value: number | null): string {
+    return value === null ? '—' : String(value);
 }
 
-function projectDate(value: string): Date | null {
-    const [year, month, day] = value.split('-').map(Number);
-    if (!year || !month || !day) {
-        return null;
-    }
-    const date = new Date(year, month - 1, day);
-    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
-        return null;
-    }
-    return date;
+function responseLabel(hours: number | null): string {
+    return hours === null ? '—' : `< ${hours}h`;
 }
 
 function positionSelectOptions(disciplines: Discipline[], positions: Position[]): Array<{
@@ -2025,9 +2223,15 @@ function initials(first: string, last: string): string {
 }
 
 function mediaLabel(item: UserMedia, index: number, total: number): string {
-    const source = item.media_type === 'youtube' ? 'YouTube' : item.media_type === 'vimeo' ? 'Vimeo' : 'Uploaded';
+    const source = item.media_type === 'youtube'
+        ? 'YouTube video'
+        : item.media_type === 'vimeo'
+            ? 'Vimeo video'
+            : item.media_type === 'photo'
+                ? 'Photo'
+                : 'Uploaded video';
     const place = index === 0 ? 'cover' : `${index + 1} of ${total}`;
-    return `${source} video, ${place}`;
+    return `${source}, ${place}`;
 }
 
 function videoContentType(file: File): string | null {

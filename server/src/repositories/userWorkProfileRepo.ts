@@ -1,6 +1,9 @@
 import { Database, Repository, type Context } from '@sugarcube/server-core';
 import { UserWorkProfileSchema, type UserWorkProfile } from '../entities/userWorkProfile.js';
 
+const userWorkProfileColumns = `id, user_profile_id, day_rate, currency_id, union_status, flat_fee,
+    projects_completed, years_in_business, response_time_hours`;
+
 type UserWorkProfileRow = {
     id: string;
     user_profile_id: string;
@@ -8,6 +11,9 @@ type UserWorkProfileRow = {
     currency_id: string | null;
     union_status: string;
     flat_fee: boolean;
+    projects_completed: number | string | null;
+    years_in_business: number | string | null;
+    response_time_hours: number | string | null;
 };
 
 export class UserWorkProfileRepo extends Repository {
@@ -18,7 +24,7 @@ export class UserWorkProfileRepo extends Repository {
     async findUserWorkProfile(ctx: Context, userProfileId: string): Promise<UserWorkProfile | null> {
         this.log.trace(`${ctx.traceId} select user_work_profile ${userProfileId}`);
         const result = await this.database.query<UserWorkProfileRow>(
-            `SELECT id, user_profile_id, day_rate, currency_id, union_status, flat_fee
+            `SELECT ${userWorkProfileColumns}
              FROM user_work_profile
              WHERE user_profile_id = $1`,
             [userProfileId],
@@ -51,7 +57,7 @@ export class UserWorkProfileRepo extends Repository {
                          flat_fee = $5,
                          updated_at = CURRENT_TIMESTAMP
                      WHERE id = $1
-                     RETURNING id, user_profile_id, day_rate, currency_id, union_status, flat_fee`,
+                     RETURNING ${userWorkProfileColumns}`,
                     [existingId, profile.day_rate, profile.currency_id, profile.union_status, profile.flat_fee],
                 );
                 return { profile: requiredRow(result.rows[0], `update user_work_profile ${existingId}`), created: false };
@@ -60,7 +66,7 @@ export class UserWorkProfileRepo extends Repository {
             const result = await query<UserWorkProfileRow>(
                 `INSERT INTO user_work_profile (id, user_profile_id, day_rate, currency_id, union_status, flat_fee)
                  VALUES ($1, $2, $3, $4, $5, $6)
-                 RETURNING id, user_profile_id, day_rate, currency_id, union_status, flat_fee`,
+                 RETURNING ${userWorkProfileColumns}`,
                 [profile.id, profile.user_profile_id, profile.day_rate, profile.currency_id, profile.union_status, profile.flat_fee],
             );
             return { profile: requiredRow(result.rows[0], `insert user_work_profile ${profile.id}`), created: true };
@@ -86,7 +92,18 @@ function mapUserWorkProfile(row: UserWorkProfileRow): UserWorkProfile {
         currency_id: row.currency_id,
         union_status: row.union_status,
         flat_fee: row.flat_fee,
+        projects_completed: readCount(row.projects_completed),
+        years_in_business: readCount(row.years_in_business),
+        response_time_hours: readCount(row.response_time_hours),
     });
+}
+
+function readCount(value: number | string | null): number | null {
+    if (value === null) {
+        return null;
+    }
+    const parsed = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
 }
 
 function requiredRow(row: UserWorkProfileRow | undefined, action: string): UserWorkProfile {

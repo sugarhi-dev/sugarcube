@@ -35,8 +35,8 @@ export type SetupProfileInput = {
     cities: SetupCity[];
 };
 
-export function getMe(accessToken: string): Promise<CurrentUser> {
-    return readUser(accessToken, '/api/me');
+export function getMe(accessToken: string, path = '/api/me'): Promise<CurrentUser> {
+    return readUser(accessToken, path);
 }
 
 export type BasicProfileInput = {
@@ -70,8 +70,8 @@ export function getProfilePhoto(accessToken: string): Promise<Blob> {
     return apiBlob(accessToken, '/api/me/photo');
 }
 
-export function getProfilePhotoUrl(accessToken: string): Promise<ProfilePhotoUrl> {
-    return readOne(accessToken, '/api/me/photo/url', ProfilePhotoUrlSchema, 'Profile photo link was not valid.');
+export function getProfilePhotoUrl(accessToken: string, path = '/api/me/photo/url'): Promise<ProfilePhotoUrl> {
+    return readOne(accessToken, path, ProfilePhotoUrlSchema, 'Profile photo link was not valid.');
 }
 
 export function saveSetup(accessToken: string, input: SetupProfileInput): Promise<CurrentUser> {
@@ -81,8 +81,17 @@ export function saveSetup(accessToken: string, input: SetupProfileInput): Promis
     });
 }
 
-export function completeExperience(accessToken: string): Promise<CurrentUser> {
-    return readUser(accessToken, '/api/me/experience', { method: 'PUT' });
+export type ExperienceStatsInput = {
+    projects_completed: number;
+    years_in_business: number;
+    response_time_hours: number;
+};
+
+export function completeExperience(accessToken: string, input: ExperienceStatsInput): Promise<CurrentUser> {
+    return readUser(accessToken, '/api/me/experience', {
+        method: 'PUT',
+        body: JSON.stringify(input),
+    });
 }
 
 export function completeMedia(accessToken: string): Promise<CurrentUser> {
@@ -98,16 +107,16 @@ export function returnToStep(accessToken: string, status: OnboardingStep): Promi
     });
 }
 
-export function listLocales(accessToken: string): Promise<UserLocale[]> {
-    return readList(accessToken, '/api/me/locales', UserLocaleSchema, 'Cities response was not valid.');
+export function listLocales(accessToken: string, path = '/api/me/locales'): Promise<UserLocale[]> {
+    return readList(accessToken, path, UserLocaleSchema, 'Cities response was not valid.');
 }
 
-export function getWorkProfile(accessToken: string): Promise<UserWorkProfile> {
-    return readOne(accessToken, '/api/me/work-profile', UserWorkProfileSchema, 'Rates response was not valid.');
+export function getWorkProfile(accessToken: string, path = '/api/me/work-profile'): Promise<UserWorkProfile> {
+    return readOne(accessToken, path, UserWorkProfileSchema, 'Rates response was not valid.');
 }
 
-export function listWorkProfiles(accessToken: string): Promise<WorkProfile[]> {
-    return readList(accessToken, '/api/me/work-profiles', WorkProfileSchema, 'Positions response was not valid.');
+export function listWorkProfiles(accessToken: string, path = '/api/me/work-profiles'): Promise<WorkProfile[]> {
+    return readList(accessToken, path, WorkProfileSchema, 'Positions response was not valid.');
 }
 
 export function submitProfile(accessToken: string): Promise<CurrentUser> {

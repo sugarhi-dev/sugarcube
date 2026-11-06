@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
-export const MediaTypeSchema = z.enum(['youtube', 'vimeo', 'upload']);
+export const MediaTypeSchema = z.enum(['youtube', 'vimeo', 'upload', 'photo']);
 
 export type MediaType = z.infer<typeof MediaTypeSchema>;
 
-// Video the browser may keep. The owner and sort position stay on the server entity.
-// ref is a YouTube or Vimeo URL, or the ULID of a self-uploaded file.
+// Media the browser may keep. The owner and sort position stay on the server entity.
+// ref is a YouTube or Vimeo URL, or the ULID of a self-uploaded video or photo.
 export const UserMediaSchema = z.object({
     id: z.ulid(),
     media_type: MediaTypeSchema,
@@ -14,9 +14,9 @@ export const UserMediaSchema = z.object({
 
 export type UserMedia = z.infer<typeof UserMediaSchema>;
 
-// YouTube and Vimeo keep the link in ref. An upload keeps a file id there.
+// YouTube and Vimeo keep the link in ref. An upload or photo keeps a file id there.
 export function mediaUrl(media: Pick<UserMedia, 'media_type' | 'ref'>): string | null {
-    if (media.media_type === 'upload') {
+    if (media.media_type === 'upload' || media.media_type === 'photo') {
         return null;
     }
     return classifyMediaLink(media.ref)?.url ?? null;

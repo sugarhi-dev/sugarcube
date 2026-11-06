@@ -7,14 +7,14 @@ type ProjectRow = {
     name: string;
     position_id: string;
     lead_producer_name: string;
+    lead_producer_email: string | null;
     date: string;
     production_company: string | null;
-    hiring_producer: string | null;
 };
 
-const projectColumns = `id, user_profile_id, name, position_id, lead_producer_name,
+const projectColumns = `id, user_profile_id, name, position_id, lead_producer_name, lead_producer_email,
     to_char(date, 'YYYY-MM-DD') AS date,
-    production_company, hiring_producer`;
+    production_company`;
 
 export class ProjectRepo extends Repository {
     constructor(database: Database) {
@@ -50,7 +50,7 @@ export class ProjectRepo extends Repository {
         const result = await this.database.query<ProjectRow>(
             `INSERT INTO projects (
                  id, user_profile_id, name, position_id, lead_producer_name,
-                 date, production_company, hiring_producer
+                 lead_producer_email, date, production_company
              )
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              RETURNING ${projectColumns}`,
@@ -60,9 +60,9 @@ export class ProjectRepo extends Repository {
                 project.name,
                 project.position_id,
                 project.lead_producer_name,
+                project.lead_producer_email,
                 project.date,
                 project.production_company,
-                project.hiring_producer,
             ],
         );
         return requiredRow(result.rows[0], `insert projects ${project.id}`);
@@ -75,9 +75,9 @@ export class ProjectRepo extends Repository {
              SET name = $3,
                  position_id = $4,
                  lead_producer_name = $5,
-                 date = $6,
-                 production_company = $7,
-                 hiring_producer = $8,
+                 lead_producer_email = $6,
+                 date = $7,
+                 production_company = $8,
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = $1 AND user_profile_id = $2
              RETURNING ${projectColumns}`,
@@ -87,9 +87,9 @@ export class ProjectRepo extends Repository {
                 project.name,
                 project.position_id,
                 project.lead_producer_name,
+                project.lead_producer_email,
                 project.date,
                 project.production_company,
-                project.hiring_producer,
             ],
         );
         const row = result.rows[0];

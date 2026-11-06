@@ -8,13 +8,13 @@ export type ProjectInput = {
     name: string;
     position_id: string;
     lead_producer_name: string;
+    lead_producer_email: string;
     date: string;
     production_company: string | null;
-    hiring_producer: string | null;
 };
 
-export function listProjects(accessToken: string): Promise<Project[]> {
-    return readProjects(accessToken, '/api/me/projects');
+export function listProjects(accessToken: string, path = '/api/me/projects'): Promise<Project[]> {
+    return readProjects(accessToken, path);
 }
 
 export function createProject(accessToken: string, input: ProjectInput): Promise<Project> {

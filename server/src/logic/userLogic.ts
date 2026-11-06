@@ -1,11 +1,12 @@
-import { Binary, Context, Logic, type BinaryObject } from '@sugarcube/server-core';
+import { Binary, Config, Context, Logic, type BinaryObject } from '@sugarcube/server-core';
 import { ulid } from 'ulidx';
-import type { AccountType, User, UserStatus } from '../entities/user.js';
+import type { AccountType, AdminUser, User, UserStatus } from '../entities/user.js';
 import { UserLocaleSchema } from '../entities/userLocale.js';
 import type { UnionStatus } from '../entities/userWorkProfile.js';
 import { WorkProfileSchema, type WorkProfile } from '../entities/workProfile.js';
 import { constraintFailure } from './pgError.js';
-import { UserRepo, type BasicWrite } from '../repositories/userRepo.js';
+import { UserRepo, type Approval, type BasicWrite, type DirectoryUser, type ExperienceStatsWrite } from '../repositories/userRepo.js';
+import { EmailService } from '../services/emailService.js';
 
 const accountTypeConstraints = {
     user_profile_account_type_check: { statusCode: 400, message: 'Account type is not allowed.' },
@@ -43,6 +44,12 @@ const setupConstraints = {
     user_profile_status_check: { statusCode: 400, message: 'Account status is not allowed.' },
 };
 
+const experienceConstraints = {
+    user_work_profile_projects_completed_check: { statusCode: 400, message: 'Projects completed must be zero or greater.' },
+    user_work_profile_years_in_business_check: { statusCode: 400, message: 'Years in the business must be zero or greater.' },
+    user_work_profile_response_time_hours_check: { statusCode: 400, message: 'Response time must be at least 1 hour.' },
+};
+
 export type SetupProfileInput = {
     discipline_id: string;
     position_id: string;
@@ -53,14 +60,20 @@ export type SetupProfileInput = {
     cities: Array<{ production_city_id: string; home_city: boolean }>;
 };
 
+const changesSubject = 'Changes requested on your profile';
+const approvedMessage = 'Your profile has been approved.';
+
 export class UserLogic extends Logic {
     private readonly userRepo: UserRepo;
     private readonly binary: Binary;
+    private readonly config: Config;
+    private emailService: EmailService | null = null;
 
-    constructor(userRepo: UserRepo, binary: Binary) {
+    constructor(userRepo: UserRepo, binary: Binary, config: Config) {
         super();
         this.userRepo = userRepo;
         this.binary = binary;
+        this.config = config;
     }
 
     async createUser(ctx: Context, user: User) {
@@ -71,6 +84,108 @@ export class UserLogic extends Logic {
         const user = await this.userRepo.findUserByKeycloakId(ctx, keycloakId);
         if (!user) {
             ctx.error('Profile not found.', 404);
+            return null;
+        }
+        return user;
+    }
+
+    listUsers(ctx: Context): Promise<DirectoryUser[]> {
+        return this.userRepo.listUsers(ctx);
+    }
+
+    listApprovals(ctx: Context): Promise<Approval[]> {
+        return this.userRepo.listApprovals(ctx);
+    }
+
+    async requireById(ctx: Context, id: string): Promise<User | null> {
+        const user = await this.userRepo.findUserById(ctx, id);
+        if (!user) {
+            ctx.error('Profile not found.', 404);
+            return null;
+        }
+        return user;
+    }
+
+    async backToReview(ctx: Context, id: string): Promise<AdminUser | null> {
+        const current = await this.userRepo.findUserById(ctx, id);
+        if (!current) {
+            ctx.error('Profile not found.', 404);
+            return null;
+        }
+        if (current.status === 'review') {
+            ctx.error('This profile is already in review.', 409);
+            return null;
+        }
+
+        const user = await this.userRepo.backToReview(ctx, id);
+        if (!user) {
+            ctx.error('This profile is already in review.', 409);
+            return null;
+        }
+        return user;
+    }
+
+    async returnToReview(ctx: Context, id: string): Promise<AdminUser | null> {
+        const user = await this.userRepo.returnToReview(ctx, id);
+        if (!user) {
+            ctx.error('Only a submitted profile can be sent back for changes.', 409);
+            return null;
+        }
+        return user;
+    }
+
+    async requestChanges(ctx: Context, id: string, message: string): Promise<AdminUser | null> {
+        const user = await this.returnToReview(ctx, id);
+        if (!user) {
+            return null;
+        }
+
+        try {
+            await this.emails().send({
+                to: user.email,
+                subject: changesSubject,
+                text: message,
+                html: changesEmailHtml(message),
+            });
+        } catch (error) {
+            const detail = error instanceof Error ? error.message : 'Email send failed.';
+            const restored = await this.restoreSubmitted(ctx, id);
+            ctx.error(restored
+                ? detail
+                : `The profile was returned to review, but the email did not send. ${detail}`, 502);
+            return null;
+        }
+
+        return user;
+    }
+
+    async approveUser(ctx: Context, id: string): Promise<AdminUser | null> {
+        const current = await this.userRepo.findUserById(ctx, id);
+        if (!current) {
+            ctx.error('Profile not found.', 404);
+            return null;
+        }
+        if (current.status !== 'review' && current.status !== 'admin-review') {
+            ctx.error('Only a profile in review can be approved.', 409);
+            return null;
+        }
+
+        try {
+            await this.emails().send({
+                to: current.email,
+                subject: approvedMessage,
+                text: approvedMessage,
+                html: changesEmailHtml(approvedMessage),
+            });
+        } catch (error) {
+            const detail = error instanceof Error ? error.message : 'Email send failed.';
+            ctx.error(detail, 502);
+            return null;
+        }
+
+        const user = await this.userRepo.approveUser(ctx, id);
+        if (!user) {
+            ctx.error('The approval email was sent, but the profile could not be published.', 409);
             return null;
         }
         return user;
@@ -203,13 +318,26 @@ export class UserLogic extends Logic {
         return user;
     }
 
-    async completeExperience(ctx: Context, userId: string): Promise<User | null> {
-        const user = await this.userRepo.completeExperience(ctx, userId);
-        if (!user) {
-            ctx.error('Experience can only be completed while your account is in experience.', 409);
+    async completeExperience(ctx: Context, userId: string, stats: ExperienceStatsWrite): Promise<User | null> {
+        try {
+            const result = await this.userRepo.completeExperience(ctx, userId, stats);
+            if (result.outcome === 'missing-profile') {
+                ctx.error('Set up your profile before adding experience.', 409);
+                return null;
+            }
+            if (result.outcome !== 'ok') {
+                ctx.error('Experience can only be completed while your account is in experience.', 409);
+                return null;
+            }
+            return result.user;
+        } catch (error) {
+            const failure = constraintFailure(error, experienceConstraints);
+            if (!failure) {
+                throw error;
+            }
+            ctx.error(failure.message, failure.statusCode);
             return null;
         }
-        return user;
     }
 
     async completeMedia(ctx: Context, userId: string): Promise<User | null> {
@@ -228,7 +356,7 @@ export class UserLogic extends Logic {
     async submitForReview(ctx: Context, userId: string): Promise<User | null> {
         const result = await this.userRepo.submitForReview(ctx, userId);
         if (result.status === 'incomplete') {
-            ctx.error('Add at least 2 videos before submitting.', 409);
+            ctx.error('Add at least 2 items before submitting.', 409);
             return null;
         }
         if (result.status === 'unavailable') {
@@ -244,6 +372,22 @@ export class UserLogic extends Logic {
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             this.log.error(`Could not remove binary ${id}: ${message}`);
+        }
+    }
+
+    private emails(): EmailService {
+        this.emailService ??= new EmailService(this.config);
+        return this.emailService;
+    }
+
+    private async restoreSubmitted(ctx: Context, id: string): Promise<boolean> {
+        try {
+            const restored = await this.userRepo.returnToAdminReview(ctx, id);
+            return restored !== null;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log.error(`${ctx.traceId} could not restore user_profile ${id} to admin-review: ${message}`);
+            return false;
         }
     }
 }
@@ -262,4 +406,19 @@ function canUpdateProfileDetails(status: User['status']): boolean {
 
 function roundMoney(value: number): number {
     return Math.round(value * 100) / 100;
+}
+
+function changesEmailHtml(message: string): string {
+    return message
+        .split(/\n{2,}/)
+        .map((paragraph) => `<p>${escapeHtml(paragraph).replaceAll('\n', '<br>')}</p>`)
+        .join('');
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
 }

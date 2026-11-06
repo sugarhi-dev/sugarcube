@@ -4,8 +4,8 @@ import { parseResponse, parseResponseList } from './parse.ts';
 
 export type { UserMedia };
 
-export function listMedia(accessToken: string): Promise<UserMedia[]> {
-    return readMediaList(accessToken, '/api/me/media');
+export function listMedia(accessToken: string, path = '/api/me/media'): Promise<UserMedia[]> {
+    return readMediaList(accessToken, path);
 }
 
 export async function createMedia(accessToken: string, url: string, thumbnail: File): Promise<UserMedia> {
@@ -48,8 +48,23 @@ export async function uploadMedia(
     }
 }
 
-export function getMediaThumbnail(accessToken: string, id: string): Promise<Blob> {
-    return apiBlob(accessToken, `/api/me/media/${encodeURIComponent(id)}/thumbnail`);
+export async function uploadPhoto(
+    accessToken: string,
+    photo: File,
+    contentType: string,
+    onProgress: (percent: number) => void,
+    signal?: AbortSignal,
+): Promise<UserMedia> {
+    const body = await apiUpload(accessToken, '/api/me/media/photo', photo, contentType, onProgress, signal);
+    return parseResponse(UserMediaSchema, body, 'Media response was not valid.');
+}
+
+export function getMediaThumbnail(
+    accessToken: string,
+    id: string,
+    path = `/api/me/media/${encodeURIComponent(id)}/thumbnail`,
+): Promise<Blob> {
+    return apiBlob(accessToken, path);
 }
 
 export function reorderMedia(accessToken: string, ids: string[]): Promise<UserMedia[]> {

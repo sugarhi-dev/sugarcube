@@ -23,7 +23,7 @@ export const copyThatTheme: ThemeConfig = {
         colorBgLayout: copyThat.canvas,
         colorBorder: copyThat.line,
         borderRadius: 12,
-        fontFamily: 'Inter, "Segoe UI", Helvetica, Arial, sans-serif',
+        fontFamily: 'var(--font-text)',
         fontSize: 15,
     },
     components: {

@@ -94,13 +94,14 @@ test('logs in and completes profile setup', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
     await page.getByLabel('Project title').fill('Nike — Up In The Air');
     await chooseOption(page, 'Position', 'Director', 'Director');
-    await page.getByLabel('Lead producer').fill('Sarah Kim');
+    await page.getByLabel('Lead producer', { exact: true }).fill('Sarah Kim');
+    await page.getByLabel('Lead producer email').fill('sarah.kim@example.com');
     await page.getByLabel('Date').fill('2024-03-12');
-    await page.getByRole('button', { name: 'Add' }).click();
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
     await expect(page.getByText('Nike — Up In The Air')).toBeVisible();
     await expect(page.getByText('Sarah Kim')).toBeVisible();
     await page.getByRole('button', { name: 'Edit Nike — Up In The Air' }).click();
-    await page.getByLabel('Lead producer for Nike — Up In The Air').fill('Jamie Chen');
+    await page.getByLabel('Lead producer for Nike — Up In The Air', { exact: true }).fill('Jamie Chen');
     await page.getByRole('button', { name: 'Save Nike — Up In The Air' }).click();
     await expect(page.getByText('Jamie Chen')).toBeVisible();
     await expect(page.getByText('Sarah Kim')).toHaveCount(0);
@@ -109,9 +110,10 @@ test('logs in and completes profile setup', async ({ page }) => {
 
     await page.getByLabel('Project title').fill('Adidas — Origami Forever');
     await chooseOption(page, 'Position', 'Director of Photography', 'Photography');
-    await page.getByLabel('Lead producer').fill('Todd Martinez');
+    await page.getByLabel('Lead producer', { exact: true }).fill('Todd Martinez');
+    await page.getByLabel('Lead producer email').fill('todd.martinez@example.com');
     await page.getByLabel('Date').fill('2024-03-12');
-    await page.getByRole('button', { name: 'Add' }).click();
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
     await expect(page.getByText('Adidas — Origami Forever')).toBeVisible();
     await expect(page.getByText('Director of Photography')).toBeVisible();
     await Promise.all([
@@ -123,6 +125,7 @@ test('logs in and completes profile setup', async ({ page }) => {
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Remove Commercial' })).toBeVisible();
+    await fillTrackRecord(page);
     await page.getByRole('button', { name: 'Continue — upload media' }).click();
 
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
@@ -138,6 +141,9 @@ test('logs in and completes profile setup', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Remove Commercial' })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
+    await expect(page.getByLabel('Projects completed')).toHaveValue('18');
+    await expect(page.getByLabel('Years in the business')).toHaveValue('3');
+    await expect(page.locator('.ant-form-item', { has: page.getByRole('combobox', { name: 'Response time' }) })).toContainText('< 12 hours');
     await page.getByRole('button', { name: 'Continue — upload media' }).click();
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
 });
@@ -169,6 +175,12 @@ function pngChunk(type: string, data: Buffer): Buffer {
     const crc = Buffer.alloc(4);
     crc.writeUInt32BE(crc32(Buffer.concat([tag, data])));
     return Buffer.concat([length, tag, data, crc]);
+}
+
+async function fillTrackRecord(page: Page): Promise<void> {
+    await page.getByLabel('Projects completed').fill('18');
+    await page.getByLabel('Years in the business').fill('3');
+    await chooseOption(page, 'Response time', '< 12 hours');
 }
 
 async function chooseOption(page: Page, label: string, option: string, search?: string): Promise<void> {

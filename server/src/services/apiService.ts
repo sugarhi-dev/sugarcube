@@ -1,5 +1,6 @@
 import { Binary, Config, Database, RestService } from '@sugarcube/server-core';
 import type { Express } from 'express';
+import { AdminUserController } from '../controllers/adminUserController.js';
 import { AuthController } from '../controllers/authcontroller.js';
 import { CurrencyController } from '../controllers/currencyController.js';
 import { DisciplineController } from '../controllers/disciplineController.js';
@@ -41,7 +42,7 @@ export class ApiService extends RestService {
     private readonly config: Config;
 
     constructor(config: Config, app: Express, database: Database) {
-        super(config, 'ApiService', app, ['/api/auth/oidc/callback', '/api/auth/oidc/admin/callback']);
+        super(config, 'ApiService', app, ['/api/auth/client/callback', '/api/auth/admin/callback']);
         this.database = database;
         this.config = config;
     }
@@ -63,7 +64,7 @@ export class ApiService extends RestService {
         const userWorkProfileRepo = new UserWorkProfileRepo(this.database);
 
         const binary = new Binary(this.config);
-        const userLogic = new UserLogic(userRepo, binary);
+        const userLogic = new UserLogic(userRepo, binary, this.config);
         const currencyLogic = new CurrencyLogic(currencyRepo);
         const productionCityLogic = new ProductionCityLogic(productionCityRepo);
         const disciplineLogic = new DisciplineLogic(disciplineRepo);
@@ -85,6 +86,16 @@ export class ApiService extends RestService {
         this.addController(new ProjectController(this.app, userLogic, projectLogic));
         this.addController(new ProjectProjectTypeController(this.app, userLogic, projectProjectTypeLogic));
         this.addController(new UserController(this.app, userLogic, userLocaleLogic, userWorkProfileLogic));
+        this.addController(new AdminUserController(
+            this.app,
+            userLogic,
+            userLocaleLogic,
+            userMediaLogic,
+            userWorkProfileLogic,
+            userAvailabilityLogic,
+            projectLogic,
+            projectProjectTypeLogic,
+        ));
         this.addController(new UserAvailabilityController(this.app, userLogic, userAvailabilityLogic));
         this.addController(new UserMediaController(this.app, userLogic, userMediaLogic));
     }

@@ -6,7 +6,7 @@ import {
     EditOutlined,
     PlusOutlined,
 } from '@ant-design/icons';
-import { App as AntdApp, Button, Flex, Form, Input, Result, Select, Spin, Typography } from 'antd';
+import { App as AntdApp, Button, Flex, Form, Input, InputNumber, Result, Select, Spin, Typography } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -17,7 +17,8 @@ import {
     type Position,
     type ProjectType,
 } from '../../api/catalog.ts';
-import { completeExperience, returnToStep } from '../../api/me.ts';
+import { ApiError } from '../../api/http.ts';
+import { completeExperience, getWorkProfile, returnToStep } from '../../api/me.ts';
 import {
     createProject,
     deleteProject,
@@ -40,20 +41,36 @@ export const onboardingExperiencePath = '/onboarding/experience';
 
 const disciplineOrder = ['Shooting', 'Post Production'];
 
+const responseTimeOptions = [
+    { value: 4, label: '< 4 hours' },
+    { value: 8, label: '< 8 hours' },
+    { value: 12, label: '< 12 hours' },
+    { value: 24, label: '< 24 hours' },
+];
+
 type ExperienceCatalog = {
     projects: Project[];
     projectTypes: ProjectType[];
     positions: Position[];
     disciplines: Discipline[];
+    projectsCompleted: number | null;
+    yearsInBusiness: number | null;
+    responseTimeHours: number | null;
+};
+
+type TrackRecordValues = {
+    projects_completed: number;
+    years_in_business: number;
+    response_time_hours: number;
 };
 
 type CreditFormValues = {
     name: string;
     position_id: string;
     lead_producer_name: string;
+    lead_producer_email: string;
     date: string;
     production_company?: string;
-    hiring_producer?: string;
 };
 
 export function OnboardingExperience() {
@@ -63,6 +80,7 @@ export function OnboardingExperience() {
     const accountType = useAppSelector((state) => state.profile.user?.account_type);
     const { message } = AntdApp.useApp();
     const [form] = Form.useForm<CreditFormValues>();
+    const [statsForm] = Form.useForm<TrackRecordValues>();
     const [catalog, setCatalog] = useState<ExperienceCatalog | null>(null);
     const [catalogError, setCatalogError] = useState<string | null>(null);
     const [attempt, setAttempt] = useState(0);
@@ -95,11 +113,17 @@ export function OnboardingExperience() {
 
         void (async () => {
             try {
-                const [projects, projectTypes, positions, disciplines] = await Promise.all([
+                const [projects, projectTypes, positions, disciplines, rates] = await Promise.all([
                     listProjects(token),
                     listProjectTypes(token),
                     listPositions(token),
                     listDisciplines(token),
+                    getWorkProfile(token).catch((error: unknown) => {
+                        if (error instanceof ApiError && error.status === 404) {
+                            return null;
+                        }
+                        throw error;
+                    }),
                 ]);
                 if (!active) {
                     return;
@@ -118,7 +142,15 @@ export function OnboardingExperience() {
                     setSelectedTypeIds,
                     [...new Set(links.flat().map((link) => link.project_type_id))],
                 );
-                setCatalog({ projects, projectTypes, positions, disciplines: orderNamed(disciplines, disciplineOrder) });
+                setCatalog({
+                    projects,
+                    projectTypes,
+                    positions,
+                    disciplines: orderNamed(disciplines, disciplineOrder),
+                    projectsCompleted: rates?.projects_completed ?? null,
+                    yearsInBusiness: rates?.years_in_business ?? null,
+                    responseTimeHours: rates?.response_time_hours ?? null,
+                });
             } catch (error: unknown) {
                 if (active) {
                     setCatalogError(error instanceof Error ? error.message : 'Could not load your experience.');
@@ -236,10 +268,27 @@ export function OnboardingExperience() {
             return;
         }
 
+        let trackRecord: TrackRecordValues;
+        try {
+            trackRecord = await statsForm.validateFields();
+        } catch {
+            return;
+        }
+        const projectsCompleted = readWhole(trackRecord.projects_completed);
+        const yearsInBusiness = readWhole(trackRecord.years_in_business);
+        const responseTimeHours = readWhole(trackRecord.response_time_hours);
+        if (projectsCompleted === null || yearsInBusiness === null || responseTimeHours === null) {
+            return;
+        }
+
         setContinuing(true);
         try {
             await persistProjectTypes(saveQueue, projectsRef, selectedTypeIdsRef, session.accessToken);
-            const user = await completeExperience(session.accessToken);
+            const user = await completeExperience(session.accessToken, {
+                projects_completed: projectsCompleted,
+                years_in_business: yearsInBusiness,
+                response_time_hours: responseTimeHours,
+            });
             dispatch(profileLoaded({ user, forSubject: session.profile.subject }));
             navigate(onboardingMediaPath, { replace: true });
         } catch (error) {
@@ -296,9 +345,9 @@ export function OnboardingExperience() {
                                             name: project.name,
                                             position_id: project.position_id,
                                             lead_producer_name: project.lead_producer_name,
+                                            lead_producer_email: project.lead_producer_email ?? '',
                                             date: project.date,
                                             production_company: project.production_company ?? '',
-                                            hiring_producer: project.hiring_producer ?? '',
                                         }}
                                         onFinish={(values: CreditFormValues) => void onSave(project, values)}
                                     >
@@ -336,6 +385,18 @@ export function OnboardingExperience() {
                                                 <Input aria-label={`Lead producer for ${project.name}`} />
                                             </Form.Item>
                                             <Form.Item
+                                                name="lead_producer_email"
+                                                style={{ flex: '1 1 200px', marginBottom: 0 }}
+                                                rules={leadProducerEmailRules}
+                                            >
+                                                <Input
+                                                    type="email"
+                                                    inputMode="email"
+                                                    autoComplete="off"
+                                                    aria-label={`Lead producer email for ${project.name}`}
+                                                />
+                                            </Form.Item>
+                                            <Form.Item
                                                 name="date"
                                                 style={{ flex: '0 1 150px', marginBottom: 0 }}
                                                 rules={[{ required: true, message: 'Enter a date.' }]}
@@ -344,9 +405,6 @@ export function OnboardingExperience() {
                                             </Form.Item>
                                             <Form.Item name="production_company" style={{ flex: '1 1 160px', marginBottom: 0 }}>
                                                 <Input aria-label={`Production company for ${project.name}`} placeholder="Production company" />
-                                            </Form.Item>
-                                            <Form.Item name="hiring_producer" style={{ flex: '1 1 160px', marginBottom: 0 }}>
-                                                <Input aria-label={`Hiring producer for ${project.name}`} placeholder="Hiring producer" />
                                             </Form.Item>
                                             <Button
                                                 htmlType="submit"
@@ -375,8 +433,8 @@ export function OnboardingExperience() {
                                         date: project.date,
                                         position: positionName.get(project.position_id),
                                         company: project.production_company,
-                                        hiringProducer: project.hiring_producer,
                                         leadProducer: project.lead_producer_name,
+                                        leadProducerEmail: project.lead_producer_email,
                                     })}
                                     actions={(
                                         <>
@@ -440,6 +498,19 @@ export function OnboardingExperience() {
                                 <Input placeholder="Lead producer" aria-label="Lead producer" />
                             </Form.Item>
                             <Form.Item
+                                name="lead_producer_email"
+                                style={{ flex: '1.2 1 200px', marginBottom: 0 }}
+                                rules={leadProducerEmailRules}
+                            >
+                                <Input
+                                    type="email"
+                                    inputMode="email"
+                                    autoComplete="off"
+                                    placeholder="Lead producer email"
+                                    aria-label="Lead producer email"
+                                />
+                            </Form.Item>
+                            <Form.Item
                                 name="date"
                                 style={{ flex: '0 1 150px', marginBottom: 0 }}
                                 rules={[{ required: true, message: 'Enter a date.' }]}
@@ -449,12 +520,10 @@ export function OnboardingExperience() {
                             <Form.Item name="production_company" style={{ flex: '1 1 160px', marginBottom: 0 }}>
                                 <Input placeholder="Production company" aria-label="Production company" />
                             </Form.Item>
-                            <Form.Item name="hiring_producer" style={{ flex: '1 1 160px', marginBottom: 0 }}>
-                                <Input placeholder="Hiring producer" aria-label="Hiring producer" />
-                            </Form.Item>
                             <Button
                                 htmlType="submit"
                                 className="experience-add"
+                                aria-label="Add"
                                 icon={<PlusOutlined />}
                                 loading={adding}
                             >
@@ -473,7 +542,69 @@ export function OnboardingExperience() {
                         onChange={changeTypes}
                     />
 
-                    <Flex justify="space-between" align="center" style={{ marginTop: 28 }}>
+                    <Typography.Text style={{ display: 'block', marginTop: 36, marginBottom: 12, color: copyThat.pink, fontWeight: 700 }}>
+                        Your track record
+                    </Typography.Text>
+                    <Form
+                        form={statsForm}
+                        className="profile-form"
+                        layout="vertical"
+                        requiredMark={false}
+                        initialValues={{
+                            projects_completed: catalog.projectsCompleted ?? undefined,
+                            years_in_business: catalog.yearsInBusiness ?? undefined,
+                            response_time_hours: catalog.responseTimeHours ?? undefined,
+                        }}
+                    >
+                        <Flex gap={12} align="flex-start" wrap="wrap">
+                            <Form.Item
+                                label="Projects completed"
+                                name="projects_completed"
+                                style={{ flex: '1 1 180px' }}
+                                rules={[{ validator: countRule(0, 1_000_000, 'Enter the number of projects you have completed.', 'Enter zero or more projects.') }]}
+                            >
+                                <InputNumber
+                                    aria-label="Projects completed"
+                                    min={0}
+                                    max={1_000_000}
+                                    precision={0}
+                                    controls={false}
+                                    inputMode="numeric"
+                                    style={{ width: '100%' }}
+                                />
+                            </Form.Item>
+                            <Form.Item
+                                label="Years in the business"
+                                name="years_in_business"
+                                style={{ flex: '1 1 180px' }}
+                                rules={[{ validator: countRule(0, 100, 'Enter how many years you have been in the business.', 'Enter years between 0 and 100.') }]}
+                            >
+                                <InputNumber
+                                    aria-label="Years in the business"
+                                    min={0}
+                                    max={100}
+                                    precision={0}
+                                    controls={false}
+                                    inputMode="numeric"
+                                    style={{ width: '100%' }}
+                                />
+                            </Form.Item>
+                            <Form.Item
+                                label="Response time"
+                                name="response_time_hours"
+                                style={{ flex: '1 1 180px' }}
+                                rules={[{ validator: responseTimeRule }]}
+                            >
+                                <Select
+                                    aria-label="Response time"
+                                    placeholder="Response time"
+                                    options={responseTimeOptions}
+                                />
+                            </Form.Item>
+                        </Flex>
+                    </Form>
+
+                    <Flex justify="space-between" align="center" style={{ marginTop: 12 }}>
                         <Button
                             type="text"
                             htmlType="button"
@@ -512,10 +643,45 @@ function creditInput(values: CreditFormValues) {
         name: values.name.trim(),
         position_id: values.position_id,
         lead_producer_name: values.lead_producer_name.trim(),
+        lead_producer_email: values.lead_producer_email.trim(),
         date: values.date,
         production_company: blankToNull(values.production_company),
-        hiring_producer: blankToNull(values.hiring_producer),
     };
+}
+
+const leadProducerEmailRules = [
+    { required: true, whitespace: true, message: 'Enter the lead producer email.' },
+    { type: 'email' as const, message: 'Enter a valid email address.' },
+];
+
+function responseTimeRule(_: unknown, value: unknown): Promise<void> {
+    if (!responseTimeOptions.some((option) => option.value === value)) {
+        return Promise.reject(new Error('Enter your average response time.'));
+    }
+    return Promise.resolve();
+}
+
+function countRule(min: number, max: number, emptyMessage: string, rangeMessage: string) {
+    return (_: unknown, value: unknown): Promise<void> => {
+        if (value === null || value === undefined || value === '') {
+            return Promise.reject(new Error(emptyMessage));
+        }
+        const parsed = readWhole(value);
+        if (parsed === null || parsed < min || parsed > max) {
+            return Promise.reject(new Error(rangeMessage));
+        }
+        return Promise.resolve();
+    };
+}
+
+function readWhole(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isInteger(value)) {
+        return value;
+    }
+    if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+        return Number(value.trim());
+    }
+    return null;
 }
 
 function blankToNull(value: string | undefined): string | null {

@@ -1,7 +1,8 @@
 import { Database, Repository, type Context } from '@sugarcube/server-core';
-import { UserSchema, type AccountType, type User, type UserStatus } from '../entities/user.js';
+import { z } from 'zod';
+import { AccountTypeSchema, AdminUserSchema, UserSchema, UserStatusSchema, type AccountType, type AdminUser, type User, type UserStatus } from '../entities/user.js';
 import type { UserLocale } from '../entities/userLocale.js';
-import type { UnionStatus } from '../entities/userWorkProfile.js';
+import { UnionStatusSchema, type UnionStatus } from '../entities/userWorkProfile.js';
 import { WorkProfileSchema, type WorkProfile } from '../entities/workProfile.js';
 
 const userColumns = 'id, first_name, last_name, email, phone, bio, photo, keycloak_id, status, account_type';
@@ -48,6 +49,143 @@ export class UserRepo extends Repository {
         );
         const row = result.rows[0];
         return row ? UserSchema.parse(row) : null;
+    }
+
+    async findUserById(ctx: Context, id: string): Promise<User | null> {
+        this.log.trace(`${ctx.traceId} select user_profile ${id}`);
+        const result = await this.database.query<UserRow>(
+            `SELECT ${userColumns}
+             FROM user_profile
+             WHERE id = $1`,
+            [id],
+        );
+        const row = result.rows[0];
+        return row ? UserSchema.parse(row) : null;
+    }
+
+    async listUsers(ctx: Context): Promise<DirectoryUser[]> {
+        this.log.trace(`${ctx.traceId} select user_profile`);
+        const result = await this.database.query(
+            `SELECT *
+             FROM (
+                 SELECT DISTINCT ON (profile.id)
+                     profile.id,
+                     profile.first_name,
+                     profile.last_name,
+                     profile.email,
+                     profile.phone,
+                     profile.status,
+                     profile.account_type,
+                     profile.photo,
+                     profile.created_at,
+                     profile.updated_at,
+                     discipline.name AS discipline,
+                     city.name AS city,
+                     (SELECT COUNT(*) FROM work_profile WHERE user_profile_id = profile.id) AS profile_count
+                 FROM user_profile profile
+                 LEFT JOIN work_profile work ON work.user_profile_id = profile.id
+                 LEFT JOIN disciplines discipline ON discipline.id = work.discipline_id
+                 LEFT JOIN user_locale locale ON locale.user_profile_id = profile.id AND locale.home_city
+                 LEFT JOIN production_cities city ON city.id = locale.production_city_id
+                 ORDER BY profile.id, work.created_at NULLS LAST, work.id
+             ) directory
+             ORDER BY created_at DESC, id DESC`,
+        );
+        return result.rows.map((row) => DirectoryUserSchema.parse(row));
+    }
+
+    async listApprovals(ctx: Context): Promise<Approval[]> {
+        this.log.trace(`${ctx.traceId} select profiles in review`);
+        const result = await this.database.query(
+            `SELECT *
+             FROM (
+                 SELECT DISTINCT ON (profile.id)
+                     profile.id,
+                     profile.first_name,
+                     profile.last_name,
+                     profile.email,
+                     profile.status,
+                     profile.account_type,
+                     profile.photo,
+                     position.name AS position,
+                     discipline.name AS discipline,
+                     city.name AS city,
+                     rates.day_rate,
+                     TRIM(currency.code) AS currency_code,
+                     rates.union_status,
+                     (SELECT COUNT(*) FROM projects WHERE user_profile_id = profile.id) AS credit_count,
+                     (SELECT COUNT(*) FROM user_media WHERE user_profile_id = profile.id) AS media_count,
+                     profile.updated_at
+                 FROM user_profile profile
+                 LEFT JOIN work_profile work ON work.user_profile_id = profile.id
+                 LEFT JOIN positions position ON position.id = work.position_id
+                 LEFT JOIN disciplines discipline ON discipline.id = work.discipline_id
+                 LEFT JOIN user_work_profile rates ON rates.user_profile_id = profile.id
+                 LEFT JOIN currency ON currency.id = rates.currency_id
+                 LEFT JOIN user_locale locale ON locale.user_profile_id = profile.id AND locale.home_city
+                 LEFT JOIN production_cities city ON city.id = locale.production_city_id
+                 WHERE profile.status IN ('review', 'admin-review')
+                 ORDER BY profile.id, work.created_at NULLS LAST, work.id
+             ) approval
+             ORDER BY updated_at DESC, id DESC`,
+        );
+        return result.rows.map((row) => ApprovalSchema.parse(row));
+    }
+
+    async returnToReview(ctx: Context, id: string): Promise<AdminUser | null> {
+        this.log.trace(`${ctx.traceId} return user_profile ${id} to review`);
+        const result = await this.database.query<AdminUser>(
+            `UPDATE user_profile
+             SET status = 'review',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status = 'admin-review'
+             RETURNING id, first_name, last_name, email, phone, status, account_type, created_at, updated_at`,
+            [id],
+        );
+        const row = result.rows[0];
+        return row ? AdminUserSchema.parse(row) : null;
+    }
+
+    async backToReview(ctx: Context, id: string): Promise<AdminUser | null> {
+        this.log.trace(`${ctx.traceId} set user_profile ${id} back to review`);
+        const result = await this.database.query<AdminUser>(
+            `UPDATE user_profile
+             SET status = 'review',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status <> 'review'
+             RETURNING id, first_name, last_name, email, phone, status, account_type, created_at, updated_at`,
+            [id],
+        );
+        const row = result.rows[0];
+        return row ? AdminUserSchema.parse(row) : null;
+    }
+
+    async returnToAdminReview(ctx: Context, id: string): Promise<AdminUser | null> {
+        this.log.trace(`${ctx.traceId} return user_profile ${id} to admin-review`);
+        const result = await this.database.query<AdminUser>(
+            `UPDATE user_profile
+             SET status = 'admin-review',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status = 'review'
+             RETURNING id, first_name, last_name, email, phone, status, account_type, created_at, updated_at`,
+            [id],
+        );
+        const row = result.rows[0];
+        return row ? AdminUserSchema.parse(row) : null;
+    }
+
+    async approveUser(ctx: Context, id: string): Promise<AdminUser | null> {
+        this.log.trace(`${ctx.traceId} approve user_profile ${id}`);
+        const result = await this.database.query<AdminUser>(
+            `UPDATE user_profile
+             SET status = 'live',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status IN ('review', 'admin-review')
+             RETURNING id, first_name, last_name, email, phone, status, account_type, created_at, updated_at`,
+            [id],
+        );
+        const row = result.rows[0];
+        return row ? AdminUserSchema.parse(row) : null;
     }
 
     async chooseAccountType(ctx: Context, userId: string, accountType: AccountType): Promise<User | null> {
@@ -206,18 +344,47 @@ export class UserRepo extends Repository {
         return row ? UserSchema.parse(row) : null;
     }
 
-    async completeExperience(ctx: Context, userId: string): Promise<User | null> {
+    async completeExperience(ctx: Context, userId: string, stats: ExperienceStatsWrite): Promise<ExperienceCompletion> {
         this.log.trace(`${ctx.traceId} complete experience ${userId}`);
-        const result = await this.database.query<UserRow>(
-            `UPDATE user_profile
-             SET status = 'media',
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status = 'experience'
-             RETURNING ${userColumns}`,
-            [userId],
-        );
-        const row = result.rows[0];
-        return row ? UserSchema.parse(row) : null;
+        return this.database.transaction(async (query) => {
+            const locked = await query<{ status: string }>(
+                `SELECT status
+                 FROM user_profile
+                 WHERE id = $1
+                 FOR UPDATE`,
+                [userId],
+            );
+            if (locked.rows[0]?.status !== 'experience') {
+                return { outcome: 'wrong-step' };
+            }
+
+            const rates = await query(
+                `UPDATE user_work_profile
+                 SET projects_completed = $2,
+                     years_in_business = $3,
+                     response_time_hours = $4,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE user_profile_id = $1`,
+                [userId, stats.projects_completed, stats.years_in_business, stats.response_time_hours],
+            );
+            if ((rates.rowCount ?? 0) === 0) {
+                return { outcome: 'missing-profile' };
+            }
+
+            const updated = await query<UserRow>(
+                `UPDATE user_profile
+                 SET status = 'media',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1 AND status = 'experience'
+                 RETURNING ${userColumns}`,
+                [userId],
+            );
+            const row = updated.rows[0];
+            if (!row) {
+                return { outcome: 'wrong-step' };
+            }
+            return { outcome: 'ok', user: UserSchema.parse(row) };
+        });
     }
 
     async completeMedia(ctx: Context, userId: string): Promise<User | null> {
@@ -276,10 +443,59 @@ export class UserRepo extends Repository {
     }
 }
 
+const optionalNumber = z.preprocess(
+    (value) => value === null || value === undefined ? null : Number(value),
+    z.number().nullable(),
+);
+
+export const ApprovalSchema = z.object({
+    id: z.ulid(),
+    first_name: z.string(),
+    last_name: z.string(),
+    email: z.email(),
+    status: UserStatusSchema,
+    account_type: AccountTypeSchema.nullable(),
+    photo: z.ulid().nullable(),
+    position: z.string().nullable(),
+    discipline: z.string().nullable(),
+    city: z.string().nullable(),
+    day_rate: optionalNumber,
+    currency_code: z.preprocess(
+        (value) => typeof value === 'string' ? value.trim() : value,
+        z.string().length(3).nullable(),
+    ),
+    union_status: UnionStatusSchema.nullable(),
+    credit_count: z.coerce.number().int(),
+    media_count: z.coerce.number().int(),
+    updated_at: z.coerce.date(),
+}).strip();
+
+export type Approval = z.infer<typeof ApprovalSchema>;
+
+export const DirectoryUserSchema = AdminUserSchema.extend({
+    photo: z.ulid().nullable(),
+    discipline: z.string().nullable(),
+    city: z.string().nullable(),
+    profile_count: z.coerce.number().int(),
+}).strip();
+
+export type DirectoryUser = z.infer<typeof DirectoryUserSchema>;
+
 export type SubmitForReviewResult =
     | { status: 'ok'; user: User }
     | { status: 'incomplete' }
     | { status: 'unavailable' };
+
+export type ExperienceStatsWrite = {
+    projects_completed: number;
+    years_in_business: number;
+    response_time_hours: number;
+};
+
+export type ExperienceCompletion =
+    | { outcome: 'ok'; user: User }
+    | { outcome: 'wrong-step' }
+    | { outcome: 'missing-profile' };
 
 export type BasicWrite = {
     phone: string;

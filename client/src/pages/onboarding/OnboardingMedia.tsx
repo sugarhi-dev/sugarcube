@@ -1,9 +1,9 @@
-import { ArrowLeftOutlined, ArrowRightOutlined, DeleteOutlined, EditOutlined, HolderOutlined, LinkOutlined, PictureOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, ArrowRightOutlined, DeleteOutlined, EditOutlined, HolderOutlined, LinkOutlined, PictureFilled, PictureOutlined, PlusOutlined, UploadOutlined, VideoCameraFilled } from '@ant-design/icons';
 import { classifyMediaLink, mediaUrl, type UserMedia } from '@sugarcube/schema';
 import { App as AntdApp, Button, Flex, Input, Modal, Progress, Result, Spin, Typography } from 'antd';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { createMedia, deleteMedia, getMediaThumbnail, listMedia, reorderMedia, updateMedia, uploadMedia } from '../../api/media.ts';
+import { createMedia, deleteMedia, getMediaThumbnail, listMedia, reorderMedia, updateMedia, uploadMedia, uploadPhoto } from '../../api/media.ts';
 import { completeMedia, returnToStep } from '../../api/me.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
@@ -17,6 +17,7 @@ export const onboardingMediaPath = '/onboarding/media';
 
 const minimumMedia = 2;
 const thumbnailLimit = 8 * 1024 * 1024;
+const photoLimit = 8 * 1024 * 1024;
 const videoLimit = 200 * 1024 * 1024;
 
 type DragState = {
@@ -35,6 +36,7 @@ export function OnboardingMedia() {
     const thumbRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLInputElement>(null);
     const uploadThumbRef = useRef<HTMLInputElement>(null);
+    const photoRef = useRef<HTMLInputElement>(null);
     const uploadAbort = useRef<AbortController | null>(null);
     const itemsRef = useRef<UserMedia[]>([]);
     const dragRef = useRef<DragState | null>(null);
@@ -42,6 +44,11 @@ export function OnboardingMedia() {
     const [items, setItems] = useState<UserMedia[]>([]);
     const [linkOpen, setLinkOpen] = useState(false);
     const [uploadOpen, setUploadOpen] = useState(false);
+    const [photoOpen, setPhotoOpen] = useState(false);
+    const [photoFile, setPhotoFile] = useState<File | null>(null);
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const [photoError, setPhotoError] = useState<string | null>(null);
+    const [photoOver, setPhotoOver] = useState(false);
     const [videoFile, setVideoFile] = useState<File | null>(null);
     const [videoType, setVideoType] = useState<string | null>(null);
     const [videoError, setVideoError] = useState<string | null>(null);
@@ -71,14 +78,15 @@ export function OnboardingMedia() {
         document.title = 'Upload your media';
     }, []);
 
-    useKeepFileDrop(uploadOpen || linkOpen);
+    useKeepFileDrop(uploadOpen || linkOpen || photoOpen);
 
     useEffect(() => {
-        if (!uploadOpen && !linkOpen) {
+        if (!uploadOpen && !linkOpen && !photoOpen) {
             setVideoOver(false);
             setThumbOver(false);
+            setPhotoOver(false);
         }
-    }, [uploadOpen, linkOpen]);
+    }, [uploadOpen, linkOpen, photoOpen]);
 
     useEffect(() => {
         if (!session) {
@@ -136,6 +144,19 @@ export function OnboardingMedia() {
         };
     }, [thumbFile]);
 
+    useEffect(() => {
+        if (!photoFile) {
+            setPhotoPreview(null);
+            return;
+        }
+
+        const url = URL.createObjectURL(photoFile);
+        setPhotoPreview(url);
+        return () => {
+            URL.revokeObjectURL(url);
+        };
+    }, [photoFile]);
+
     function openLinkDialog(): void {
         if (uploading) {
             return;
@@ -159,6 +180,16 @@ export function OnboardingMedia() {
         setThumbError(null);
         setUploadPercent(0);
         setUploadOpen(true);
+    }
+
+    function openPhotoDialog(): void {
+        if (uploading) {
+            return;
+        }
+        setPhotoFile(null);
+        setPhotoError(null);
+        setUploadPercent(0);
+        setPhotoOpen(true);
     }
 
     function chooseVideo(file: File): void {
@@ -224,6 +255,73 @@ export function OnboardingMedia() {
             return;
         }
         setUploadOpen(false);
+    }
+
+    async function choosePhoto(file: File): Promise<void> {
+        const image = imageFile(file);
+        if (!image) {
+            setPhotoFile(null);
+            setPhotoError('Use a JPG or PNG photo.');
+            return;
+        }
+        if (image.size > photoLimit) {
+            setPhotoFile(null);
+            setPhotoError('Use a photo smaller than 8 MB.');
+            return;
+        }
+
+        try {
+            const bitmap = await createImageBitmap(image);
+            bitmap.close();
+        } catch {
+            setPhotoFile(null);
+            setPhotoError('Could not read that photo.');
+            return;
+        }
+
+        setPhotoError(null);
+        setPhotoFile(image);
+    }
+
+    async function onUploadPhoto(): Promise<void> {
+        if (!session || uploading || !photoFile) {
+            return;
+        }
+
+        const controller = new AbortController();
+        uploadAbort.current = controller;
+        setPhotoError(null);
+        setUploadPercent(0);
+        setUploading(true);
+        try {
+            await writes.current;
+            const created = await uploadPhoto(
+                session.accessToken,
+                photoFile,
+                photoFile.type,
+                setUploadPercent,
+                controller.signal,
+            );
+            remember([...itemsRef.current, created]);
+            setPhotoOpen(false);
+        } catch (error: unknown) {
+            if (isAbort(error)) {
+                setPhotoOpen(false);
+                return;
+            }
+            message.error(error instanceof Error ? error.message : 'Could not upload that photo.');
+        } finally {
+            uploadAbort.current = null;
+            setUploading(false);
+        }
+    }
+
+    function closePhoto(): void {
+        if (uploading) {
+            uploadAbort.current?.abort();
+            return;
+        }
+        setPhotoOpen(false);
     }
 
     async function chooseThumbnail(file: File): Promise<void> {
@@ -561,7 +659,7 @@ export function OnboardingMedia() {
                 Upload your media
             </Typography.Title>
             <Typography.Paragraph type="secondary" style={{ margin: '4px 0 18px', fontSize: 14 }}>
-                Minimum 2 items to go live. Upload files or paste a Vimeo / YouTube link — reels autoplay on your profile.
+                Minimum 2 items to go live. Upload a video or photo, or paste a Vimeo / YouTube link — reels autoplay on your profile.
             </Typography.Paragraph>
 
             {loadError ? (
@@ -583,13 +681,16 @@ export function OnboardingMedia() {
                         <Button htmlType="button" className="media-upload" icon={<UploadOutlined />} onClick={openUploadDialog}>
                             Upload
                         </Button>
+                        <Button htmlType="button" className="media-upload" icon={<PictureOutlined />} onClick={openPhotoDialog}>
+                            Photo
+                        </Button>
                         <Button htmlType="button" className="media-add" icon={<LinkOutlined />} onClick={openLinkDialog}>
                             YouTube / Vimeo
                         </Button>
                         <span className="media-count">{mediaProgressLabel(items.length, minimumMedia)}</span>
                     </Flex>
 
-                    <div className="media-grid" role="list" aria-label="Your videos">
+                    <div className="media-grid" role="list" aria-label="Your media">
                         {items.map((item, index) => {
                             const label = mediaLabel(item, index, items.length);
                             return (
@@ -604,6 +705,9 @@ export function OnboardingMedia() {
                                     onKeyDown={(event) => onKeyDown(event, item.id)}
                                 >
                                     {session ? <MediaPreview item={item} accessToken={session.accessToken} /> : null}
+                                    <span className="media-mark" aria-hidden="true">
+                                        {item.media_type === 'photo' ? <PictureFilled /> : <VideoCameraFilled />}
+                                    </span>
                                     <button
                                         type="button"
                                         className="media-card-grip"
@@ -625,14 +729,16 @@ export function OnboardingMedia() {
                                         >
                                             <DeleteOutlined />
                                         </button>
-                                        <button
-                                            type="button"
-                                            className="media-card-edit"
-                                            aria-label={`Edit ${label}`}
-                                            onClick={() => onEdit(item)}
-                                        >
-                                            <EditOutlined />
-                                        </button>
+                                        {item.media_type === 'photo' ? null : (
+                                            <button
+                                                type="button"
+                                                className="media-card-edit"
+                                                aria-label={`Edit ${label}`}
+                                                onClick={() => onEdit(item)}
+                                            >
+                                                <EditOutlined />
+                                            </button>
+                                        )}
                                     </div>
                                     {index === 0 ? <span className="media-card-cover">Cover</span> : null}
                                 </div>
@@ -821,6 +927,66 @@ export function OnboardingMedia() {
                         </div>
                     </Modal>
                     <Modal
+                        title="Upload a photo"
+                        open={photoOpen}
+                        okText="Upload"
+                        cancelText="Cancel"
+                        confirmLoading={uploading}
+                        okButtonProps={{ disabled: !photoFile }}
+                        destroyOnHidden
+                        width={440}
+                        onOk={() => {
+                            void onUploadPhoto();
+                        }}
+                        onCancel={closePhoto}
+                    >
+                        <button
+                            type="button"
+                            className={photoOver ? 'media-thumb-pick is-primary is-dropping' : 'media-thumb-pick is-primary'}
+                            onClick={() => photoRef.current?.click()}
+                            disabled={uploading}
+                            {...fileDropHandlers(() => setPhotoOver(true), () => setPhotoOver(false), (file) => {
+                                void choosePhoto(file);
+                            })}
+                        >
+                            {photoPreview ? (
+                                <img src={photoPreview} alt="Selected photo" draggable={false} />
+                            ) : (
+                                <span><PictureOutlined /> Drop a JPG or PNG</span>
+                            )}
+                        </button>
+                        <input
+                            ref={photoRef}
+                            type="file"
+                            accept="image/jpeg,image/png"
+                            hidden
+                            aria-label="Photo"
+                            onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = '';
+                                if (file) {
+                                    void choosePhoto(file);
+                                }
+                            }}
+                        />
+                        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                            JPG or PNG · up to 8 MB.
+                        </Typography.Text>
+                        {photoError ? (
+                            <Typography.Text type="danger" role="alert" style={{ display: 'block', marginTop: 8, fontSize: 13 }}>
+                                {photoError}
+                            </Typography.Text>
+                        ) : null}
+                        {uploading ? (
+                            <Progress
+                                percent={uploadPercent}
+                                strokeColor={copyThat.pink}
+                                style={{ marginTop: 16 }}
+                                aria-label="Upload progress"
+                            />
+                        ) : null}
+                    </Modal>
+                    <Modal
                         title="Edit video link"
                         open={editingId !== null}
                         okText="Save"
@@ -864,7 +1030,7 @@ export function OnboardingMedia() {
             )}
 
             <Typography.Paragraph type="secondary" style={{ margin: '16px 0 0', fontSize: 13 }}>
-                Drag to reorder — the first item is your cover and autoplays at the top of your profile. Arrow keys move a selected video.
+                Drag to reorder — the first item is your cover and autoplays at the top of your profile. Arrow keys move a selected item.
             </Typography.Paragraph>
 
             <Flex justify="space-between" align="center" style={{ marginTop: 28 }}>
@@ -928,7 +1094,7 @@ function MediaPreview({ item, accessToken }: { item: UserMedia; accessToken: str
     }, [accessToken, item.id]);
 
     if (!src) {
-        return <span className="media-card-fallback">{item.media_type === 'vimeo' ? 'Vimeo' : item.media_type === 'youtube' ? 'YouTube' : 'Uploaded'}</span>;
+        return <span className="media-card-fallback">{mediaFallback(item)}</span>;
     }
 
     return (
@@ -974,10 +1140,29 @@ function mediaProgressLabel(count: number, minimum: number): string {
     return `${count} of ${minimum} — add ${remaining} more`;
 }
 
+function mediaFallback(item: UserMedia): string {
+    if (item.media_type === 'vimeo') {
+        return 'Vimeo';
+    }
+    if (item.media_type === 'youtube') {
+        return 'YouTube';
+    }
+    if (item.media_type === 'photo') {
+        return 'Photo';
+    }
+    return 'Uploaded';
+}
+
 function mediaLabel(item: UserMedia, index: number, total: number): string {
-    const source = item.media_type === 'youtube' ? 'YouTube' : item.media_type === 'vimeo' ? 'Vimeo' : 'Uploaded';
+    const source = item.media_type === 'youtube'
+        ? 'YouTube video'
+        : item.media_type === 'vimeo'
+            ? 'Vimeo video'
+            : item.media_type === 'photo'
+                ? 'Photo'
+                : 'Uploaded video';
     const place = index === 0 ? 'cover' : `${index + 1} of ${total}`;
-    return `${source} video, ${place}`;
+    return `${source}, ${place}`;
 }
 
 function cardAt(x: number, y: number, ignoreId: string): string | null {

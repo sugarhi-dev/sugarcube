@@ -1,3 +1,4 @@
-* Drag and drop upload should work
-* Calendar back in the profile view during onboarding
-* Placeholders for response time, projects client rating
+* Inter and Helvetica
+* Name and Email address of the producer who hired
+* 1 producer (drop hiring producer), email address of the producer
+* Have fields for the number of projects completed, number of years in the business, response time

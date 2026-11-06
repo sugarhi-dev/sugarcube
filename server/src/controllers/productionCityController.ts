@@ -26,5 +26,5 @@ export class ProductionCityController extends Controller {
         const id = ProductionCityIdSchema.parse(req.params.id);
         const city = await this.productionCityLogic.getProductionCity(ctx, id);
         this.checkAndRespond(ctx, res, city);
-    }
+      }
 }
