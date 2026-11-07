@@ -26,6 +26,7 @@ export const CurrentUserSchema = z.object({
     email: z.email().max(255),
     phone: z.string().nullable(),
     bio: z.string().max(300).nullable(),
+    title: z.string().max(120).nullable(),
     photo: z.ulid().nullable(),
     status: UserStatusSchema,
     account_type: AccountTypeSchema.nullable(),

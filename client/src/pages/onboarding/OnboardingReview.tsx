@@ -72,6 +72,7 @@ export const onboardingReviewPath = '/onboarding/review';
 
 const minimumMedia = 2;
 const bioLimit = 300;
+const titleLimit = 120;
 const thumbnailLimit = 8 * 1024 * 1024;
 const photoLimit = 8 * 1024 * 1024;
 const videoLimit = 200 * 1024 * 1024;
@@ -121,6 +122,7 @@ type ReviewData = {
 
 type ProfileEditValues = {
     phone: string;
+    title: string;
     bio: string;
     discipline_id: string;
     position_id: string;
@@ -413,6 +415,7 @@ export function OnboardingReview() {
             const saved = await saveBasic(session.accessToken, {
                 phone: values.phone.trim(),
                 bio: values.bio.trim(),
+                title: values.title.trim(),
             });
             dispatch(profileLoaded({ user: saved, forSubject: session.profile.subject }));
             const rounded = Math.round(dayRate * 100) / 100;
@@ -864,8 +867,8 @@ export function OnboardingReview() {
     }
 
     const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Your profile';
+    const heading = user?.title?.trim() || displayName;
     const positionName = data ? data.positions.find((position) => position.id === data.positionId)?.name ?? null : null;
-    const title = positionName ?? displayName;
     const subtitle = data ? workedOn(data.projects.map((project) => project.name)) : null;
     const currency = data?.currencies.find((row) => row.id === data.currencyId);
     const rateLabel = data ? formatPerDay(data.dayRate, currency) : null;
@@ -913,7 +916,7 @@ export function OnboardingReview() {
                         ) : null}
                         <div className="crew-intro">
                             <div>
-                                <h1>{title}</h1>
+                                <h1>{heading}</h1>
                                 {subtitle ? <p>{subtitle}</p> : null}
                             </div>
                             {!readOnly && !editingProfile ? (
@@ -1655,7 +1658,7 @@ function ProfileEditor({
     onSave,
 }: {
     data: ReviewData;
-    user: { first_name: string; last_name: string; email: string; phone: string | null; bio: string | null };
+    user: { first_name: string; last_name: string; email: string; phone: string | null; title: string | null; bio: string | null };
     photoUrl: string | null;
     saving: boolean;
     onCancel: () => void;
@@ -1759,6 +1762,7 @@ function ProfileEditor({
                 style={{ marginTop: 16 }}
                 initialValues={{
                     phone: user.phone ?? '',
+                    title: user.title ?? '',
                     bio: user.bio ?? '',
                     discipline_id: data.disciplineId,
                     position_id: data.positionId,
@@ -1787,6 +1791,16 @@ function ProfileEditor({
                     rules={[{ validator: validatePhone }]}
                 >
                     <Input inputMode="tel" autoComplete="tel" prefix={<PhoneOutlined />} placeholder="+52 55 0000 0000" />
+                </Form.Item>
+                <Form.Item
+                    label="Title"
+                    name="title"
+                    rules={[
+                        { required: true, whitespace: true, message: 'Add a title for your profile.' },
+                        { max: titleLimit, message: 'Title must be 120 characters or fewer.' },
+                    ]}
+                >
+                    <Input maxLength={titleLimit} placeholder="Commercial director" />
                 </Form.Item>
                 <Form.Item
                     label="Bio"

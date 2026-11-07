@@ -36,6 +36,7 @@ const ChooseAccountTypeRequestSchema = z.object({
 const BasicProfileRequestSchema = z.object({
     phone: z.string().trim().min(1).max(40).meta({ description: 'Phone number clients and productions can use.' }),
     bio: z.string().trim().min(1).max(300).meta({ description: 'Short bio shown on the profile.' }),
+    title: z.string().trim().min(1).max(120).meta({ description: 'Heading shown on the profile.' }),
 }).refine(
     (row) => isPhone(row.phone),
     'Enter a phone number with at least 7 digits.',

@@ -27,6 +27,7 @@ test('logs in and completes profile setup', async ({ page }) => {
     await expect(page.getByLabel('Work email')).toHaveValue(devUser.email);
     await page.getByRole('button', { name: 'Continue — setup' }).click();
     await expect(page.getByText('Enter a phone number with at least 7 digits.')).toBeVisible();
+    await expect(page.getByText('Add a title for your profile.')).toBeVisible();
     await expect(page.getByText('Tell us a bit about you.')).toBeVisible();
     await page.getByRole('button', { name: 'Back' }).click();
     await expect(page.getByRole('heading', { name: 'How will you use CopyThat?' })).toBeVisible();
@@ -45,6 +46,7 @@ test('logs in and completes profile setup', async ({ page }) => {
     });
     await expect(page.getByRole('img', { name: 'Profile photo' })).toBeVisible();
     await page.getByRole('textbox', { name: 'Phone' }).fill('+52 55 0000 0000');
+    await page.getByLabel('Title').fill('Commercial director');
     await page.getByLabel('Bio').fill('Producer and director based in Mexico City — commercials and music videos.');
     await Promise.all([
         page.waitForResponse((response) =>
@@ -79,6 +81,7 @@ test('logs in and completes profile setup', async ({ page }) => {
     await page.getByRole('button', { name: 'Back' }).click();
     await expect(page.getByRole('heading', { name: 'Tell us about you' })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Phone' })).toHaveValue('+52 55 0000 0000');
+    await expect(page.getByLabel('Title')).toHaveValue('Commercial director');
     await expect(page.getByLabel('Bio')).toHaveValue('Producer and director based in Mexico City — commercials and music videos.');
     await expect(page.getByRole('img', { name: 'Profile photo' })).toBeVisible();
     await page.getByRole('button', { name: 'Back' }).click();

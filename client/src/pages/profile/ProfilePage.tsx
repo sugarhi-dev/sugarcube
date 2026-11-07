@@ -247,8 +247,7 @@ function ProfileScreen({
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
-        const name = user ? publicName(user.first_name, user.last_name) : 'Profile';
-        document.title = `${name} — ${titleSuffix}`;
+        document.title = `${profileHeading(user)} — ${titleSuffix}`;
     }, [titleSuffix, user]);
 
     useEffect(() => {
@@ -373,8 +372,8 @@ function ProfileScreen({
     }
 
     const name = user ? publicName(user.first_name, user.last_name) : 'Profile';
+    const heading = user?.title?.trim() || name;
     const positionLabel = snapshot && snapshot.positionNames.length > 0 ? snapshot.positionNames.join(' & ') : null;
-    const title = positionLabel || name;
     const subtitle = snapshot ? workedOn(snapshot.credits.map((credit) => credit.name)) : null;
     const rateLabel = snapshot ? formatPerDay(snapshot.dayRate, snapshot.currency) : null;
     const role = [positionLabel, rateLabel].filter((part): part is string => Boolean(part)).join(' · ');
@@ -411,7 +410,7 @@ function ProfileScreen({
                     <div className="crew-main">
                         <div className="crew-intro">
                             <div>
-                                <h1>{title}</h1>
+                                <h1>{heading}</h1>
                                 {subtitle ? <p>{subtitle}</p> : null}
                             </div>
                             <div className="crew-actions">
@@ -907,6 +906,14 @@ function toCredit(project: Project, positions: Array<{ id: string; name: string 
         leadProducer: project.lead_producer_name,
         leadProducerEmail: project.lead_producer_email,
     };
+}
+
+function profileHeading(user: CurrentUser | null): string {
+    const title = user?.title?.trim();
+    if (title) {
+        return title;
+    }
+    return user ? publicName(user.first_name, user.last_name) : 'Profile';
 }
 
 function publicName(first: string, last: string): string {

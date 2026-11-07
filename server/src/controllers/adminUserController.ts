@@ -330,6 +330,7 @@ function toProfile(user: User) {
         email: user.email,
         phone: user.phone,
         bio: user.bio,
+        title: user.title,
         photo: user.photo,
         status: user.status,
         account_type: user.account_type,

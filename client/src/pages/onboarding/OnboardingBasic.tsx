@@ -13,12 +13,14 @@ import { onboardingProfilePath } from './OnboardingProfile.tsx';
 export const onboardingBasicPath = '/onboarding/basic';
 
 const bioLimit = 300;
+const titleLimit = 120;
 
 type BasicFormValues = {
     first_name: string;
     last_name: string;
     email: string;
     phone: string;
+    title: string;
     bio: string;
 };
 
@@ -133,6 +135,7 @@ export function OnboardingBasic() {
             const saved = await saveBasic(session.accessToken, {
                 phone: values.phone.trim(),
                 bio: values.bio.trim(),
+                title: values.title.trim(),
             });
             dispatch(profileLoaded({ user: saved, forSubject: session.profile.subject }));
             navigate(onboardingProfilePath, { replace: true });
@@ -193,6 +196,7 @@ export function OnboardingBasic() {
                     last_name: user?.last_name ?? '',
                     email: user?.email ?? '',
                     phone: user?.phone ?? '',
+                    title: user?.title ?? '',
                     bio: user?.bio ?? '',
                 }}
                 onFinish={(values) => void onFinish(values)}
@@ -214,6 +218,16 @@ export function OnboardingBasic() {
                     rules={[{ validator: validatePhone }]}
                 >
                     <Input inputMode="tel" autoComplete="tel" prefix={<PhoneOutlined />} placeholder="+52 55 0000 0000" />
+                </Form.Item>
+                <Form.Item
+                    label="Title"
+                    name="title"
+                    rules={[
+                        { required: true, whitespace: true, message: 'Add a title for your profile.' },
+                        { max: titleLimit, message: 'Title must be 120 characters or fewer.' },
+                    ]}
+                >
+                    <Input maxLength={titleLimit} placeholder="Commercial director" />
                 </Form.Item>
                 <Form.Item
                     label="Bio"

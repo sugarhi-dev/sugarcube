@@ -42,7 +42,7 @@ test('reviews the crew profile and submits it', async ({ page }) => {
     const avatar = page.locator('.crew-avatar img');
     await expect(avatar).toHaveAttribute('src', /^\/content\//);
     await expect(avatar).toHaveJSProperty('naturalWidth', 400);
-    await expect(page.getByRole('heading', { name: 'Director' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'On-set storyteller', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Dev Sugarhi' })).toBeVisible();
     await expect(page.getByText('Worked on Nike — Up In The Air.')).toBeVisible();
     await expect(page.getByText('Union', { exact: true })).toBeVisible();
@@ -123,7 +123,7 @@ async function expectWait(page: Page): Promise<void> {
     await expect(page.getByRole('list', { name: 'Setup steps' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: /COPY\s*THAT/ })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Search crew, projects, resources' })).toBeDisabled();
-    await expect(page.getByRole('heading', { name: 'Director' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'On-set storyteller', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Dev Sugarhi' })).toBeVisible();
     const avatar = page.locator('.crew-avatar img');
     await expect(avatar).toHaveAttribute('src', /^\/content\//);
@@ -172,6 +172,7 @@ async function openMedia(page: Page): Promise<void> {
     });
     await expect(page.getByRole('img', { name: 'Profile photo' })).toBeVisible();
     await page.getByRole('textbox', { name: 'Phone' }).fill('+1 213 555 0100');
+    await page.getByLabel('Title').fill('On-set storyteller');
     await page.getByRole('textbox', { name: 'Bio' }).fill('Producer and director based in Mexico City.');
     const uploaded = page.waitForResponse((response) =>
         response.request().method() === 'PUT' && response.url().includes('/api/me/photo') && response.ok());

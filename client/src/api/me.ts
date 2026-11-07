@@ -42,6 +42,7 @@ export function getMe(accessToken: string, path = '/api/me'): Promise<CurrentUse
 export type BasicProfileInput = {
     phone: string;
     bio: string;
+    title: string;
 };
 
 export function chooseAccountType(accessToken: string, accountType: AccountType): Promise<CurrentUser> {

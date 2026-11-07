@@ -5,7 +5,7 @@ import type { UserLocale } from '../entities/userLocale.js';
 import { UnionStatusSchema, type UnionStatus } from '../entities/userWorkProfile.js';
 import { WorkProfileSchema, type WorkProfile } from '../entities/workProfile.js';
 
-const userColumns = 'id, first_name, last_name, email, phone, bio, photo, keycloak_id, status, account_type';
+const userColumns = 'id, first_name, last_name, email, phone, bio, title, photo, keycloak_id, status, account_type';
 
 type UserRow = {
     id: string;
@@ -14,6 +14,7 @@ type UserRow = {
     email: string;
     phone: string | null;
     bio: string | null;
+    title: string | null;
     photo: string | null;
     keycloak_id: string;
     status: string;
@@ -209,11 +210,12 @@ export class UserRepo extends Repository {
             `UPDATE user_profile
              SET phone = $2,
                  bio = $3,
+                 title = $4,
                  status = CASE WHEN status = 'basic' THEN 'setup' ELSE status END,
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = $1 AND status IN ('basic', 'media', 'review')
              RETURNING ${userColumns}`,
-            [userId, input.phone, input.bio],
+            [userId, input.phone, input.bio, input.title],
         );
         const row = result.rows[0];
         return row ? UserSchema.parse(row) : null;
@@ -500,6 +502,7 @@ export type ExperienceCompletion =
 export type BasicWrite = {
     phone: string;
     bio: string;
+    title: string;
 };
 
 export type SetupWrite = {

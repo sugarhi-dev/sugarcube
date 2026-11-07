@@ -15,6 +15,7 @@ const accountTypeConstraints = {
 const basicConstraints = {
     user_profile_status_check: { statusCode: 400, message: 'Account status is not allowed.' },
     user_profile_bio_check: { statusCode: 400, message: 'Bio must be 300 characters or fewer.' },
+    user_profile_title_check: { statusCode: 400, message: 'Title must be 120 characters or fewer.' },
 };
 
 const photoConstraints = {
