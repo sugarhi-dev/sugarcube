@@ -1,0 +1,164 @@
+# Live public schema of database sugarcube.
+# The migration ledger is omitted; it has no foreign keys to these tables.
+
+direction: right
+
+catalog: Catalog {
+  disciplines: {
+    shape: sql_table
+    id: "varchar(26)" {constraint: primary_key}
+    name: "varchar(255)" {constraint: unique}
+    created_at: timestamp
+    updated_at: timestamp
+  }
+
+  positions: {
+    shape: sql_table
+    id: "varchar(26)" {constraint: primary_key}
+    name: "varchar(255)" {constraint: unique}
+    discipline_id: "varchar(26)" {constraint: foreign_key}
+    created_at: timestamp
+    updated_at: timestamp
+  }
+
+  project_type: {
+    shape: sql_table
+    id: "varchar(26)" {constraint: primary_key}
+    name: "varchar(255)" {constraint: unique}
+    discipline_id: "varchar(26)" {constraint: foreign_key}
+    created_at: timestamp
+    updated_at: timestamp
+  }
+
+  currency: {
+    shape: sql_table
+    id: "varchar(26)" {constraint: primary_key}
+    code: "char(3)" {constraint: unique}
+    name: "varchar(255)" {constraint: unique}
+    created_at: timestamp
+    updated_at: timestamp
+  }
+
+  production_cities: {
+    shape: sql_table
+    id: "varchar(26)" {constraint: primary_key}
+    name: "varchar(255)"
+    country_code: "char(2)"
+    latitude: "numeric(8, 6)"
+    longitude: "numeric(9, 6)"
+    created_at: timestamp
+    updated_at: timestamp
+  }
+}
+
+crew: Crew {
+  user_account: {
+    shape: sql_table
+    id: "varchar(26)" {constraint: primary_key}
+    first_name: "varchar(255)"
+    last_name: "varchar(255)"
+    email: "varchar(255)"
+    keycloak_id: "varchar(255)" {constraint: unique}
+    status: "varchar(16)"
+    phone: "text null"
+    account_type: "varchar(16) null"
+    bio: "text null"
+    title: "text null"
+    photo: "varchar(26) null"
+    created_at: timestamp
+    updated_at: timestamp
+  }
+
+  user_work_profile: {
+    shape: sql_table
+    id: "varchar(26)" {constraint: primary_key}
+    user_account_id: "varchar(26)" {constraint: [foreign_key; unique]}
+    day_rate: "numeric(12, 2) null"
+    currency_id: "varchar(26) null" {constraint: foreign_key}
+    union_status: "varchar(16)"
+    flat_fee: boolean
+    projects_completed: "int null"
+    years_in_business: "int null"
+    response_time_hours: "int null"
+    discipline_id: "varchar(26) null" {constraint: foreign_key}
+    position_id: "varchar(26) null" {constraint: foreign_key}
+    created_at: timestamp
+    updated_at: timestamp
+  }
+
+  user_locale: {
+    shape: sql_table
+    id: "varchar(26)" {constraint: primary_key}
+    user_account_id: "varchar(26)" {constraint: foreign_key}
+    production_city_id: "varchar(26)" {constraint: foreign_key}
+    home_city: boolean
+    created_at: timestamp
+    updated_at: timestamp
+  }
+
+  user_media: {
+    shape: sql_table
+    id: "varchar(26)" {constraint: primary_key}
+    user_account_id: "varchar(26)" {constraint: foreign_key}
+    media_type: "varchar(16)"
+    ref: text
+    sort_order: int
+    thumbnail: "varchar(26) null"
+    created_at: timestamp
+    updated_at: timestamp
+  }
+
+  user_availability: {
+    shape: sql_table
+    id: "varchar(26)" {constraint: primary_key}
+    user_account_id: "varchar(26)" {constraint: foreign_key}
+    from_date: date
+    to_date: date
+    code: "varchar(16)"
+    created_at: timestamp
+    updated_at: timestamp
+  }
+
+  projects: {
+    shape: sql_table
+    id: "varchar(26)" {constraint: primary_key}
+    user_account_id: "varchar(26)" {constraint: foreign_key}
+    name: "varchar(255)"
+    position_id: "varchar(26)" {constraint: foreign_key}
+    date: date
+    lead_producer_name: text
+    lead_producer_email: "text null"
+    production_company: "text null"
+    created_at: timestamp
+    updated_at: timestamp
+  }
+
+  project_project_type: {
+    shape: sql_table
+    project_id: "varchar(26)" {constraint: [primary_key; foreign_key]}
+    project_type_id: "varchar(26)" {constraint: [primary_key; foreign_key]}
+    created_at: timestamp
+    updated_at: timestamp
+  }
+}
+
+catalog.positions.discipline_id -> catalog.disciplines.id
+catalog.project_type.discipline_id -> catalog.disciplines.id
+
+crew.user_work_profile.user_account_id -> crew.user_account.id
+crew.user_work_profile.currency_id -> catalog.currency.id
+crew.user_work_profile.discipline_id -> catalog.disciplines.id
+crew.user_work_profile.position_id -> catalog.positions.id
+crew.user_locale.user_account_id -> crew.user_account.id
+crew.user_locale.production_city_id -> catalog.production_cities.id
+crew.user_media.user_account_id -> crew.user_account.id
+crew.user_availability.user_account_id -> crew.user_account.id
+crew.projects.user_account_id -> crew.user_account.id
+crew.projects.position_id -> catalog.positions.id
+crew.project_project_type.project_id -> crew.projects.id
+crew.project_project_type.project_type_id -> catalog.project_type.id
+
+# user_work_profile (position_id, discipline_id) -> positions (id, discipline_id)
+crew.user_work_profile.discipline_id -> catalog.positions.discipline_id: same discipline {
+  style.stroke-dash: 3
+}

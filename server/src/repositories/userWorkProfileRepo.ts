@@ -1,12 +1,12 @@
 import { Database, Repository, type Context } from '@sugarcube/server-core';
 import { UserWorkProfileSchema, type UserWorkProfile } from '../entities/userWorkProfile.js';
 
-const userWorkProfileColumns = `id, user_profile_id, day_rate, currency_id, union_status, flat_fee,
-    projects_completed, years_in_business, response_time_hours`;
+const userWorkProfileColumns = `id, user_account_id, day_rate, currency_id, union_status, flat_fee,
+    projects_completed, years_in_business, response_time_hours, discipline_id, position_id`;
 
 type UserWorkProfileRow = {
     id: string;
-    user_profile_id: string;
+    user_account_id: string;
     day_rate: string | null;
     currency_id: string | null;
     union_status: string;
@@ -14,6 +14,8 @@ type UserWorkProfileRow = {
     projects_completed: number | string | null;
     years_in_business: number | string | null;
     response_time_hours: number | string | null;
+    discipline_id: string | null;
+    position_id: string | null;
 };
 
 export class UserWorkProfileRepo extends Repository {
@@ -21,13 +23,13 @@ export class UserWorkProfileRepo extends Repository {
         super(database);
     }
 
-    async findUserWorkProfile(ctx: Context, userProfileId: string): Promise<UserWorkProfile | null> {
-        this.log.trace(`${ctx.traceId} select user_work_profile ${userProfileId}`);
+    async findUserWorkProfile(ctx: Context, userAccountId: string): Promise<UserWorkProfile | null> {
+        this.log.trace(`${ctx.traceId} select user_work_profile ${userAccountId}`);
         const result = await this.database.query<UserWorkProfileRow>(
             `SELECT ${userWorkProfileColumns}
              FROM user_work_profile
-             WHERE user_profile_id = $1`,
-            [userProfileId],
+             WHERE user_account_id = $1`,
+            [userAccountId],
         );
         const row = result.rows[0];
         return row ? mapUserWorkProfile(row) : null;
@@ -37,15 +39,15 @@ export class UserWorkProfileRepo extends Repository {
         ctx: Context,
         profile: UserWorkProfile,
     ): Promise<{ profile: UserWorkProfile; created: boolean }> {
-        this.log.trace(`${ctx.traceId} save user_work_profile ${profile.user_profile_id}`);
+        this.log.trace(`${ctx.traceId} save user_work_profile ${profile.user_account_id}`);
         return this.database.transaction(async (query) => {
             await query(
-                `SELECT id FROM user_profile WHERE id = $1 FOR UPDATE`,
-                [profile.user_profile_id],
+                `SELECT id FROM user_account WHERE id = $1 FOR UPDATE`,
+                [profile.user_account_id],
             );
             const existing = await query<{ id: string }>(
-                `SELECT id FROM user_work_profile WHERE user_profile_id = $1`,
-                [profile.user_profile_id],
+                `SELECT id FROM user_work_profile WHERE user_account_id = $1`,
+                [profile.user_account_id],
             );
             const existingId = existing.rows[0]?.id;
             if (existingId) {
@@ -64,21 +66,21 @@ export class UserWorkProfileRepo extends Repository {
             }
 
             const result = await query<UserWorkProfileRow>(
-                `INSERT INTO user_work_profile (id, user_profile_id, day_rate, currency_id, union_status, flat_fee)
+                `INSERT INTO user_work_profile (id, user_account_id, day_rate, currency_id, union_status, flat_fee)
                  VALUES ($1, $2, $3, $4, $5, $6)
                  RETURNING ${userWorkProfileColumns}`,
-                [profile.id, profile.user_profile_id, profile.day_rate, profile.currency_id, profile.union_status, profile.flat_fee],
+                [profile.id, profile.user_account_id, profile.day_rate, profile.currency_id, profile.union_status, profile.flat_fee],
             );
             return { profile: requiredRow(result.rows[0], `insert user_work_profile ${profile.id}`), created: true };
         });
     }
 
-    async deleteUserWorkProfile(ctx: Context, userProfileId: string): Promise<boolean> {
-        this.log.trace(`${ctx.traceId} delete user_work_profile ${userProfileId}`);
+    async deleteUserWorkProfile(ctx: Context, userAccountId: string): Promise<boolean> {
+        this.log.trace(`${ctx.traceId} delete user_work_profile ${userAccountId}`);
         const result = await this.database.query(
             `DELETE FROM user_work_profile
-             WHERE user_profile_id = $1`,
-            [userProfileId],
+             WHERE user_account_id = $1`,
+            [userAccountId],
         );
         return (result.rowCount ?? 0) > 0;
     }
@@ -87,7 +89,7 @@ export class UserWorkProfileRepo extends Repository {
 function mapUserWorkProfile(row: UserWorkProfileRow): UserWorkProfile {
     return UserWorkProfileSchema.parse({
         id: row.id,
-        user_profile_id: row.user_profile_id,
+        user_account_id: row.user_account_id,
         day_rate: row.day_rate === null ? null : Number(Number(row.day_rate).toFixed(2)),
         currency_id: row.currency_id,
         union_status: row.union_status,
@@ -95,6 +97,8 @@ function mapUserWorkProfile(row: UserWorkProfileRow): UserWorkProfile {
         projects_completed: readCount(row.projects_completed),
         years_in_business: readCount(row.years_in_business),
         response_time_hours: readCount(row.response_time_hours),
+        discipline_id: row.discipline_id,
+        position_id: row.position_id,
     });
 }
 

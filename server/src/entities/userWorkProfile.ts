@@ -6,7 +6,7 @@ export type UnionStatus = z.infer<typeof UnionStatusSchema>;
 
 export const UserWorkProfileSchema = z.object({
     id: z.ulid(),
-    user_profile_id: z.ulid(),
+    user_account_id: z.ulid(),
     day_rate: z.number().min(0).nullable().default(null),
     currency_id: z.ulid().nullable().default(null),
     union_status: UnionStatusSchema,
@@ -14,9 +14,14 @@ export const UserWorkProfileSchema = z.object({
     projects_completed: z.number().int().min(0).nullable().default(null),
     years_in_business: z.number().int().min(0).nullable().default(null),
     response_time_hours: z.number().int().min(1).nullable().default(null),
+    discipline_id: z.ulid().nullable().default(null),
+    position_id: z.ulid().nullable().default(null),
 }).refine(
     (row) => (row.day_rate === null) === (row.currency_id === null),
     'day_rate and currency_id must both be set or both be null',
+).refine(
+    (row) => (row.discipline_id === null) === (row.position_id === null),
+    'discipline_id and position_id must both be set or both be null',
 );
 
 export type UserWorkProfile = z.infer<typeof UserWorkProfileSchema>;

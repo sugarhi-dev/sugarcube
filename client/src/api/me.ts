@@ -3,14 +3,12 @@ import {
     ProfilePhotoUrlSchema,
     UserLocaleSchema,
     UserWorkProfileSchema,
-    WorkProfileSchema,
     type AccountType,
     type CurrentUser,
     type ProfilePhotoUrl,
     type UserLocale,
     type UserStatus,
     type UserWorkProfile,
-    type WorkProfile,
 } from '@sugarcube/schema';
 import { z } from 'zod';
 import { apiBlob, apiJson } from './http.ts';
@@ -113,11 +111,7 @@ export function listLocales(accessToken: string, path = '/api/me/locales'): Prom
 }
 
 export function getWorkProfile(accessToken: string, path = '/api/me/work-profile'): Promise<UserWorkProfile> {
-    return readOne(accessToken, path, UserWorkProfileSchema, 'Rates response was not valid.');
-}
-
-export function listWorkProfiles(accessToken: string, path = '/api/me/work-profiles'): Promise<WorkProfile[]> {
-    return readList(accessToken, path, WorkProfileSchema, 'Positions response was not valid.');
+    return readOne(accessToken, path, UserWorkProfileSchema, 'Work profile response was not valid.');
 }
 
 export function submitProfile(accessToken: string): Promise<CurrentUser> {

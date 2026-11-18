@@ -22,7 +22,6 @@ export {
     type UserAvailability,
 } from './userAvailability.js';
 export { UserWorkProfileSchema, type UnionStatus, type UserWorkProfile } from './userWorkProfile.js';
-export { WorkProfileSchema, type WorkProfile } from './workProfile.js';
 export {
     MediaTypeSchema,
     UserMediaSchema,

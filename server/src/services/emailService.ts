@@ -24,8 +24,8 @@ export class EmailService extends Service {
 
     constructor(config: Config) {
         super('EmailService');
-        this.client = new Resend(config.require('RESEND_API_KEY'));
-        this.from = config.require('EMAIL_FROM');
+        this.client = new Resend(config.get('RESEND_API_KEY'));
+        this.from = config.get('EMAIL_FROM');
     }
 
     async send(message: EmailMessage): Promise<SentEmail> {

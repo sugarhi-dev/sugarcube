@@ -14,7 +14,8 @@ for _ in $(seq 1 60); do
       -s 'rootUrl=https://test.sugarcube.tv' \
       -s 'baseUrl=https://test.sugarcube.tv/' \
       -s 'redirectUris=["https://test.sugarcube.tv/auth/client/callback"]' \
-      -s 'webOrigins=["https://test.sugarcube.tv"]'; then
+      -s 'webOrigins=["https://test.sugarcube.tv"]' \
+      -s 'attributes."post.logout.redirect.uris"=https://test.sugarcube.tv/sign-in'; then
     echo "Keycloak realm sugarcube is using login theme copythat"
     echo "Keycloak client sugarcube accepts https://test.sugarcube.tv/auth/client/callback"
     exit 0

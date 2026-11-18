@@ -14,15 +14,15 @@ const keycloakAdminUser = process.env.KEYCLOAK_ADMIN ?? 'admin';
 const keycloakAdminPassword = process.env.KEYCLOAK_ADMIN_PASSWORD ?? 'admin';
 
 export async function prepareDevUser(): Promise<void> {
-    await flushAppProfiles();
+    await flushAppAccounts();
     await replaceDevUser();
 }
 
-async function flushAppProfiles(): Promise<void> {
+async function flushAppAccounts(): Promise<void> {
     const client = new pg.Client({ connectionString: databaseUrl });
     await client.connect();
     try {
-        await client.query('TRUNCATE TABLE user_profile CASCADE');
+        await client.query('TRUNCATE TABLE user_account CASCADE');
     } finally {
         await client.end();
     }

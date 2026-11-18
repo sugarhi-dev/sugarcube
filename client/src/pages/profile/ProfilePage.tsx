@@ -24,7 +24,6 @@ import {
     getProfilePhotoUrl,
     getWorkProfile,
     listLocales,
-    listWorkProfiles,
     type CurrentUser,
     type UnionStatus,
 } from '../../api/me.ts';
@@ -71,7 +70,6 @@ type ProfilePaths = {
     projects: string;
     locales: string;
     workProfile: string;
-    workProfiles: string;
     photo: string;
     thumbnail: (id: string) => string;
 };
@@ -81,7 +79,6 @@ const ownPaths: ProfilePaths = {
     projects: '/api/me/projects',
     locales: '/api/me/locales',
     workProfile: '/api/me/work-profile',
-    workProfiles: '/api/me/work-profiles',
     photo: '/api/me/photo/url',
     thumbnail: (id) => `/api/me/media/${encodeURIComponent(id)}/thumbnail`,
 };
@@ -218,7 +215,6 @@ function profilePaths(userId: string): ProfilePaths {
         projects: `${root}/projects`,
         locales: `${root}/locales`,
         workProfile: `${root}/work-profile`,
-        workProfiles: `${root}/work-profiles`,
         photo: `${root}/photo/url`,
         thumbnail: (id) => `${root}/media/${encodeURIComponent(id)}/thumbnail`,
     };
@@ -262,7 +258,7 @@ function ProfileScreen({
 
         void (async () => {
             try {
-                const [media, projects, positions, currencies, cities, locales, rates, workProfiles] = await Promise.all([
+                const [media, projects, positions, currencies, cities, locales, rates] = await Promise.all([
                     listMedia(token, paths.media),
                     listProjects(token, paths.projects),
                     listPositions(token),
@@ -270,7 +266,6 @@ function ProfileScreen({
                     listProductionCities(token),
                     listLocales(token, paths.locales),
                     loadRates(token, paths.workProfile),
-                    listWorkProfiles(token, paths.workProfiles),
                 ]);
                 if (!active) {
                     return;
@@ -285,10 +280,8 @@ function ProfileScreen({
                     const name = cities.find((city) => city.id === locale.production_city_id)?.name;
                     return name ? [name] : [];
                 });
-                const positionNames = workProfiles.flatMap((row) => {
-                    const name = positions.find((position) => position.id === row.position_id)?.name;
-                    return name ? [name] : [];
-                });
+                const positionName = positions.find((position) => position.id === rates?.position_id)?.name;
+                const positionNames = positionName ? [positionName] : [];
                 setSnapshot({
                     media,
                     credits: projects.map((project) => toCredit(project, positions)),

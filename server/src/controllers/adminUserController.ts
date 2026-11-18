@@ -60,7 +60,6 @@ export class AdminUserController extends Controller {
         this.get('/api/admin/users/:id/availability', this.GET_availability.bind(this));
         this.get('/api/admin/users/:id/locales', this.GET_locales.bind(this));
         this.get('/api/admin/users/:id/work-profile', this.GET_work_profile.bind(this));
-        this.get('/api/admin/users/:id/work-profiles', this.GET_work_profiles.bind(this));
     }
 
     protected async GET_users(ctx: Context, req: Request, res: Response): Promise<void> {
@@ -236,17 +235,6 @@ export class AdminUserController extends Controller {
 
         const profile = await this.userWorkProfileLogic.getUserWorkProfile(ctx, user.id);
         this.checkAndRespond(ctx, res, profile);
-    }
-
-    protected async GET_work_profiles(ctx: Context, req: Request, res: Response): Promise<void> {
-        const user = await this.requireUser(ctx, req);
-        if (!user) {
-            this.checkAndRespond(ctx, res);
-            return;
-        }
-
-        const profiles = await this.userLogic.listWorkProfiles(ctx, user.id);
-        this.checkAndRespond(ctx, res, profiles);
     }
 
     private async toApprovalResponse(ctx: Context, approval: Approval) {

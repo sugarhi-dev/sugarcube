@@ -13,15 +13,15 @@ export class ProjectProjectTypeRepo extends Repository {
 
     async listProjectProjectTypes(
         ctx: Context,
-        userProfileId: string,
+        userAccountId: string,
         projectId: string,
     ): Promise<ProjectProjectType[] | null> {
         this.log.trace(`${ctx.traceId} select project_project_type ${projectId}`);
         const project = await this.database.query<{ id: string }>(
             `SELECT id
              FROM projects
-             WHERE id = $1 AND user_profile_id = $2`,
-            [projectId, userProfileId],
+             WHERE id = $1 AND user_account_id = $2`,
+            [projectId, userAccountId],
         );
         if (!project.rows[0]) {
             return null;
@@ -39,7 +39,7 @@ export class ProjectProjectTypeRepo extends Repository {
 
     async replaceProjectProjectTypes(
         ctx: Context,
-        userProfileId: string,
+        userAccountId: string,
         projectId: string,
         projectTypeIds: string[],
     ): Promise<ProjectProjectType[] | null> {
@@ -48,9 +48,9 @@ export class ProjectProjectTypeRepo extends Repository {
             const project = await query<{ id: string }>(
                 `SELECT id
                  FROM projects
-                 WHERE id = $1 AND user_profile_id = $2
+                 WHERE id = $1 AND user_account_id = $2
                  FOR UPDATE`,
-                [projectId, userProfileId],
+                [projectId, userAccountId],
             );
             if (!project.rows[0]) {
                 return null;

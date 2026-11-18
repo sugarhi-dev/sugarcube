@@ -1,4 +1,4 @@
-import { oidcClientId, oidcIssuer, redirectUri } from './config.ts';
+import { oidcClientId, oidcIssuer, postLogoutRedirectUri, redirectUri } from './config.ts';
 
 const stateKey = 'sugarcube.oidc.state';
 
@@ -9,7 +9,13 @@ export type CallbackResult = {
 
 const callbackResults = new Map<string, CallbackResult | Error>();
 
+let signingOut = false;
+
 export function beginSignIn(): void {
+    if (signingOut) {
+        return;
+    }
+
     const state = crypto.randomUUID();
     sessionStorage.setItem(stateKey, state);
 
@@ -21,6 +27,16 @@ export function beginSignIn(): void {
     url.searchParams.set('state', state);
 
     window.location.assign(url.toString());
+}
+
+export function beginSignOut(idToken: string): void {
+    signingOut = true;
+
+    const url = new URL(`${oidcIssuer()}/protocol/openid-connect/logout`);
+    url.searchParams.set('client_id', oidcClientId());
+    url.searchParams.set('id_token_hint', idToken);
+    url.searchParams.set('post_logout_redirect_uri', postLogoutRedirectUri());
+    window.location.replace(url.toString());
 }
 
 export function readCallback(search: string): CallbackResult {

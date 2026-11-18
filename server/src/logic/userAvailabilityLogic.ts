@@ -7,7 +7,7 @@ import { constraintFailure } from './pgError.js';
 const rangeLimit = 3660;
 
 const availabilityConstraints = {
-    user_availability_user_profile_id_fkey: { statusCode: 404, message: 'Profile not found.' },
+    user_availability_user_account_id_fkey: { statusCode: 404, message: 'Profile not found.' },
     user_availability_code_check: { statusCode: 400, message: 'Availability is not allowed.' },
     user_availability_date_range_check: { statusCode: 400, message: 'The end date must be on or after the start date.' },
 };
@@ -20,18 +20,18 @@ export class UserAvailabilityLogic extends Logic {
         this.userAvailabilityRepo = userAvailabilityRepo;
     }
 
-    listUserAvailability(ctx: Context, userProfileId: string): Promise<UserAvailability[]> {
-        return this.userAvailabilityRepo.listUserAvailability(ctx, userProfileId);
+    listUserAvailability(ctx: Context, userAccountId: string): Promise<UserAvailability[]> {
+        return this.userAvailabilityRepo.listUserAvailability(ctx, userAccountId);
     }
 
-    async saveUnavailable(ctx: Context, userProfileId: string, dates: string[]): Promise<UserAvailability[] | null> {
+    async saveUnavailable(ctx: Context, userAccountId: string, dates: string[]): Promise<UserAvailability[] | null> {
         const unique = [...new Set(dates)].sort();
         if (unique.length > rangeLimit) {
             ctx.error('Choose fewer days.', 400);
             return null;
         }
 
-        const current = await this.userAvailabilityRepo.listUserAvailability(ctx, userProfileId);
+        const current = await this.userAvailabilityRepo.listUserAvailability(ctx, userAccountId);
         const booked = bookedDays(current);
         if (unique.some((date) => booked.has(date))) {
             ctx.error('Booked days stay booked.', 409);
@@ -40,7 +40,7 @@ export class UserAvailabilityLogic extends Logic {
 
         const ranges = mergeDates(unique).map((range) => ({ id: ulid(), ...range }));
         try {
-            return await this.userAvailabilityRepo.replaceUnavailable(ctx, userProfileId, ranges);
+            return await this.userAvailabilityRepo.replaceUnavailable(ctx, userAccountId, ranges);
         } catch (error) {
             const failure = constraintFailure(error, availabilityConstraints);
             if (!failure) {

@@ -18,7 +18,7 @@ const localeConstraints = {
     user_locale_user_city_key: { statusCode: 409, message: 'That city is already on the profile.' },
     user_locale_home_city_key: { statusCode: 409, message: 'A home city is already set.' },
     user_locale_production_city_id_fkey: { statusCode: 400, message: 'Production city not found.' },
-    user_locale_user_profile_id_fkey: { statusCode: 404, message: 'Profile not found.' },
+    user_locale_user_account_id_fkey: { statusCode: 404, message: 'Profile not found.' },
 };
 
 export class UserLocaleLogic extends Logic {
@@ -29,12 +29,12 @@ export class UserLocaleLogic extends Logic {
         this.userLocaleRepo = userLocaleRepo;
     }
 
-    listUserLocales(ctx: Context, userProfileId: string): Promise<UserLocale[]> {
-        return this.userLocaleRepo.listUserLocales(ctx, userProfileId);
+    listUserLocales(ctx: Context, userAccountId: string): Promise<UserLocale[]> {
+        return this.userLocaleRepo.listUserLocales(ctx, userAccountId);
     }
 
-    async getUserLocale(ctx: Context, userProfileId: string, id: string): Promise<UserLocale | null> {
-        const locale = await this.userLocaleRepo.findUserLocale(ctx, userProfileId, id);
+    async getUserLocale(ctx: Context, userAccountId: string, id: string): Promise<UserLocale | null> {
+        const locale = await this.userLocaleRepo.findUserLocale(ctx, userAccountId, id);
         if (!locale) {
             ctx.error('Locale not found.', 404);
             return null;
@@ -42,10 +42,10 @@ export class UserLocaleLogic extends Logic {
         return locale;
     }
 
-    async createUserLocale(ctx: Context, userProfileId: string, input: UserLocaleWrite): Promise<UserLocale | null> {
+    async createUserLocale(ctx: Context, userAccountId: string, input: UserLocaleWrite): Promise<UserLocale | null> {
         const locale = UserLocaleSchema.parse({
             id: ulid(),
-            user_profile_id: userProfileId,
+            user_account_id: userAccountId,
             production_city_id: input.production_city_id,
             home_city: input.home_city,
         });
@@ -58,11 +58,11 @@ export class UserLocaleLogic extends Logic {
 
     async updateUserLocale(
         ctx: Context,
-        userProfileId: string,
+        userAccountId: string,
         id: string,
         input: UserLocalePatch,
     ): Promise<UserLocale | null> {
-        const existing = await this.userLocaleRepo.findUserLocale(ctx, userProfileId, id);
+        const existing = await this.userLocaleRepo.findUserLocale(ctx, userAccountId, id);
         if (!existing) {
             ctx.error('Locale not found.', 404);
             return null;
@@ -85,14 +85,14 @@ export class UserLocaleLogic extends Logic {
         }
     }
 
-    async deleteUserLocale(ctx: Context, userProfileId: string, id: string): Promise<UserLocale | null> {
-        const existing = await this.userLocaleRepo.findUserLocale(ctx, userProfileId, id);
+    async deleteUserLocale(ctx: Context, userAccountId: string, id: string): Promise<UserLocale | null> {
+        const existing = await this.userLocaleRepo.findUserLocale(ctx, userAccountId, id);
         if (!existing) {
             ctx.error('Locale not found.', 404);
             return null;
         }
 
-        const deleted = await this.userLocaleRepo.deleteUserLocale(ctx, userProfileId, id);
+        const deleted = await this.userLocaleRepo.deleteUserLocale(ctx, userAccountId, id);
         if (!deleted) {
             ctx.error('Locale not found.', 404);
             return null;

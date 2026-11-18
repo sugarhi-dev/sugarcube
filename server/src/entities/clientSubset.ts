@@ -39,9 +39,9 @@ type _userMedia = Expect<Subset<UserMedia, ClientUserMedia>>;
 type _userAvailability = Expect<Subset<UserAvailability, ClientUserAvailability>>;
 
 type _hideKeycloakId = Expect<Hidden<CurrentUser, 'keycloak_id'>>;
-type _hideProjectOwner = Expect<Hidden<ClientProject, 'user_profile_id'>>;
-type _hideMediaOwner = Expect<Hidden<ClientUserMedia, 'user_profile_id'>>;
-type _hideAvailabilityOwner = Expect<Hidden<ClientUserAvailability, 'user_profile_id'>>;
+type _hideProjectOwner = Expect<Hidden<ClientProject, 'user_account_id'>>;
+type _hideMediaOwner = Expect<Hidden<ClientUserMedia, 'user_account_id'>>;
+type _hideAvailabilityOwner = Expect<Hidden<ClientUserAvailability, 'user_account_id'>>;
 type _hideMediaOrder = Expect<Hidden<ClientUserMedia, 'sort_order'>>;
 type _hideMediaThumbnail = Expect<Hidden<ClientUserMedia, 'thumbnail'>>;
 type _hideLatitude = Expect<Hidden<ClientProductionCity, 'latitude'>>;

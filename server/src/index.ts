@@ -25,6 +25,8 @@ const requiredEnv = [
     'OAUTH_CLIENT_SECRET',
     'KEYCLOAK_ISSUER',
     'KEYCLOAK_JWKS_URL',
+    'RESEND_API_KEY',
+    'EMAIL_FROM',
 ] as const;
 
 async function start(): Promise<void> {

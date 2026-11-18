@@ -3,13 +3,13 @@ import { UserAvailabilitySchema, type UserAvailability } from '../entities/userA
 
 type UserAvailabilityRow = {
     id: string;
-    user_profile_id: string;
+    user_account_id: string;
     from_date: string;
     to_date: string;
     code: UserAvailability['code'];
 };
 
-const availabilityColumns = `id, user_profile_id,
+const availabilityColumns = `id, user_account_id,
     to_char(from_date, 'YYYY-MM-DD') AS from_date,
     to_char(to_date, 'YYYY-MM-DD') AS to_date,
     code`;
@@ -19,47 +19,47 @@ export class UserAvailabilityRepo extends Repository {
         super(database);
     }
 
-    async listUserAvailability(ctx: Context, userProfileId: string): Promise<UserAvailability[]> {
-        this.log.trace(`${ctx.traceId} select user_availability ${userProfileId}`);
+    async listUserAvailability(ctx: Context, userAccountId: string): Promise<UserAvailability[]> {
+        this.log.trace(`${ctx.traceId} select user_availability ${userAccountId}`);
         const result = await this.database.query<UserAvailabilityRow>(
             `SELECT ${availabilityColumns}
              FROM user_availability
-             WHERE user_profile_id = $1
+             WHERE user_account_id = $1
              ORDER BY from_date, to_date, id`,
-            [userProfileId],
+            [userAccountId],
         );
         return result.rows.map((row) => UserAvailabilitySchema.parse(row));
     }
 
     async replaceUnavailable(
         ctx: Context,
-        userProfileId: string,
+        userAccountId: string,
         ranges: Array<Pick<UserAvailability, 'id' | 'from_date' | 'to_date'>>,
     ): Promise<UserAvailability[]> {
-        this.log.trace(`${ctx.traceId} replace user_availability ${userProfileId}`);
+        this.log.trace(`${ctx.traceId} replace user_availability ${userAccountId}`);
         return this.database.transaction(async (query) => {
             await query(
-                `SELECT id FROM user_profile WHERE id = $1 FOR UPDATE`,
-                [userProfileId],
+                `SELECT id FROM user_account WHERE id = $1 FOR UPDATE`,
+                [userAccountId],
             );
             await query(
                 `DELETE FROM user_availability
-                 WHERE user_profile_id = $1 AND code = 'unavailable'`,
-                [userProfileId],
+                 WHERE user_account_id = $1 AND code = 'unavailable'`,
+                [userAccountId],
             );
             for (const range of ranges) {
                 await query(
-                    `INSERT INTO user_availability (id, user_profile_id, from_date, to_date, code)
+                    `INSERT INTO user_availability (id, user_account_id, from_date, to_date, code)
                      VALUES ($1, $2, $3, $4, 'unavailable')`,
-                    [range.id, userProfileId, range.from_date, range.to_date],
+                    [range.id, userAccountId, range.from_date, range.to_date],
                 );
             }
             const listed = await query<UserAvailabilityRow>(
                 `SELECT ${availabilityColumns}
                  FROM user_availability
-                 WHERE user_profile_id = $1
+                 WHERE user_account_id = $1
                  ORDER BY from_date, to_date, id`,
-                [userProfileId],
+                [userAccountId],
             );
             return listed.rows.map((row) => UserAvailabilitySchema.parse(row));
         });

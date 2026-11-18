@@ -4,6 +4,7 @@ import type { MenuProps } from 'antd';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { getProfilePhotoUrl } from '../api/me.ts';
+import { beginSignOut } from '../auth/oidc.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../store/hooks.ts';
 import { sessionCleared } from '../store/sessionSlice.ts';
 import { copyThat } from '../theme.ts';
@@ -57,9 +58,9 @@ export function Frame({ children, menu = true, search = true }: FrameProps) {
             navigate('/profile');
             return;
         }
-        if (key === 'sign-out') {
+        if (key === 'sign-out' && session) {
             dispatch(sessionCleared());
-            navigate('/sign-in', { replace: true });
+            beginSignOut(session.idToken);
         }
     }
 

@@ -14,6 +14,10 @@ export function redirectUri(): string {
     return new URL(`${import.meta.env.BASE_URL}auth/client/callback`, window.location.origin).toString();
 }
 
+export function postLogoutRedirectUri(): string {
+    return new URL(`${import.meta.env.BASE_URL}sign-in`, window.location.origin).toString();
+}
+
 export function apiBase(): string {
     return trimTrailingSlash(import.meta.env.VITE_API_BASE_URL || '');
 }

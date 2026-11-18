@@ -23,7 +23,7 @@ export type ProjectPatch = {
 };
 
 const projectConstraints = {
-    projects_user_profile_id_fkey: { statusCode: 404, message: 'Profile not found.' },
+    projects_user_account_id_fkey: { statusCode: 404, message: 'Profile not found.' },
     projects_position_id_fkey: { statusCode: 400, message: 'Position not found.' },
 };
 
@@ -35,12 +35,12 @@ export class ProjectLogic extends Logic {
         this.projectRepo = projectRepo;
     }
 
-    listProjects(ctx: Context, userProfileId: string): Promise<Project[]> {
-        return this.projectRepo.listProjects(ctx, userProfileId);
+    listProjects(ctx: Context, userAccountId: string): Promise<Project[]> {
+        return this.projectRepo.listProjects(ctx, userAccountId);
     }
 
-    async getProject(ctx: Context, userProfileId: string, id: string): Promise<Project | null> {
-        const project = await this.projectRepo.findProject(ctx, userProfileId, id);
+    async getProject(ctx: Context, userAccountId: string, id: string): Promise<Project | null> {
+        const project = await this.projectRepo.findProject(ctx, userAccountId, id);
         if (!project) {
             ctx.error('Project not found.', 404);
             return null;
@@ -48,10 +48,10 @@ export class ProjectLogic extends Logic {
         return project;
     }
 
-    async createProject(ctx: Context, userProfileId: string, input: ProjectWrite): Promise<Project | null> {
+    async createProject(ctx: Context, userAccountId: string, input: ProjectWrite): Promise<Project | null> {
         const project = ProjectSchema.parse({
             id: ulid(),
-            user_profile_id: userProfileId,
+            user_account_id: userAccountId,
             name: input.name,
             position_id: input.position_id,
             lead_producer_name: input.lead_producer_name,
@@ -68,11 +68,11 @@ export class ProjectLogic extends Logic {
 
     async updateProject(
         ctx: Context,
-        userProfileId: string,
+        userAccountId: string,
         id: string,
         input: ProjectPatch,
     ): Promise<Project | null> {
-        const existing = await this.projectRepo.findProject(ctx, userProfileId, id);
+        const existing = await this.projectRepo.findProject(ctx, userAccountId, id);
         if (!existing) {
             ctx.error('Project not found.', 404);
             return null;
@@ -101,14 +101,14 @@ export class ProjectLogic extends Logic {
         }
     }
 
-    async deleteProject(ctx: Context, userProfileId: string, id: string): Promise<Project | null> {
-        const existing = await this.projectRepo.findProject(ctx, userProfileId, id);
+    async deleteProject(ctx: Context, userAccountId: string, id: string): Promise<Project | null> {
+        const existing = await this.projectRepo.findProject(ctx, userAccountId, id);
         if (!existing) {
             ctx.error('Project not found.', 404);
             return null;
         }
 
-        const deleted = await this.projectRepo.deleteProject(ctx, userProfileId, id);
+        const deleted = await this.projectRepo.deleteProject(ctx, userAccountId, id);
         if (!deleted) {
             ctx.error('Project not found.', 404);
             return null;

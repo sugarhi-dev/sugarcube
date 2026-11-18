@@ -8,7 +8,7 @@ import { constraintFailure } from './pgError.js';
 const ulidPattern = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 const mediaConstraints = {
-    user_media_user_profile_id_fkey: { statusCode: 404, message: 'Profile not found.' },
+    user_media_user_account_id_fkey: { statusCode: 404, message: 'Profile not found.' },
     user_media_media_type_check: { statusCode: 400, message: 'Media type is not allowed.' },
     user_media_sort_order_check: { statusCode: 400, message: 'Media order is not allowed.' },
     user_media_thumbnail_check: { statusCode: 400, message: 'Thumbnail is not valid.' },
@@ -24,11 +24,11 @@ export class UserMediaLogic extends Logic {
         this.binary = binary;
     }
 
-    listUserMedia(ctx: Context, userProfileId: string): Promise<UserMedia[]> {
-        return this.userMediaRepo.listUserMedia(ctx, userProfileId);
+    listUserMedia(ctx: Context, userAccountId: string): Promise<UserMedia[]> {
+        return this.userMediaRepo.listUserMedia(ctx, userAccountId);
     }
 
-    async createUserMedia(ctx: Context, userProfileId: string, url: string): Promise<UserMedia | null> {
+    async createUserMedia(ctx: Context, userAccountId: string, url: string): Promise<UserMedia | null> {
         const link = classifyMediaLink(url);
         if (!link) {
             ctx.error('Paste a YouTube or Vimeo link.', 400);
@@ -37,7 +37,7 @@ export class UserMediaLogic extends Logic {
 
         const media = UserMediaSchema.omit({ sort_order: true }).parse({
             id: ulid(),
-            user_profile_id: userProfileId,
+            user_account_id: userAccountId,
             media_type: link.media_type,
             ref: link.url,
             thumbnail: null,
@@ -51,7 +51,7 @@ export class UserMediaLogic extends Logic {
 
     async createUploadedMedia(
         ctx: Context,
-        userProfileId: string,
+        userAccountId: string,
         data: Uint8Array,
         contentType: string,
     ): Promise<UserMedia | null> {
@@ -62,7 +62,7 @@ export class UserMediaLogic extends Logic {
 
         const media = UserMediaSchema.omit({ sort_order: true }).parse({
             id: ulid(),
-            user_profile_id: userProfileId,
+            user_account_id: userAccountId,
             media_type: 'upload',
             ref,
             thumbnail: null,
@@ -77,7 +77,7 @@ export class UserMediaLogic extends Logic {
 
     async createPhotoMedia(
         ctx: Context,
-        userProfileId: string,
+        userAccountId: string,
         data: Uint8Array,
         contentType: string,
     ): Promise<UserMedia | null> {
@@ -88,7 +88,7 @@ export class UserMediaLogic extends Logic {
 
         const media = UserMediaSchema.omit({ sort_order: true }).parse({
             id: ulid(),
-            user_profile_id: userProfileId,
+            user_account_id: userAccountId,
             media_type: 'photo',
             ref,
             thumbnail: null,
@@ -101,9 +101,9 @@ export class UserMediaLogic extends Logic {
         }
     }
 
-    async reorderUserMedia(ctx: Context, userProfileId: string, ids: string[]): Promise<UserMedia[] | null> {
+    async reorderUserMedia(ctx: Context, userAccountId: string, ids: string[]): Promise<UserMedia[] | null> {
         try {
-            const media = await this.userMediaRepo.reorderUserMedia(ctx, userProfileId, ids);
+            const media = await this.userMediaRepo.reorderUserMedia(ctx, userAccountId, ids);
             if (!media) {
                 ctx.error('Media order does not match your items.', 400);
                 return null;
@@ -114,14 +114,14 @@ export class UserMediaLogic extends Logic {
         }
     }
 
-    async updateUserMedia(ctx: Context, userProfileId: string, id: string, url: string): Promise<UserMedia | null> {
+    async updateUserMedia(ctx: Context, userAccountId: string, id: string, url: string): Promise<UserMedia | null> {
         const link = classifyMediaLink(url);
         if (!link) {
             ctx.error('Paste a YouTube or Vimeo link.', 400);
             return null;
         }
 
-        const current = await this.userMediaRepo.findUserMedia(ctx, userProfileId, id);
+        const current = await this.userMediaRepo.findUserMedia(ctx, userAccountId, id);
         if (!current) {
             ctx.error('Media not found.', 404);
             return null;
@@ -150,12 +150,12 @@ export class UserMediaLogic extends Logic {
 
     async saveThumbnail(
         ctx: Context,
-        userProfileId: string,
+        userAccountId: string,
         id: string,
         data: Uint8Array,
         contentType: string,
     ): Promise<UserMedia | null> {
-        const current = await this.userMediaRepo.findUserMedia(ctx, userProfileId, id);
+        const current = await this.userMediaRepo.findUserMedia(ctx, userAccountId, id);
         if (!current) {
             ctx.error('Media not found.', 404);
             return null;
@@ -191,8 +191,8 @@ export class UserMediaLogic extends Logic {
         }
     }
 
-    async deleteUserMedia(ctx: Context, userProfileId: string, id: string): Promise<UserMedia | null> {
-        const deleted = await this.userMediaRepo.deleteUserMedia(ctx, userProfileId, id);
+    async deleteUserMedia(ctx: Context, userAccountId: string, id: string): Promise<UserMedia | null> {
+        const deleted = await this.userMediaRepo.deleteUserMedia(ctx, userAccountId, id);
         if (!deleted) {
             ctx.error('Media not found.', 404);
             return null;
@@ -207,8 +207,8 @@ export class UserMediaLogic extends Logic {
         return deleted;
     }
 
-    async loadThumbnail(ctx: Context, userProfileId: string, id: string): Promise<BinaryObject | null> {
-        const media = await this.userMediaRepo.findUserMedia(ctx, userProfileId, id);
+    async loadThumbnail(ctx: Context, userAccountId: string, id: string): Promise<BinaryObject | null> {
+        const media = await this.userMediaRepo.findUserMedia(ctx, userAccountId, id);
         const imageId = media ? displayImage(media) : null;
         if (!media || !imageId) {
             ctx.error(media?.media_type === 'photo' ? 'Photo not found.' : 'Thumbnail not found.', 404);

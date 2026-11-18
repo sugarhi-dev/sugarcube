@@ -4,7 +4,7 @@ export const MediaTypeSchema = z.enum(['youtube', 'vimeo', 'upload', 'photo']);
 
 export const UserMediaSchema = z.object({
     id: z.ulid(),
-    user_profile_id: z.ulid(),
+    user_account_id: z.ulid(),
     media_type: MediaTypeSchema,
     ref: z.string().min(1).max(2048),
     thumbnail: z.ulid().nullable().default(null),

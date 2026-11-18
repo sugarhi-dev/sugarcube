@@ -3,6 +3,7 @@ import { App as AntdApp, Button, Card, Flex, Form, Layout, Typography } from 'an
 import { useEffect, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { chooseAccountType, type AccountType } from '../../api/me.ts';
+import { beginSignOut } from '../../auth/oidc.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { sessionCleared } from '../../store/sessionSlice.ts';
@@ -50,8 +51,11 @@ export function OnboardingAccountType() {
     }, []);
 
     function signOut(): void {
+        if (!session) {
+            return;
+        }
         dispatch(sessionCleared());
-        navigate('/sign-in', { replace: true });
+        beginSignOut(session.idToken);
     }
 
     function selectRole(role: AccountType): void {

@@ -39,7 +39,6 @@ import {
     getProfilePhotoUrl,
     getWorkProfile,
     listLocales,
-    listWorkProfiles,
     returnToStep,
     saveBasic,
     saveSetup,
@@ -227,7 +226,7 @@ export function OnboardingReview() {
 
         void (async () => {
             try {
-                const [media, projects, projectTypes, positions, currencies, cities, locales, rates, workProfiles, disciplines, availability] = await Promise.all([
+                const [media, projects, projectTypes, positions, currencies, cities, locales, rates, disciplines, availability] = await Promise.all([
                     listMedia(token),
                     listProjects(token),
                     listProjectTypes(token),
@@ -236,7 +235,6 @@ export function OnboardingReview() {
                     listProductionCities(token),
                     listLocales(token),
                     getWorkProfile(token),
-                    listWorkProfiles(token),
                     listDisciplines(token),
                     listAvailability(token),
                 ]);
@@ -249,7 +247,6 @@ export function OnboardingReview() {
                     ...(home ? [home] : []),
                     ...locales.filter((locale) => locale !== home),
                 ];
-                const work = workProfiles[0];
                 const typeIds = [...new Set(links.flat().map((link) => link.project_type_id))];
                 mediaRef.current = media;
                 projectsRef.current = projects;
@@ -263,8 +260,8 @@ export function OnboardingReview() {
                     positions,
                     currencies,
                     cities,
-                    disciplineId: work?.discipline_id ?? '',
-                    positionId: work?.position_id ?? '',
+                    disciplineId: rates.discipline_id ?? '',
+                    positionId: rates.position_id ?? '',
                     unionStatus: rates.union_status,
                     dayRate: rates.day_rate,
                     currencyId: rates.currency_id,

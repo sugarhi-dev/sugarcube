@@ -3,35 +3,36 @@ import { ulid } from 'ulidx';
 import type { AccountType, AdminUser, User, UserStatus } from '../entities/user.js';
 import { UserLocaleSchema } from '../entities/userLocale.js';
 import type { UnionStatus } from '../entities/userWorkProfile.js';
-import { WorkProfileSchema, type WorkProfile } from '../entities/workProfile.js';
 import { constraintFailure } from './pgError.js';
 import { UserRepo, type Approval, type BasicWrite, type DirectoryUser, type ExperienceStatsWrite } from '../repositories/userRepo.js';
 import { EmailService } from '../services/emailService.js';
 
 const accountTypeConstraints = {
-    user_profile_account_type_check: { statusCode: 400, message: 'Account type is not allowed.' },
+    user_account_account_type_check: { statusCode: 400, message: 'Account type is not allowed.' },
 };
 
 const basicConstraints = {
-    user_profile_status_check: { statusCode: 400, message: 'Account status is not allowed.' },
-    user_profile_bio_check: { statusCode: 400, message: 'Bio must be 300 characters or fewer.' },
-    user_profile_title_check: { statusCode: 400, message: 'Title must be 120 characters or fewer.' },
+    user_account_status_check: { statusCode: 400, message: 'Account status is not allowed.' },
+    user_account_bio_check: { statusCode: 400, message: 'Bio must be 300 characters or fewer.' },
+    user_account_title_check: { statusCode: 400, message: 'Title must be 120 characters or fewer.' },
 };
 
 const photoConstraints = {
-    user_profile_photo_check: { statusCode: 400, message: 'Profile photo is not valid.' },
+    user_account_photo_check: { statusCode: 400, message: 'Profile photo is not valid.' },
 };
 
 export const profilePhotoTtlSeconds = 15 * 60;
 
 const setupConstraints = {
-    work_profile_user_profile_id_fkey: { statusCode: 404, message: 'Profile not found.' },
-    work_profile_discipline_id_fkey: { statusCode: 400, message: 'Discipline not found.' },
-    work_profile_position_id_fkey: { statusCode: 400, message: 'Position not found.' },
-    work_profile_position_discipline_fkey: { statusCode: 400, message: 'That position is not in the selected discipline.' },
-    work_profile_user_position_key: { statusCode: 409, message: 'That position is already on the profile.' },
+    user_work_profile_discipline_id_fkey: { statusCode: 400, message: 'Discipline not found.' },
+    user_work_profile_position_id_fkey: { statusCode: 400, message: 'Position not found.' },
+    user_work_profile_position_discipline_fkey: { statusCode: 400, message: 'That position is not in the selected discipline.' },
+    user_work_profile_position_pair_check: {
+        statusCode: 400,
+        message: 'Discipline and position must both be set or both be empty.',
+    },
     user_work_profile_currency_id_fkey: { statusCode: 400, message: 'Currency not found.' },
-    user_work_profile_user_profile_id_fkey: { statusCode: 404, message: 'Profile not found.' },
+    user_work_profile_user_account_id_fkey: { statusCode: 404, message: 'Profile not found.' },
     user_work_profile_union_status_check: { statusCode: 400, message: 'Union status is not allowed.' },
     user_work_profile_day_rate_check: { statusCode: 400, message: 'Day rate must be zero or greater.' },
     user_work_profile_rate_currency_check: {
@@ -41,8 +42,8 @@ const setupConstraints = {
     user_locale_user_city_key: { statusCode: 409, message: 'That city is already on the profile.' },
     user_locale_home_city_key: { statusCode: 409, message: 'A home city is already set.' },
     user_locale_production_city_id_fkey: { statusCode: 400, message: 'Production city not found.' },
-    user_locale_user_profile_id_fkey: { statusCode: 404, message: 'Profile not found.' },
-    user_profile_status_check: { statusCode: 400, message: 'Account status is not allowed.' },
+    user_locale_user_account_id_fkey: { statusCode: 404, message: 'Profile not found.' },
+    user_account_status_check: { statusCode: 400, message: 'Account status is not allowed.' },
 };
 
 const experienceConstraints = {
@@ -268,21 +269,17 @@ export class UserLogic extends Logic {
     }
 
     async completeSetup(ctx: Context, userId: string, input: SetupProfileInput): Promise<User | null> {
-        const workProfile = WorkProfileSchema.parse({
-            id: ulid(),
-            user_profile_id: userId,
-            discipline_id: input.discipline_id,
-            position_id: input.position_id,
-        });
         const locales = input.cities.map((city) => UserLocaleSchema.parse({
             id: ulid(),
-            user_profile_id: userId,
+            user_account_id: userId,
             production_city_id: city.production_city_id,
             home_city: city.home_city,
         }));
         try {
             const user = await this.userRepo.completeSetup(ctx, {
-                workProfile,
+                user_account_id: userId,
+                discipline_id: input.discipline_id,
+                position_id: input.position_id,
                 day_rate: roundMoney(input.day_rate),
                 currency_id: input.currency_id,
                 union_status: input.union_status,
@@ -350,10 +347,6 @@ export class UserLogic extends Logic {
         return user;
     }
 
-    listWorkProfiles(ctx: Context, userId: string): Promise<WorkProfile[]> {
-        return this.userRepo.listWorkProfiles(ctx, userId);
-    }
-
     async submitForReview(ctx: Context, userId: string): Promise<User | null> {
         const result = await this.userRepo.submitForReview(ctx, userId);
         if (result.status === 'incomplete') {
@@ -387,7 +380,7 @@ export class UserLogic extends Logic {
             return restored !== null;
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            this.log.error(`${ctx.traceId} could not restore user_profile ${id} to admin-review: ${message}`);
+            this.log.error(`${ctx.traceId} could not restore user_account ${id} to admin-review: ${message}`);
             return false;
         }
     }

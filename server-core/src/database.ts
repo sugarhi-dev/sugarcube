@@ -14,7 +14,7 @@ export class Database extends Base {
 
     constructor(config: Config) {
         super();
-        const connectionString = config.require('DATABASE_URL');
+        const connectionString = config.get('DATABASE_URL');
         this.pool = new Pool({ connectionString });
     }
 

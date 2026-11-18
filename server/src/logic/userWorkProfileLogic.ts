@@ -12,14 +12,21 @@ export type UserWorkProfileWrite = {
 };
 
 const workProfileConstraints = {
-    user_work_profile_user_profile_id_key: { statusCode: 409, message: 'A work profile already exists.' },
+    user_work_profile_user_account_id_key: { statusCode: 409, message: 'A work profile already exists.' },
     user_work_profile_currency_id_fkey: { statusCode: 400, message: 'Currency not found.' },
-    user_work_profile_user_profile_id_fkey: { statusCode: 404, message: 'Profile not found.' },
+    user_work_profile_user_account_id_fkey: { statusCode: 404, message: 'Profile not found.' },
     user_work_profile_union_status_check: { statusCode: 400, message: 'Union status is not allowed.' },
     user_work_profile_day_rate_check: { statusCode: 400, message: 'Day rate must be zero or greater.' },
     user_work_profile_rate_currency_check: {
         statusCode: 400,
         message: 'Day rate and currency must both be set or both be empty.',
+    },
+    user_work_profile_discipline_id_fkey: { statusCode: 400, message: 'Discipline not found.' },
+    user_work_profile_position_id_fkey: { statusCode: 400, message: 'Position not found.' },
+    user_work_profile_position_discipline_fkey: { statusCode: 400, message: 'That position is not in the selected discipline.' },
+    user_work_profile_position_pair_check: {
+        statusCode: 400,
+        message: 'Discipline and position must both be set or both be empty.',
     },
 };
 
@@ -31,8 +38,8 @@ export class UserWorkProfileLogic extends Logic {
         this.userWorkProfileRepo = userWorkProfileRepo;
     }
 
-    async getUserWorkProfile(ctx: Context, userProfileId: string): Promise<UserWorkProfile | null> {
-        const profile = await this.userWorkProfileRepo.findUserWorkProfile(ctx, userProfileId);
+    async getUserWorkProfile(ctx: Context, userAccountId: string): Promise<UserWorkProfile | null> {
+        const profile = await this.userWorkProfileRepo.findUserWorkProfile(ctx, userAccountId);
         if (!profile) {
             ctx.error('Work profile not found.', 404);
             return null;
@@ -42,12 +49,12 @@ export class UserWorkProfileLogic extends Logic {
 
     async saveUserWorkProfile(
         ctx: Context,
-        userProfileId: string,
+        userAccountId: string,
         input: UserWorkProfileWrite,
     ): Promise<{ profile: UserWorkProfile; created: boolean } | null> {
         const profile = UserWorkProfileSchema.parse({
             id: ulid(),
-            user_profile_id: userProfileId,
+            user_account_id: userAccountId,
             day_rate: input.day_rate,
             currency_id: input.currency_id,
             union_status: input.union_status,
@@ -65,14 +72,14 @@ export class UserWorkProfileLogic extends Logic {
         }
     }
 
-    async deleteUserWorkProfile(ctx: Context, userProfileId: string): Promise<UserWorkProfile | null> {
-        const existing = await this.userWorkProfileRepo.findUserWorkProfile(ctx, userProfileId);
+    async deleteUserWorkProfile(ctx: Context, userAccountId: string): Promise<UserWorkProfile | null> {
+        const existing = await this.userWorkProfileRepo.findUserWorkProfile(ctx, userAccountId);
         if (!existing) {
             ctx.error('Work profile not found.', 404);
             return null;
         }
 
-        const deleted = await this.userWorkProfileRepo.deleteUserWorkProfile(ctx, userProfileId);
+        const deleted = await this.userWorkProfileRepo.deleteUserWorkProfile(ctx, userAccountId);
         if (!deleted) {
             ctx.error('Work profile not found.', 404);
             return null;

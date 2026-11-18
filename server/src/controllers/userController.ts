@@ -145,7 +145,6 @@ export class UserController extends Controller {
         this.put('/api/me/experience', this.PUT_experience.bind(this));
         this.put('/api/me/media', this.PUT_media.bind(this));
         this.put('/api/me/back', this.PUT_back.bind(this));
-        this.get('/api/me/work-profiles', this.GET_work_profiles.bind(this));
         this.put('/api/me/review', this.PUT_review.bind(this));
         this.get('/api/me/locales', this.GET_locales.bind(this));
         this.post('/api/me/locales', this.POST_locale.bind(this));
@@ -304,17 +303,6 @@ export class UserController extends Controller {
 
         const updated = await this.userLogic.completeMedia(ctx, user.id);
         this.checkAndRespond(ctx, res, updated);
-    }
-
-    protected async GET_work_profiles(ctx: Context, req: Request, res: Response): Promise<void> {
-        const user = await this.currentUser(ctx, req);
-        if (!user) {
-            this.checkAndRespond(ctx, res);
-            return;
-        }
-
-        const profiles = await this.userLogic.listWorkProfiles(ctx, user.id);
-        this.checkAndRespond(ctx, res, profiles);
     }
 
     protected async PUT_review(ctx: Context, req: Request, res: Response): Promise<void> {

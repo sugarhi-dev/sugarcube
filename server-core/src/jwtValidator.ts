@@ -11,8 +11,8 @@ export class JwtValidator extends Base {
     constructor(config: Config)
     {
         super();
-        this.issuer = config.require('KEYCLOAK_ISSUER');
-        this.jwksUrl = config.require('KEYCLOAK_JWKS_URL');
+        this.issuer = config.get('KEYCLOAK_ISSUER');
+        this.jwksUrl = config.get('KEYCLOAK_JWKS_URL');
     }
 
     public async loadSigningKeys(): Promise<void>

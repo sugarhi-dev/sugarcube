@@ -26,10 +26,10 @@ export class Binary extends Base {
 
     constructor(config: Config) {
         super();
-        const endpoint = config.require('S3_ENDPOINT');
-        const bucket = config.require('S3_BUCKET');
-        const accessKeyId = config.require('AWS_ACCESS_KEY_ID');
-        const secretAccessKey = config.require('AWS_SECRET_ACCESS_KEY');
+        const endpoint = config.get('S3_ENDPOINT');
+        const bucket = config.get('S3_BUCKET');
+        const accessKeyId = config.get('AWS_ACCESS_KEY_ID');
+        const secretAccessKey = config.get('AWS_SECRET_ACCESS_KEY');
 
         this.bucket = bucket;
         this.client = new S3Client({

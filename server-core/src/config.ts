@@ -19,13 +19,11 @@ export class Config {
         }
     }
 
-    public require(key: string): string {
-        const value = process.env[key];
-        if (!value) {
+    public require(key: string): void {
+        if (!process.env[key]) {
             this.log.fatal(`Environment variable ${key} is required.`);
             exit(-1);
         }
-        return value;
     }
 
     public requireAll(keys: readonly string[]): void {

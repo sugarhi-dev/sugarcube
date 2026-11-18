@@ -4,7 +4,7 @@ export const UnionStatusSchema = z.enum(['union', 'non_union', 'either']);
 
 export type UnionStatus = z.infer<typeof UnionStatusSchema>;
 
-// Rates the browser may keep. The owner stays on the server entity.
+// Work profile the browser may keep. The owner stays on the server entity.
 export const UserWorkProfileSchema = z.object({
     id: z.ulid(),
     day_rate: z.number().min(0).nullable(),
@@ -14,9 +14,14 @@ export const UserWorkProfileSchema = z.object({
     projects_completed: z.number().int().min(0).nullable(),
     years_in_business: z.number().int().min(0).nullable(),
     response_time_hours: z.number().int().min(1).nullable(),
+    discipline_id: z.ulid().nullable(),
+    position_id: z.ulid().nullable(),
 }).strip().refine(
     (row) => (row.day_rate === null) === (row.currency_id === null),
     'day_rate and currency_id must both be set or both be null',
+).refine(
+    (row) => (row.discipline_id === null) === (row.position_id === null),
+    'discipline_id and position_id must both be set or both be null',
 );
 
 export type UserWorkProfile = z.infer<typeof UserWorkProfileSchema>;

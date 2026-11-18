@@ -3,7 +3,7 @@ import { ProjectSchema, type Project } from '../entities/project.js';
 
 type ProjectRow = {
     id: string;
-    user_profile_id: string;
+    user_account_id: string;
     name: string;
     position_id: string;
     lead_producer_name: string;
@@ -12,7 +12,7 @@ type ProjectRow = {
     production_company: string | null;
 };
 
-const projectColumns = `id, user_profile_id, name, position_id, lead_producer_name, lead_producer_email,
+const projectColumns = `id, user_account_id, name, position_id, lead_producer_name, lead_producer_email,
     to_char(date, 'YYYY-MM-DD') AS date,
     production_company`;
 
@@ -21,25 +21,25 @@ export class ProjectRepo extends Repository {
         super(database);
     }
 
-    async listProjects(ctx: Context, userProfileId: string): Promise<Project[]> {
-        this.log.trace(`${ctx.traceId} select projects ${userProfileId}`);
+    async listProjects(ctx: Context, userAccountId: string): Promise<Project[]> {
+        this.log.trace(`${ctx.traceId} select projects ${userAccountId}`);
         const result = await this.database.query<ProjectRow>(
             `SELECT ${projectColumns}
              FROM projects
-             WHERE user_profile_id = $1
+             WHERE user_account_id = $1
              ORDER BY created_at`,
-            [userProfileId],
+            [userAccountId],
         );
         return result.rows.map((row) => ProjectSchema.parse(row));
     }
 
-    async findProject(ctx: Context, userProfileId: string, id: string): Promise<Project | null> {
+    async findProject(ctx: Context, userAccountId: string, id: string): Promise<Project | null> {
         this.log.trace(`${ctx.traceId} select projects ${id}`);
         const result = await this.database.query<ProjectRow>(
             `SELECT ${projectColumns}
              FROM projects
-             WHERE id = $1 AND user_profile_id = $2`,
-            [id, userProfileId],
+             WHERE id = $1 AND user_account_id = $2`,
+            [id, userAccountId],
         );
         const row = result.rows[0];
         return row ? ProjectSchema.parse(row) : null;
@@ -49,14 +49,14 @@ export class ProjectRepo extends Repository {
         this.log.trace(`${ctx.traceId} insert projects ${project.id}`);
         const result = await this.database.query<ProjectRow>(
             `INSERT INTO projects (
-                 id, user_profile_id, name, position_id, lead_producer_name,
+                 id, user_account_id, name, position_id, lead_producer_name,
                  lead_producer_email, date, production_company
              )
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              RETURNING ${projectColumns}`,
             [
                 project.id,
-                project.user_profile_id,
+                project.user_account_id,
                 project.name,
                 project.position_id,
                 project.lead_producer_name,
@@ -79,11 +79,11 @@ export class ProjectRepo extends Repository {
                  date = $7,
                  production_company = $8,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND user_profile_id = $2
+             WHERE id = $1 AND user_account_id = $2
              RETURNING ${projectColumns}`,
             [
                 project.id,
-                project.user_profile_id,
+                project.user_account_id,
                 project.name,
                 project.position_id,
                 project.lead_producer_name,
@@ -96,7 +96,7 @@ export class ProjectRepo extends Repository {
         return row ? ProjectSchema.parse(row) : null;
     }
 
-    async deleteProject(ctx: Context, userProfileId: string, id: string): Promise<boolean> {
+    async deleteProject(ctx: Context, userAccountId: string, id: string): Promise<boolean> {
         this.log.trace(`${ctx.traceId} delete projects ${id}`);
         return this.database.transaction(async (query) => {
             await query(
@@ -105,14 +105,14 @@ export class ProjectRepo extends Repository {
                    AND EXISTS (
                        SELECT 1
                        FROM projects
-                       WHERE projects.id = $1 AND projects.user_profile_id = $2
+                       WHERE projects.id = $1 AND projects.user_account_id = $2
                    )`,
-                [id, userProfileId],
+                [id, userAccountId],
             );
             const result = await query(
                 `DELETE FROM projects
-                 WHERE id = $1 AND user_profile_id = $2`,
-                [id, userProfileId],
+                 WHERE id = $1 AND user_account_id = $2`,
+                [id, userAccountId],
             );
             return (result.rowCount ?? 0) > 0;
         });

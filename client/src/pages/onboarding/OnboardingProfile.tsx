@@ -18,7 +18,7 @@ import {
     type Position,
     type ProductionCity,
 } from '../../api/catalog.ts';
-import { getWorkProfile, listLocales, listWorkProfiles, returnToStep, saveSetup, type SetupCity, type UnionStatus } from '../../api/me.ts';
+import { getWorkProfile, listLocales, returnToStep, saveSetup, type SetupCity, type UnionStatus } from '../../api/me.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
@@ -383,8 +383,7 @@ export function OnboardingProfile() {
 }
 
 async function loadSavedSetup(token: string): Promise<SavedSetup> {
-    const [workProfiles, locales, rates] = await Promise.all([
-        listWorkProfiles(token),
+    const [locales, rates] = await Promise.all([
         listLocales(token),
         getWorkProfile(token).catch((error: unknown) => {
             if (error instanceof ApiError && error.status === 404) {
@@ -393,15 +392,14 @@ async function loadSavedSetup(token: string): Promise<SavedSetup> {
             throw error;
         }),
     ]);
-    const work = workProfiles[0];
     const home = locales.find((locale) => locale.home_city) ?? null;
     const ordered = [
         ...(home ? [home] : []),
         ...locales.filter((locale) => locale !== home),
     ];
     return {
-        discipline_id: work?.discipline_id,
-        position_id: work?.position_id,
+        discipline_id: rates?.discipline_id ?? undefined,
+        position_id: rates?.position_id ?? undefined,
         day_rate: rates?.day_rate ?? undefined,
         currency_id: rates?.currency_id ?? undefined,
         union_status: rates?.union_status,

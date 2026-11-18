@@ -18,10 +18,10 @@ export class ProjectProjectTypeLogic extends Logic {
 
     async listProjectProjectTypes(
         ctx: Context,
-        userProfileId: string,
+        userAccountId: string,
         projectId: string,
     ): Promise<ProjectProjectType[] | null> {
-        const rows = await this.projectProjectTypeRepo.listProjectProjectTypes(ctx, userProfileId, projectId);
+        const rows = await this.projectProjectTypeRepo.listProjectProjectTypes(ctx, userAccountId, projectId);
         if (!rows) {
             ctx.error('Project not found.', 404);
             return null;
@@ -31,14 +31,14 @@ export class ProjectProjectTypeLogic extends Logic {
 
     async updateProjectProjectTypes(
         ctx: Context,
-        userProfileId: string,
+        userAccountId: string,
         projectId: string,
         projectTypeIds: string[],
     ): Promise<ProjectProjectType[] | null> {
         try {
             const rows = await this.projectProjectTypeRepo.replaceProjectProjectTypes(
                 ctx,
-                userProfileId,
+                userAccountId,
                 projectId,
                 projectTypeIds,
             );

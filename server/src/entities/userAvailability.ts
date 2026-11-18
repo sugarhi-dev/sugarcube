@@ -6,7 +6,7 @@ export type AvailabilityCode = z.infer<typeof AvailabilityCodeSchema>;
 
 export const UserAvailabilitySchema = z.object({
     id: z.ulid(),
-    user_profile_id: z.ulid(),
+    user_account_id: z.ulid(),
     from_date: z.iso.date(),
     to_date: z.iso.date(),
     code: AvailabilityCodeSchema,
