@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useParams } from 'react-router';
 import { getMe } from '../../../client/src/api/me.ts';
 import type { Session as ClientSession } from '../../../client/src/auth/session.ts';
-import { OnboardingReview } from '../../../client/src/pages/onboarding/OnboardingReview.tsx';
+import { ProfilePage } from '../../../client/src/pages/profile/ProfilePage.tsx';
 import { profileLoaded, profileReducer } from '../../../client/src/store/profileSlice.ts';
 import { sessionReducer, sessionSaved } from '../../../client/src/store/sessionSlice.ts';
 import { copyThatTheme } from '../../../client/src/theme.ts';
@@ -84,7 +84,7 @@ export function UserProfilePage() {
                 <div className="admin-profile">
                     <ConfigProvider theme={copyThatTheme}>
                         <Provider store={store}>
-                            <OnboardingReview />
+                            <ProfilePage framed={false} />
                         </Provider>
                     </ConfigProvider>
                 </div>

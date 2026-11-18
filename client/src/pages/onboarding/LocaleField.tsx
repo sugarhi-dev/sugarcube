@@ -79,7 +79,6 @@ export function LocaleField({
                             key={row.production_city_id}
                             className={row.home_city ? 'city-tag city-tag-home' : 'city-tag'}
                             closable
-                            icon={row.home_city ? <HomeOutlined /> : undefined}
                             onClose={(event) => {
                                 event.preventDefault();
                                 removeCity(row.production_city_id);
@@ -92,12 +91,13 @@ export function LocaleField({
                                 aria-label={row.home_city ? `${name} is your home city` : `Set ${name} as your home city`}
                                 onClick={() => makeHome(row.production_city_id)}
                             >
+                                {row.home_city ? <HomeOutlined aria-hidden="true" /> : null}
                                 {row.home_city ? `${name} · Home` : name}
                             </button>
                         </Tag>
                     );
                 })}
-                <Button type="dashed" shape="round" className="add-city" icon={<PlusOutlined />} onClick={openSearch}>
+                <Button type="dashed" className="add-city" icon={<PlusOutlined />} onClick={openSearch}>
                     Add city
                 </Button>
             </Flex>

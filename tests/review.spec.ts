@@ -31,7 +31,7 @@ test('reviews the crew profile and submits it', async ({ page }) => {
     for (const url of videoUrls) {
         await addLink(page, url);
     }
-    await expect(page.locator('.media-count')).toHaveText('2 of 2');
+    await expect(page.locator('.media-count')).toHaveText('2 added — ready to go live');
     await expect(continueReview).toBeEnabled();
 
     const advanced = page.waitForResponse((response) =>
@@ -65,8 +65,9 @@ test('reviews the crew profile and submits it', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Add to Project' })).toHaveCount(0);
     await expect(page.getByText('Shoot start')).toHaveCount(0);
     await expect(page.getByRole('list', { name: 'Setup steps' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: /COPY\s*THAT/ })).toBeVisible();
-    await expect(page.getByRole('textbox', { name: 'Search crew, projects, resources' })).toBeDisabled();
+    await expect(page.getByText('STEP 5 OF 6')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save & exit' })).toBeVisible();
+    await expect(page.getByText('This is exactly what clients will see. Edit anything inline, then submit for review.')).toBeVisible();
     await expect(page.getByText('Review takes ~24h — you\'ll show as “Pending review” until approved.')).toBeVisible();
 
     await page.getByRole('button', { name: 'Edit profile' }).click();
@@ -122,14 +123,15 @@ async function expectWait(page: Page): Promise<void> {
     await expect(page.getByText('Your profile is in review. An administrator will approve it before you go live.')).toBeVisible();
     await expect(page.getByRole('list', { name: 'Setup steps' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: /COPY\s*THAT/ })).toBeVisible();
-    await expect(page.getByRole('textbox', { name: 'Search crew, projects, resources' })).toBeDisabled();
+    await expect(page.getByRole('textbox', { name: 'Search crew, projects, resources' })).toBeEnabled();
     await expect(page.getByRole('heading', { name: 'On-set storyteller', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Dev Sugarhi' })).toBeVisible();
     const avatar = page.locator('.crew-avatar img');
     await expect(avatar).toHaveAttribute('src', /^\/content\//);
     await expect(avatar).toHaveJSProperty('naturalWidth', 400);
     await expect(page.getByRole('button', { name: 'Edit profile' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Update Calendar' })).toHaveCount(0);
+    await expect(page.getByText('Pending review')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Update Calendar' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Submit profile' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Go back' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Add credit' })).toHaveCount(0);
@@ -145,13 +147,12 @@ async function expectReview(page: Page): Promise<void> {
     await expect(page.getByRole('complementary', { name: 'Your availability' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Update Calendar' })).toBeVisible();
     await expect(page.locator('.crew-stat').filter({ hasText: 'Projects completed' }).locator('strong')).toHaveText('18');
-    await expect(page.locator('.crew-stat').filter({ hasText: 'Average Response' }).locator('strong')).toHaveText('< 12h');
-    await expect(page.locator('.crew-stat').filter({ hasText: 'Repeat Clients' }).locator('strong')).toHaveText('100%');
-    await expect(page.locator('.crew-stat').filter({ hasText: 'Years Active' }).locator('strong')).toHaveText('3');
+    await expect(page.locator('.crew-stat').filter({ hasText: 'Response time' }).locator('strong')).toHaveText('Under 12 hours');
+    await expect(page.locator('.crew-stat').filter({ hasText: 'Years in the business' }).locator('strong')).toHaveText('3');
+    await expect(page.locator('.crew-stat').filter({ hasText: 'Cities' }).locator('strong')).toHaveText('2');
     await expect(page.getByRole('list', { name: 'Setup steps' })).toHaveCount(0);
-    await expect(page.getByRole('textbox', { name: 'Search crew, projects, resources' })).toBeDisabled();
-    await page.getByRole('button', { name: 'Menu', exact: true }).click();
-    await expect(page.getByRole('menu')).toHaveCount(0);
+    await expect(page.getByText('STEP 5 OF 6')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save & exit' })).toBeVisible();
 }
 
 async function openMedia(page: Page): Promise<void> {
@@ -262,7 +263,7 @@ function pngChunk(type: string, data: Buffer): Buffer {
 async function fillTrackRecord(page: Page): Promise<void> {
     await page.getByLabel('Projects completed').fill('18');
     await page.getByLabel('Years in the business').fill('3');
-    await chooseOption(page, 'Response time', '< 12 hours');
+    await chooseOption(page, 'Response time', 'Under 12 hours');
 }
 
 async function chooseOption(page: Page, label: string, option: string, search?: string): Promise<void> {

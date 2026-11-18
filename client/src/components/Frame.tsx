@@ -1,13 +1,12 @@
-import { BellOutlined, MenuOutlined, SearchOutlined } from '@ant-design/icons';
-import { Dropdown, Input, Popover } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
+import { Dropdown, Input } from 'antd';
 import type { MenuProps } from 'antd';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { getProfilePhotoUrl } from '../api/me.ts';
 import { beginSignOut } from '../auth/oidc.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../store/hooks.ts';
 import { sessionCleared } from '../store/sessionSlice.ts';
-import { copyThat } from '../theme.ts';
 
 const accountMenu: MenuProps['items'] = [
     { key: 'profile', label: 'Your profile' },
@@ -15,13 +14,7 @@ const accountMenu: MenuProps['items'] = [
     { key: 'sign-out', label: 'Sign out' },
 ];
 
-type FrameProps = {
-    children: ReactNode;
-    menu?: boolean;
-    search?: boolean;
-};
-
-export function Frame({ children, menu = true, search = true }: FrameProps) {
+export function Frame({ children }: { children: ReactNode }) {
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const session = useSession();
@@ -55,7 +48,7 @@ export function Frame({ children, menu = true, search = true }: FrameProps) {
 
     function onAccount({ key }: { key: string }): void {
         if (key === 'profile') {
-            navigate('/profile');
+            navigate('/');
             return;
         }
         if (key === 'sign-out' && session) {
@@ -72,39 +65,17 @@ export function Frame({ children, menu = true, search = true }: FrameProps) {
         <div className="app-canvas">
             <div className="app-frame">
                 <header className="app-bar">
-                    <div className="app-brand">
-                        {menu ? (
-                            <Dropdown menu={{ items: accountMenu, onClick: onAccount }} trigger={['click']} placement="bottomLeft">
-                                <button type="button" className="app-icon-btn" aria-label="Menu">
-                                    <MenuOutlined />
-                                </button>
-                            </Dropdown>
-                        ) : (
-                            <button type="button" className="app-icon-btn" aria-label="Menu">
-                                <MenuOutlined />
-                            </button>
-                        )}
-                        <Link to="/" className="app-logo">
-                            COPY
-                            <span style={{ color: copyThat.accent }}>THAT</span>
-                        </Link>
-                    </div>
+                    <div className="app-bar-side" aria-hidden="true" />
                     <div className="app-search-wrap">
                         <Input
                             className="app-search"
                             prefix={<SearchOutlined />}
                             placeholder="Search crew, projects, resources..."
                             aria-label="Search crew, projects, resources"
-                            allowClear={search}
-                            disabled={!search}
+                            allowClear
                         />
                     </div>
                     <div className="app-tools">
-                        <Popover content="No notifications yet." trigger="click" placement="bottomRight">
-                            <button type="button" className="app-icon-btn" aria-label="Notifications">
-                                <BellOutlined />
-                            </button>
-                        </Popover>
                         <Dropdown menu={{ items: accountMenu, onClick: onAccount }} trigger={['click']} placement="bottomRight">
                             <button type="button" className="app-avatar" aria-label="Account menu">
                                 {photoUrl ? <img src={photoUrl} alt="" onError={() => setPhotoUrl(null)} /> : mark}

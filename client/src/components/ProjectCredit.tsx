@@ -13,12 +13,14 @@ export function ProjectCredit({
     actions,
     handle = true,
     boxed = true,
+    status,
 }: {
     name: string;
     facts: CreditFact[];
     actions?: ReactNode;
     handle?: boolean;
     boxed?: boolean;
+    status?: string;
 }) {
     return (
         <li className={boxed ? 'credit-card' : 'credit-plain'}>
@@ -30,7 +32,10 @@ export function ProjectCredit({
             <div className="credit-body">
                 <div className="credit-head">
                     <div className="credit-name">{name}</div>
-                    {actions ? <div className="credit-side">{actions}</div> : null}
+                    <div className="credit-side">
+                        {status ? <span className="credit-status">{status}</span> : null}
+                        {actions}
+                    </div>
                 </div>
                 <dl className="credit-facts">
                     {facts.map((fact) => (

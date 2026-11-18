@@ -2,6 +2,7 @@ import { Binary, Config, Database, RestService } from '@sugarcube/server-core';
 import type { Express } from 'express';
 import { AdminUserController } from '../controllers/adminUserController.js';
 import { AuthController } from '../controllers/authcontroller.js';
+import { CloudflareStreamController, cloudflareStreamCallbackPath } from '../controllers/cloudflareStreamController.js';
 import { CurrencyController } from '../controllers/currencyController.js';
 import { DisciplineController } from '../controllers/disciplineController.js';
 import { PositionController } from '../controllers/positionController.js';
@@ -42,7 +43,11 @@ export class ApiService extends RestService {
     private readonly config: Config;
 
     constructor(config: Config, app: Express, database: Database) {
-        super(config, 'ApiService', app, ['/api/auth/client/callback', '/api/auth/admin/callback']);
+        super(config, 'ApiService', app, [
+            '/api/auth/client/callback',
+            '/api/auth/admin/callback',
+            cloudflareStreamCallbackPath,
+        ]);
         this.database = database;
         this.config = config;
     }
@@ -98,5 +103,6 @@ export class ApiService extends RestService {
         ));
         this.addController(new UserAvailabilityController(this.app, userLogic, userAvailabilityLogic));
         this.addController(new UserMediaController(this.app, userLogic, userMediaLogic));
+        this.addController(new CloudflareStreamController(this.app, userMediaLogic));
     }
 }

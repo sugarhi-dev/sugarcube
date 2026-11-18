@@ -42,10 +42,11 @@ export const onboardingExperiencePath = '/onboarding/experience';
 const disciplineOrder = ['Shooting', 'Post Production'];
 
 const responseTimeOptions = [
-    { value: 4, label: '< 4 hours' },
-    { value: 8, label: '< 8 hours' },
-    { value: 12, label: '< 12 hours' },
-    { value: 24, label: '< 24 hours' },
+    { value: 2, label: 'Under 2 hours' },
+    { value: 4, label: 'Under 4 hours' },
+    { value: 8, label: 'Under 8 hours' },
+    { value: 12, label: 'Under 12 hours' },
+    { value: 24, label: 'Under 24 hours' },
 ];
 
 type ExperienceCatalog = {
@@ -429,6 +430,7 @@ export function OnboardingExperience() {
                                 <ProjectCredit
                                     key={project.id}
                                     name={project.name}
+                                    status="Reference pending"
                                     facts={projectFacts({
                                         date: project.date,
                                         position: positionName.get(project.position_id),
@@ -527,14 +529,12 @@ export function OnboardingExperience() {
                                 icon={<PlusOutlined />}
                                 loading={adding}
                             >
-                                Add
+                                Add credit
                             </Button>
                         </Flex>
                     </Form>
 
-                    <Typography.Text style={{ display: 'block', marginTop: 36, marginBottom: 12, color: copyThat.pink, fontWeight: 700 }}>
-                        What kinds of projects will you work on?
-                    </Typography.Text>
+                    <p className="onboarding-section">What kinds of projects will you work on?</p>
                     <ProjectTypeField
                         disciplines={catalog.disciplines}
                         projectTypes={catalog.projectTypes}
@@ -542,9 +542,7 @@ export function OnboardingExperience() {
                         onChange={changeTypes}
                     />
 
-                    <Typography.Text style={{ display: 'block', marginTop: 36, marginBottom: 12, color: copyThat.pink, fontWeight: 700 }}>
-                        Your track record
-                    </Typography.Text>
+                    <p className="onboarding-section">Your track record</p>
                     <Form
                         form={statsForm}
                         className="profile-form"
@@ -624,10 +622,6 @@ export function OnboardingExperience() {
                             icon={<ArrowRightOutlined />}
                             iconPlacement="end"
                             onClick={() => void onContinue()}
-                            style={{
-                                background: `linear-gradient(90deg, ${copyThat.pinkHot} 0%, ${copyThat.pink} 100%)`,
-                                border: 'none',
-                            }}
                         >
                             Continue — upload media
                         </Button>

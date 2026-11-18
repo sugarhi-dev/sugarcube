@@ -44,5 +44,6 @@ type _hideMediaOwner = Expect<Hidden<ClientUserMedia, 'user_account_id'>>;
 type _hideAvailabilityOwner = Expect<Hidden<ClientUserAvailability, 'user_account_id'>>;
 type _hideMediaOrder = Expect<Hidden<ClientUserMedia, 'sort_order'>>;
 type _hideMediaThumbnail = Expect<Hidden<ClientUserMedia, 'thumbnail'>>;
+type _hideMediaStreamUrl = Expect<Hidden<ClientUserMedia, 'stream_url'>>;
 type _hideLatitude = Expect<Hidden<ClientProductionCity, 'latitude'>>;
 type _hideLongitude = Expect<Hidden<ClientProductionCity, 'longitude'>>;

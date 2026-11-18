@@ -3,7 +3,6 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { RequireSession } from './components/RequireSession.tsx';
 import { SignedIn } from './components/SignedIn.tsx';
 import { CallbackPage } from './pages/CallbackPage.tsx';
-import { HomePage } from './pages/HomePage.tsx';
 import { OnboardingAccountType, onboardingAccountTypePath } from './pages/onboarding/OnboardingAccountType.tsx';
 import { OnboardingBasic, onboardingBasicPath } from './pages/onboarding/OnboardingBasic.tsx';
 import { OnboardingExperience, onboardingExperiencePath } from './pages/onboarding/OnboardingExperience.tsx';
@@ -23,7 +22,7 @@ export function App() {
                 <BrowserRouter basename={basename}>
                     <Routes>
                         <Route element={<RequireSession><SignedIn /></RequireSession>}>
-                            <Route path="/" element={<HomePage />} />
+                            <Route path="/" element={<ProfilePage />} />
                             <Route path={profilePath} element={<ProfilePage />} />
                             <Route path={onboardingAccountTypePath} element={<OnboardingAccountType />} />
                             <Route path={onboardingBasicPath} element={<OnboardingBasic />} />

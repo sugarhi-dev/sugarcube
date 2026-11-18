@@ -8,9 +8,11 @@ type UserMediaRow = {
     ref: string;
     thumbnail: string | null;
     sort_order: number;
+    status: UserMedia['status'];
+    stream_url: string | null;
 };
 
-const mediaColumns = 'id, user_account_id, media_type, ref, thumbnail, sort_order';
+const mediaColumns = 'id, user_account_id, media_type, ref, thumbnail, sort_order, status, stream_url';
 
 export class UserMediaRepo extends Repository {
     constructor(database: Database) {
@@ -53,10 +55,10 @@ export class UserMediaRepo extends Repository {
             );
             const sortOrder = Number(next.rows[0]?.sort_order ?? 0);
             const result = await query<UserMediaRow>(
-                `INSERT INTO user_media (id, user_account_id, media_type, ref, thumbnail, sort_order)
-                 VALUES ($1, $2, $3, $4, $5, $6)
+                `INSERT INTO user_media (id, user_account_id, media_type, ref, thumbnail, sort_order, status)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                  RETURNING ${mediaColumns}`,
-                [media.id, media.user_account_id, media.media_type, media.ref, media.thumbnail, sortOrder],
+                [media.id, media.user_account_id, media.media_type, media.ref, media.thumbnail, sortOrder, media.status],
             );
             return requiredRow(result.rows[0], `insert user_media ${media.id}`);
         });
@@ -128,6 +130,35 @@ export class UserMediaRepo extends Repository {
         );
         const row = result.rows[0];
         return row ? UserMediaSchema.parse(row) : null;
+    }
+
+    async markStreamReady(ctx: Context, id: string, streamUrl: string): Promise<UserMedia | null> {
+        this.log.trace(`${ctx.traceId} ready user_media ${id}`);
+        const result = await this.database.query<UserMediaRow>(
+            `UPDATE user_media
+             SET status = 'ready',
+                 stream_url = $2,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status = 'pending'
+             RETURNING ${mediaColumns}`,
+            [id, streamUrl],
+        );
+        const updated = result.rows[0];
+        if (updated) {
+            return UserMediaSchema.parse(updated);
+        }
+
+        const current = await this.database.query<UserMediaRow>(
+            `SELECT ${mediaColumns}
+             FROM user_media
+             WHERE id = $1`,
+            [id],
+        );
+        const existing = current.rows[0];
+        if (existing?.status === 'ready' && existing.stream_url === streamUrl) {
+            return UserMediaSchema.parse(existing);
+        }
+        return null;
     }
 }
 

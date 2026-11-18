@@ -21,6 +21,7 @@ export type BinaryObject = {
 };
 
 export class Binary extends Base {
+    private readonly endpoint: string;
     private readonly bucket: string;
     private readonly client: S3Client;
 
@@ -31,6 +32,7 @@ export class Binary extends Base {
         const accessKeyId = config.get('AWS_ACCESS_KEY_ID');
         const secretAccessKey = config.get('AWS_SECRET_ACCESS_KEY');
 
+        this.endpoint = endpoint;
         this.bucket = bucket;
         this.client = new S3Client({
             endpoint,
@@ -82,6 +84,14 @@ export class Binary extends Base {
             }
             throw failure(error, 'sign');
         }
+    }
+
+    async presignGetAbsolute(id: string, expiresInSeconds: number): Promise<string | null> {
+        const objectPath = await this.presignGet(id, expiresInSeconds);
+        if (!objectPath) {
+            return null;
+        }
+        return new URL(objectPath, this.endpoint).toString();
     }
 
     async load(id: string): Promise<BinaryObject | null> {

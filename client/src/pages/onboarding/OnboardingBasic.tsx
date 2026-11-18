@@ -160,18 +160,20 @@ export function OnboardingBasic() {
                 That's it — no company or billing needed for a basic account. Add them later in Settings.
             </Typography.Paragraph>
 
-            <button type="button" className="basic-photo-pick" onClick={() => fileRef.current?.click()}>
+            <button
+                type="button"
+                className="basic-photo-pick"
+                aria-label={preview ? 'Change profile photo' : 'Add a profile photo'}
+                onClick={() => fileRef.current?.click()}
+            >
                 <span className="basic-photo-ring">
                     {preview ? <img src={preview} alt="Profile photo" /> : <CameraOutlined />}
                 </span>
-                <span>
-                    <Typography.Text strong style={{ display: 'block', fontSize: 14 }}>
-                        {preview ? 'Change profile photo' : 'Add a profile photo'}
-                    </Typography.Text>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        JPG or PNG · at least 400×400px
-                    </Typography.Text>
+                <span className="basic-photo-copy">
+                    <span className="basic-photo-title">Profile photo</span>
+                    <span className="basic-photo-hint">JPG or PNG · at least 400×400px</span>
                 </span>
+                <span className="basic-photo-action">Change photo</span>
             </button>
             <input
                 ref={fileRef}

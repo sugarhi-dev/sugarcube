@@ -1,40 +1,92 @@
 import {
+    ArrowLeftOutlined,
     ArrowRightOutlined,
+    CameraOutlined,
     CaretRightFilled,
-    PictureFilled,
-    VideoCameraFilled,
-    EllipsisOutlined,
+    CheckOutlined,
+    DeleteOutlined,
+    EditOutlined,
     EnvironmentOutlined,
-    HeartOutlined,
-    InfoCircleOutlined,
-    MinusOutlined,
+    ExportOutlined,
+    LinkOutlined,
+    MailOutlined,
+    PhoneOutlined,
+    PictureOutlined,
+    PlaySquareOutlined,
     PlusOutlined,
+    SendOutlined,
     ShareAltOutlined,
+    UploadOutlined,
+    VideoCameraOutlined,
 } from '@ant-design/icons';
-import { mediaUrl, type Currency, type Project, type UserMedia } from '@sugarcube/schema';
-import { App as AntdApp, Button, DatePicker, Dropdown, Result, Spin, Switch, Tooltip } from 'antd';
-import { PhotoLightbox } from './PhotoLightbox.tsx';
-import type { MenuProps } from 'antd';
-import { useEffect, useMemo, useState } from 'react';
-import { listCurrencies, listPositions, listProductionCities } from '../../api/catalog.ts';
-import { ApiError } from '../../api/http.ts';
-import { getMediaThumbnail, listMedia } from '../../api/media.ts';
+import { classifyMediaLink, mediaUrl, type Currency, type Project, type ProjectType, type UserAvailability, type UserMedia } from '@sugarcube/schema';
+import { App as AntdApp, Button, ConfigProvider, Flex, Form, Input, InputNumber, Modal, Progress, Radio, Result, Select, Spin, Switch, Typography, type InputRef } from 'antd';
+import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useNavigate } from 'react-router';
 import {
-    getMe,
+    listCurrencies,
+    listDisciplines,
+    listPositions,
+    listProductionCities,
+    listProjectTypes,
+    type Discipline,
+    type Position,
+    type ProductionCity,
+} from '../../api/catalog.ts';
+import { listAvailability } from '../../api/availability.ts';
+import { createMedia, deleteMedia, getMediaThumbnail, listMedia, updateMedia, uploadMedia, uploadPhoto } from '../../api/media.ts';
+import {
     getProfilePhotoUrl,
     getWorkProfile,
     listLocales,
-    type CurrentUser,
+    returnToStep,
+    saveBasic,
+    saveSetup,
+    submitProfile,
+    uploadProfilePhoto,
+    type SetupCity,
     type UnionStatus,
 } from '../../api/me.ts';
-import { listProjects } from '../../api/projects.ts';
+import {
+    createProject,
+    deleteProject,
+    listProjectProjectTypes,
+    listProjects,
+    updateProject,
+    updateProjectProjectTypes,
+} from '../../api/projects.ts';
 import { Frame } from '../../components/Frame.tsx';
+import { MediaMark } from '../../components/MediaMark.tsx';
 import { ProjectCredit, projectFacts } from '../../components/ProjectCredit.tsx';
-import { useAppSelector, useSession } from '../../store/hooks.ts';
+import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
+import { profileLoaded } from '../../store/profileSlice.ts';
+import { copyThat, onboardingTheme } from '../../theme.ts';
+import { AvailabilityCalendar } from '../onboarding/AvailabilityCalendar.tsx';
+import { fileDragKind, fileDropHandlers, imageFile, isFileDrag, useKeepFileDrop } from '../onboarding/fileDrop.ts';
+import { LocaleField } from '../onboarding/LocaleField.tsx';
+import { ProjectTypeField } from '../onboarding/ProjectTypeField.tsx';
+import { onboardingMediaPath } from '../onboarding/OnboardingMedia.tsx';
+import { PhotoLightbox } from './PhotoLightbox.tsx';
 
 export const profilePath = '/profile';
 
-const bookingFeeRate = 0.08;
+export type ProfilePageProps = {
+    onboarding?: boolean;
+    framed?: boolean;
+};
+
+const minimumMedia = 2;
+const bioLimit = 300;
+const titleLimit = 120;
+const thumbnailLimit = 8 * 1024 * 1024;
+const photoLimit = 8 * 1024 * 1024;
+const videoLimit = 200 * 1024 * 1024;
+
+const unionOptions: Array<{ value: UnionStatus; label: string }> = [
+    { value: 'union', label: 'Union' },
+    { value: 'non_union', label: 'Non-Union' },
+    { value: 'either', label: 'Either' },
+];
 
 const unionLabels: Record<UnionStatus, string> = {
     union: 'Union',
@@ -50,255 +102,199 @@ const currencySymbols: Record<string, string> = {
     CNY: '¥',
 };
 
-type Credit = {
-    id: string;
-    name: string;
-    date: string;
-    position: string | null;
-    company: string | null;
-    leadProducer: string;
-    leadProducerEmail: string | null;
-};
+const disciplineOrder = ['Shooting', 'Post Production'];
 
-type DateWindow = {
-    start: string | null;
-    end: string | null;
-};
-
-type ProfilePaths = {
-    media: string;
-    projects: string;
-    locales: string;
-    workProfile: string;
-    photo: string;
-    thumbnail: (id: string) => string;
-};
-
-const ownPaths: ProfilePaths = {
-    media: '/api/me/media',
-    projects: '/api/me/projects',
-    locales: '/api/me/locales',
-    workProfile: '/api/me/work-profile',
-    photo: '/api/me/photo/url',
-    thumbnail: (id) => `/api/me/media/${encodeURIComponent(id)}/thumbnail`,
-};
-
-type ProfileSnapshot = {
+type ReviewData = {
     media: UserMedia[];
-    credits: Credit[];
-    positionNames: string[];
-    unionLabel: string | null;
+    projects: Project[];
+    projectTypes: ProjectType[];
+    disciplines: Discipline[];
+    positions: Position[];
+    currencies: Currency[];
+    cities: ProductionCity[];
+    disciplineId: string;
+    positionId: string;
+    unionStatus: UnionStatus;
     dayRate: number | null;
-    currency: Currency | undefined;
+    currencyId: string | null;
     flatFee: boolean;
     projectsCompleted: number | null;
     yearsInBusiness: number | null;
     responseTimeHours: number | null;
-    homeCity: string | null;
-    otherCities: string[];
+    locales: SetupCity[];
+    availability: UserAvailability[];
 };
 
-export type ProfilePageProps = {
-    userId?: string;
-    accessToken?: string;
-    embedded?: boolean;
-    titleSuffix?: string;
+type ProfileEditValues = {
+    phone: string;
+    title: string;
+    bio: string;
+    discipline_id: string;
+    position_id: string;
+    day_rate: number | string | null;
+    currency_id: string;
+    union_status: UnionStatus;
+    flat_fee: boolean;
+    locales: SetupCity[];
 };
 
-export function ProfilePage({
-    userId,
-    accessToken,
-    embedded = false,
-    titleSuffix = 'CopyThat',
-}: ProfilePageProps = {}) {
-    if (userId) {
-        return (
-            <ProfileForUser
-                userId={userId}
-                accessToken={accessToken ?? null}
-                embedded={embedded}
-                titleSuffix={titleSuffix}
-            />
-        );
-    }
-    return <OwnProfilePage />;
-}
+type CreditFormValues = {
+    name: string;
+    position_id: string;
+    lead_producer_name: string;
+    lead_producer_email: string;
+    date: string;
+    production_company?: string;
+};
 
-function OwnProfilePage() {
+export function ProfilePage({ onboarding = false, framed = true }: ProfilePageProps = {}) {
+    const navigate = useNavigate();
+    const dispatch = useAppDispatch();
     const session = useSession();
     const user = useAppSelector((state) => state.profile.user);
-    return (
-        <ProfileScreen
-            accessToken={session?.accessToken ?? null}
-            user={user}
-            paths={ownPaths}
-            framed
-            titleSuffix="CopyThat"
-        />
-    );
-}
-
-function ProfileForUser({
-    userId,
-    accessToken,
-    embedded,
-    titleSuffix,
-}: {
-    userId: string;
-    accessToken: string | null;
-    embedded: boolean;
-    titleSuffix: string;
-}) {
-    const [user, setUser] = useState<CurrentUser | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [attempt, setAttempt] = useState(0);
-    const paths = useMemo(() => profilePaths(userId), [userId]);
-
-    useEffect(() => {
-        if (!accessToken) {
-            return;
-        }
-
-        let active = true;
-        setUser(null);
-        setError(null);
-        void getMe(accessToken, `/api/admin/users/${encodeURIComponent(userId)}`)
-            .then((row) => {
-                if (active) {
-                    setUser(row);
-                }
-            })
-            .catch((cause: unknown) => {
-                if (active) {
-                    setError(cause instanceof Error ? cause.message : 'Could not load this profile.');
-                }
-            });
-
-        return () => {
-            active = false;
-        };
-    }, [accessToken, attempt, userId]);
-
-    if (!accessToken) {
-        return null;
-    }
-    if (error) {
-        return (
-            <Result
-                status="error"
-                title="Could not load this profile"
-                subTitle={error}
-                extra={(
-                    <Button type="primary" onClick={() => setAttempt((value) => value + 1)}>
-                        Try again
-                    </Button>
-                )}
-            />
-        );
-    }
-
-    return (
-        <ProfileScreen
-            accessToken={accessToken}
-            user={user}
-            paths={paths}
-            framed={!embedded}
-            titleSuffix={titleSuffix}
-        />
-    );
-}
-
-function profilePaths(userId: string): ProfilePaths {
-    const root = `/api/admin/users/${encodeURIComponent(userId)}`;
-    return {
-        media: `${root}/media`,
-        projects: `${root}/projects`,
-        locales: `${root}/locales`,
-        workProfile: `${root}/work-profile`,
-        photo: `${root}/photo/url`,
-        thumbnail: (id) => `${root}/media/${encodeURIComponent(id)}/thumbnail`,
-    };
-}
-
-function ProfileScreen({
-    accessToken,
-    user,
-    paths,
-    framed,
-    titleSuffix,
-}: {
-    accessToken: string | null;
-    user: CurrentUser | null;
-    paths: ProfilePaths;
-    framed: boolean;
-    titleSuffix: string;
-}) {
+    const readOnly = user?.status === 'admin-review';
     const { message } = AntdApp.useApp();
-    const [snapshot, setSnapshot] = useState<ProfileSnapshot | null>(null);
+    const [data, setData] = useState<ReviewData | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [attempt, setAttempt] = useState(0);
+    const [submitting, setSubmitting] = useState(false);
+    const [returning, setReturning] = useState(false);
     const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-    const [showAllMedia, setShowAllMedia] = useState(false);
     const [enlargedPhotoId, setEnlargedPhotoId] = useState<string | null>(null);
-    const [saved, setSaved] = useState(false);
+    const [editingProfile, setEditingProfile] = useState(false);
+    const [savingProfile, setSavingProfile] = useState(false);
+    const [linkOpen, setLinkOpen] = useState(false);
+    const [uploadOpen, setUploadOpen] = useState(false);
+    const [photoOpen, setPhotoOpen] = useState(false);
+    const [photoFile, setPhotoFile] = useState<File | null>(null);
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const [photoError, setPhotoError] = useState<string | null>(null);
+    const [photoOver, setPhotoOver] = useState(false);
+    const [videoFile, setVideoFile] = useState<File | null>(null);
+    const [videoType, setVideoType] = useState<string | null>(null);
+    const [videoError, setVideoError] = useState<string | null>(null);
+    const [uploading, setUploading] = useState(false);
+    const [uploadPercent, setUploadPercent] = useState(0);
+    const [link, setLink] = useState('');
+    const [linkError, setLinkError] = useState<string | null>(null);
+    const [thumbFile, setThumbFile] = useState<File | null>(null);
+    const [thumbPreview, setThumbPreview] = useState<string | null>(null);
+    const [thumbError, setThumbError] = useState<string | null>(null);
+    const [videoOver, setVideoOver] = useState(false);
+    const [thumbOver, setThumbOver] = useState(false);
+    const [addingMedia, setAddingMedia] = useState(false);
+    const [removingMediaId, setRemovingMediaId] = useState<string | null>(null);
+    const [editingMediaId, setEditingMediaId] = useState<string | null>(null);
+    const [editUrl, setEditUrl] = useState('');
+    const [editError, setEditError] = useState<string | null>(null);
+    const [savingMediaId, setSavingMediaId] = useState<string | null>(null);
+    const [creditForm] = Form.useForm<CreditFormValues>();
+    const [addingCredit, setAddingCredit] = useState(false);
+    const [editingCreditId, setEditingCreditId] = useState<string | null>(null);
+    const [editingExperience, setEditingExperience] = useState(false);
+    const addCreditTitleRef = useRef<InputRef>(null);
+    const [savingCreditId, setSavingCreditId] = useState<string | null>(null);
+    const [removingCreditId, setRemovingCreditId] = useState<string | null>(null);
+    const [selectedTypeIds, setSelectedTypeIds] = useState<string[]>([]);
+    const mediaRef = useRef<UserMedia[]>([]);
+    const projectsRef = useRef<Project[]>([]);
+    const selectedTypeIdsRef = useRef<string[]>([]);
+    const writes = useRef(Promise.resolve());
+    const saveQueue = useRef(Promise.resolve());
+    const thumbRef = useRef<HTMLInputElement>(null);
+    const videoRef = useRef<HTMLInputElement>(null);
+    const uploadThumbRef = useRef<HTMLInputElement>(null);
+    const photoRef = useRef<HTMLInputElement>(null);
+    const uploadAbort = useRef<AbortController | null>(null);
 
     useEffect(() => {
-        document.title = `${profileHeading(user)} — ${titleSuffix}`;
-    }, [titleSuffix, user]);
+        if (onboarding) {
+            return;
+        }
+        const name = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Profile';
+        document.title = `${user?.title?.trim() || name} — CopyThat`;
+    }, [onboarding, user]);
 
     useEffect(() => {
-        if (!accessToken) {
+        if (editingExperience) {
+            addCreditTitleRef.current?.focus();
+        }
+    }, [editingExperience]);
+
+    useKeepFileDrop(uploadOpen || linkOpen || photoOpen);
+
+    useEffect(() => {
+        if (!uploadOpen && !linkOpen && !photoOpen) {
+            setVideoOver(false);
+            setThumbOver(false);
+            setPhotoOver(false);
+        }
+    }, [uploadOpen, linkOpen, photoOpen]);
+
+    useEffect(() => {
+        if (!session) {
             return;
         }
 
-        const token = accessToken;
+        const token = session.accessToken;
         let active = true;
-        setSnapshot(null);
+        setData(null);
         setLoadError(null);
 
         void (async () => {
             try {
-                const [media, projects, positions, currencies, cities, locales, rates] = await Promise.all([
-                    listMedia(token, paths.media),
-                    listProjects(token, paths.projects),
+                const [media, projects, projectTypes, positions, currencies, cities, locales, rates, disciplines, availability] = await Promise.all([
+                    listMedia(token),
+                    listProjects(token),
+                    listProjectTypes(token),
                     listPositions(token),
                     listCurrencies(token),
                     listProductionCities(token),
-                    listLocales(token, paths.locales),
-                    loadRates(token, paths.workProfile),
+                    listLocales(token),
+                    getWorkProfile(token),
+                    listDisciplines(token),
+                    listAvailability(token),
                 ]);
+                const links = await Promise.all(projects.map((project) => listProjectProjectTypes(token, project.id)));
                 if (!active) {
                     return;
                 }
-                const currency = currencies.find((row) => row.id === rates?.currency_id);
                 const home = locales.find((locale) => locale.home_city) ?? null;
-                const ordered = [
+                const orderedLocales = [
                     ...(home ? [home] : []),
                     ...locales.filter((locale) => locale !== home),
                 ];
-                const named = ordered.flatMap((locale) => {
-                    const name = cities.find((city) => city.id === locale.production_city_id)?.name;
-                    return name ? [name] : [];
-                });
-                const positionName = positions.find((position) => position.id === rates?.position_id)?.name;
-                const positionNames = positionName ? [positionName] : [];
-                setSnapshot({
+                const typeIds = [...new Set(links.flat().map((link) => link.project_type_id))];
+                mediaRef.current = media;
+                projectsRef.current = projects;
+                selectedTypeIdsRef.current = typeIds;
+                setSelectedTypeIds(typeIds);
+                setData({
                     media,
-                    credits: projects.map((project) => toCredit(project, positions)),
-                    positionNames,
-                    unionLabel: rates ? unionLabels[rates.union_status] : null,
-                    dayRate: rates?.day_rate ?? null,
-                    currency,
-                    flatFee: rates?.flat_fee ?? false,
-                    projectsCompleted: rates?.projects_completed ?? null,
-                    yearsInBusiness: rates?.years_in_business ?? null,
-                    responseTimeHours: rates?.response_time_hours ?? null,
-                    homeCity: named[0] ?? null,
-                    otherCities: named.slice(1),
+                    projects,
+                    projectTypes,
+                    disciplines: orderNamed(disciplines, disciplineOrder),
+                    positions,
+                    currencies,
+                    cities,
+                    disciplineId: rates.discipline_id ?? '',
+                    positionId: rates.position_id ?? '',
+                    unionStatus: rates.union_status,
+                    dayRate: rates.day_rate,
+                    currencyId: rates.currency_id,
+                    flatFee: rates.flat_fee,
+                    projectsCompleted: rates.projects_completed,
+                    yearsInBusiness: rates.years_in_business,
+                    responseTimeHours: rates.response_time_hours,
+                    locales: orderedLocales.map((locale) => ({
+                        production_city_id: locale.production_city_id,
+                        home_city: locale.home_city,
+                    })),
+                    availability,
                 });
             } catch (error: unknown) {
                 if (active) {
-                    setLoadError(error instanceof Error ? error.message : 'Could not load this profile.');
+                    setLoadError(error instanceof Error ? error.message : 'Could not load your profile.');
                 }
             }
         })();
@@ -306,18 +302,18 @@ function ProfileScreen({
         return () => {
             active = false;
         };
-    }, [accessToken, attempt, paths]);
+    }, [attempt, session]);
 
     useEffect(() => {
-        if (!accessToken || !user?.photo) {
+        if (!session || !user?.photo) {
             setPhotoUrl(null);
             return;
         }
 
-        const token = accessToken;
+        const token = session.accessToken;
         let active = true;
         setPhotoUrl(null);
-        void getProfilePhotoUrl(token, paths.photo).then((link) => {
+        void getProfilePhotoUrl(token).then((link) => {
             if (active) {
                 setPhotoUrl(link.url);
             }
@@ -330,65 +326,601 @@ function ProfileScreen({
         return () => {
             active = false;
         };
-    }, [accessToken, paths.photo, user?.photo]);
+    }, [session, user?.photo]);
 
-    async function onShare(): Promise<void> {
-        const url = window.location.href;
+    useEffect(() => {
+        if (!thumbFile) {
+            setThumbPreview(null);
+            return;
+        }
+        const url = URL.createObjectURL(thumbFile);
+        setThumbPreview(url);
+        return () => {
+            URL.revokeObjectURL(url);
+        };
+    }, [thumbFile]);
+
+    useEffect(() => {
+        if (!photoFile) {
+            setPhotoPreview(null);
+            return;
+        }
+        const url = URL.createObjectURL(photoFile);
+        setPhotoPreview(url);
+        return () => {
+            URL.revokeObjectURL(url);
+        };
+    }, [photoFile]);
+
+    function rememberMedia(next: UserMedia[]): void {
+        mediaRef.current = next;
+        setData((current) => current ? { ...current, media: next } : current);
+    }
+
+    function rememberProjects(next: Project[]): void {
+        projectsRef.current = next;
+        setData((current) => current ? { ...current, projects: next } : current);
+    }
+
+    function rememberTypeIds(typeIds: string[]): void {
+        selectedTypeIdsRef.current = typeIds;
+        setSelectedTypeIds(typeIds);
+    }
+
+    function enqueue(task: () => Promise<void>): void {
+        writes.current = writes.current.then(task, task).catch((error: unknown) => {
+            message.error(error instanceof Error ? error.message : 'Could not save your media.');
+            setAttempt((value) => value + 1);
+        });
+    }
+
+    async function onBack(): Promise<void> {
+        if (!session || returning) {
+            return;
+        }
+
+        setReturning(true);
         try {
-            if (navigator.share) {
-                await navigator.share({ title: document.title, url });
-                return;
+            await writes.current;
+            await saveQueue.current;
+            const updated = await returnToStep(session.accessToken, 'media');
+            dispatch(profileLoaded({ user: updated, forSubject: session.profile.subject }));
+            navigate(onboardingMediaPath);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not go back.');
+        } finally {
+            setReturning(false);
+        }
+    }
+
+    async function onSubmit(): Promise<void> {
+        if (!session || submitting) {
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            await writes.current;
+            await saveQueue.current;
+            const updated = await submitProfile(session.accessToken);
+            dispatch(profileLoaded({ user: updated, forSubject: session.profile.subject }));
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not submit your profile.');
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    async function onSaveProfile(values: ProfileEditValues, photoFile: File | null): Promise<void> {
+        if (!session) {
+            return;
+        }
+        const dayRate = readRate(values.day_rate);
+        if (dayRate === null) {
+            return;
+        }
+
+        setSavingProfile(true);
+        try {
+            if (photoFile) {
+                const withPhoto = await uploadProfilePhoto(session.accessToken, photoFile);
+                dispatch(profileLoaded({ user: withPhoto, forSubject: session.profile.subject }));
             }
-        } catch (error: unknown) {
-            if (error instanceof DOMException && error.name === 'AbortError') {
-                return;
-            }
+            const saved = await saveBasic(session.accessToken, {
+                phone: values.phone.trim(),
+                bio: values.bio.trim(),
+                title: values.title.trim(),
+            });
+            dispatch(profileLoaded({ user: saved, forSubject: session.profile.subject }));
+            const rounded = Math.round(dayRate * 100) / 100;
+            const updated = await saveSetup(session.accessToken, {
+                discipline_id: values.discipline_id,
+                position_id: values.position_id,
+                day_rate: rounded,
+                currency_id: values.currency_id,
+                union_status: values.union_status,
+                flat_fee: values.flat_fee,
+                cities: values.locales,
+            });
+            dispatch(profileLoaded({ user: updated, forSubject: session.profile.subject }));
+            setData((current) => current ? {
+                ...current,
+                disciplineId: values.discipline_id,
+                positionId: values.position_id,
+                unionStatus: values.union_status,
+                dayRate: rounded,
+                currencyId: values.currency_id,
+                flatFee: values.flat_fee,
+                locales: values.locales,
+            } : current);
+            setEditingProfile(false);
+            message.success('Profile updated.');
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not update your profile.');
+        } finally {
+            setSavingProfile(false);
+        }
+    }
+
+    function openLinkDialog(): void {
+        if (uploading) {
+            return;
+        }
+        setLink('');
+        setLinkError(null);
+        setThumbFile(null);
+        setThumbError(null);
+        setUploadOpen(false);
+        setLinkOpen(true);
+    }
+
+    function openUploadDialog(): void {
+        if (uploading) {
+            return;
+        }
+        setVideoFile(null);
+        setVideoType(null);
+        setVideoError(null);
+        setThumbFile(null);
+        setThumbError(null);
+        setUploadPercent(0);
+        setUploadOpen(true);
+    }
+
+    function openPhotoDialog(): void {
+        if (uploading) {
+            return;
+        }
+        setPhotoFile(null);
+        setPhotoError(null);
+        setUploadPercent(0);
+        setPhotoOpen(true);
+    }
+
+    function chooseVideo(file: File): void {
+        const contentType = videoContentType(file);
+        if (!contentType) {
+            setVideoFile(null);
+            setVideoType(null);
+            setVideoError('Use an MP4, MOV, or WebM video.');
+            return;
+        }
+        if (file.size > videoLimit) {
+            setVideoFile(null);
+            setVideoType(null);
+            setVideoError('Use a video smaller than 200 MB.');
+            return;
+        }
+        setVideoError(null);
+        setVideoType(contentType);
+        setVideoFile(file);
+    }
+
+    async function chooseThumbnail(file: File): Promise<void> {
+        const image = imageFile(file);
+        if (!image) {
+            setThumbError('Use a JPG or PNG thumbnail.');
+            return;
+        }
+        if (image.size > thumbnailLimit) {
+            setThumbError('Use a thumbnail smaller than 8 MB.');
+            return;
         }
         try {
-            await navigator.clipboard.writeText(url);
+            const bitmap = await createImageBitmap(image);
+            bitmap.close();
+        } catch {
+            setThumbError('Could not read that thumbnail.');
+            return;
+        }
+        setThumbError(null);
+        setThumbFile(image);
+    }
+
+    function takeDropped(file: File): void {
+        if (videoContentType(file)) {
+            chooseVideo(file);
+            return;
+        }
+        if (imageFile(file)) {
+            void chooseThumbnail(file);
+            return;
+        }
+        setVideoError('Use an MP4, MOV, or WebM video.');
+    }
+
+    function onUploadDragOver(event: DragEvent<HTMLDivElement>): void {
+        if (!isFileDrag(event.dataTransfer)) {
+            return;
+        }
+        event.preventDefault();
+        if (uploading) {
+            event.dataTransfer.dropEffect = 'none';
+            return;
+        }
+        event.dataTransfer.dropEffect = 'copy';
+        if (event.target !== event.currentTarget) {
+            return;
+        }
+        const kind = fileDragKind(event.dataTransfer);
+        if (kind === 'image') {
+            setThumbOver(true);
+            setVideoOver(false);
+        } else if (kind === 'video') {
+            setVideoOver(true);
+            setThumbOver(false);
+        }
+    }
+
+    function onUploadDrop(event: DragEvent<HTMLDivElement>): void {
+        const file = event.dataTransfer.files[0];
+        if (!file && !isFileDrag(event.dataTransfer)) {
+            return;
+        }
+        event.preventDefault();
+        setVideoOver(false);
+        setThumbOver(false);
+        if (uploading || !file) {
+            return;
+        }
+        takeDropped(file);
+    }
+
+    function leaveDrop(event: DragEvent<HTMLDivElement>): void {
+        const next = event.relatedTarget;
+        if (next instanceof Node && event.currentTarget.contains(next)) {
+            return;
+        }
+        setVideoOver(false);
+        setThumbOver(false);
+    }
+
+    function onThumbDragOver(event: DragEvent<HTMLDivElement>): void {
+        if (!isFileDrag(event.dataTransfer)) {
+            return;
+        }
+        event.preventDefault();
+        if (addingMedia) {
+            event.dataTransfer.dropEffect = 'none';
+            return;
+        }
+        event.dataTransfer.dropEffect = 'copy';
+        if (event.target === event.currentTarget && fileDragKind(event.dataTransfer) === 'image') {
+            setThumbOver(true);
+        }
+    }
+
+    function onThumbDrop(event: DragEvent<HTMLDivElement>): void {
+        const file = event.dataTransfer.files[0];
+        if (!file && !isFileDrag(event.dataTransfer)) {
+            return;
+        }
+        event.preventDefault();
+        setThumbOver(false);
+        if (addingMedia || !file) {
+            return;
+        }
+        void chooseThumbnail(file);
+    }
+
+    async function onAddLink(): Promise<void> {
+        if (!session || addingMedia) {
+            return;
+        }
+        const parsed = classifyMediaLink(link);
+        if (!parsed) {
+            setLinkError('Paste a YouTube or Vimeo link.');
+            return;
+        }
+        if (!thumbFile) {
+            setThumbError('Choose a JPG or PNG thumbnail.');
+            return;
+        }
+
+        setLinkError(null);
+        setThumbError(null);
+        setAddingMedia(true);
+        try {
+            await writes.current;
+            const created = await createMedia(session.accessToken, parsed.url, thumbFile);
+            rememberMedia([...mediaRef.current, created]);
+            setLinkOpen(false);
+        } catch (error: unknown) {
+            message.error(error instanceof Error ? error.message : 'Could not add that video.');
+        } finally {
+            setAddingMedia(false);
+        }
+    }
+
+    async function onUpload(): Promise<void> {
+        if (!session || uploading || !videoFile || !videoType) {
+            return;
+        }
+        if (!thumbFile) {
+            setThumbError('Choose a JPG or PNG thumbnail.');
+            return;
+        }
+
+        const controller = new AbortController();
+        uploadAbort.current = controller;
+        setVideoError(null);
+        setUploadPercent(0);
+        setUploading(true);
+        try {
+            await writes.current;
+            const created = await uploadMedia(
+                session.accessToken,
+                videoFile,
+                videoType,
+                thumbFile,
+                setUploadPercent,
+                controller.signal,
+            );
+            rememberMedia([...mediaRef.current, created]);
+            setUploadOpen(false);
+        } catch (error: unknown) {
+            if (isAbort(error)) {
+                setUploadOpen(false);
+                return;
+            }
+            message.error(error instanceof Error ? error.message : 'Could not upload that video.');
+        } finally {
+            uploadAbort.current = null;
+            setUploading(false);
+        }
+    }
+
+    function closeUpload(): void {
+        if (uploading) {
+            uploadAbort.current?.abort();
+            return;
+        }
+        setUploadOpen(false);
+    }
+
+    async function choosePhoto(file: File): Promise<void> {
+        const image = imageFile(file);
+        if (!image) {
+            setPhotoFile(null);
+            setPhotoError('Use a JPG or PNG photo.');
+            return;
+        }
+        if (image.size > photoLimit) {
+            setPhotoFile(null);
+            setPhotoError('Use a photo smaller than 8 MB.');
+            return;
+        }
+        try {
+            const bitmap = await createImageBitmap(image);
+            bitmap.close();
+        } catch {
+            setPhotoFile(null);
+            setPhotoError('Could not read that photo.');
+            return;
+        }
+        setPhotoError(null);
+        setPhotoFile(image);
+    }
+
+    async function onUploadPhoto(): Promise<void> {
+        if (!session || uploading || !photoFile) {
+            return;
+        }
+
+        const controller = new AbortController();
+        uploadAbort.current = controller;
+        setPhotoError(null);
+        setUploadPercent(0);
+        setUploading(true);
+        try {
+            await writes.current;
+            const created = await uploadPhoto(
+                session.accessToken,
+                photoFile,
+                photoFile.type,
+                setUploadPercent,
+                controller.signal,
+            );
+            rememberMedia([...mediaRef.current, created]);
+            setPhotoOpen(false);
+        } catch (error: unknown) {
+            if (isAbort(error)) {
+                setPhotoOpen(false);
+                return;
+            }
+            message.error(error instanceof Error ? error.message : 'Could not upload that photo.');
+        } finally {
+            uploadAbort.current = null;
+            setUploading(false);
+        }
+    }
+
+    function closePhoto(): void {
+        if (uploading) {
+            uploadAbort.current?.abort();
+            return;
+        }
+        setPhotoOpen(false);
+    }
+
+    function onRemoveMedia(id: string): void {
+        if (!session || removingMediaId) {
+            return;
+        }
+        const token = session.accessToken;
+        if (editingMediaId === id) {
+            setEditingMediaId(null);
+        }
+        rememberMedia(mediaRef.current.filter((item) => item.id !== id));
+        setRemovingMediaId(id);
+        enqueue(async () => {
+            try {
+                await deleteMedia(token, id);
+            } finally {
+                setRemovingMediaId((current) => current === id ? null : current);
+            }
+        });
+    }
+
+    function onEditMedia(item: UserMedia): void {
+        setEditingMediaId(item.id);
+        setEditUrl(mediaUrl(item) ?? '');
+        setEditError(null);
+    }
+
+    async function onSaveMedia(id: string): Promise<void> {
+        if (!session || savingMediaId) {
+            return;
+        }
+        const parsed = classifyMediaLink(editUrl);
+        if (!parsed) {
+            setEditError('Paste a YouTube or Vimeo link.');
+            return;
+        }
+
+        const token = session.accessToken;
+        setSavingMediaId(id);
+        setEditError(null);
+        try {
+            await writes.current;
+            const saved = await updateMedia(token, id, parsed.url);
+            rememberMedia(mediaRef.current.map((item) => item.id === id ? saved : item));
+            setEditingMediaId((current) => current === id ? null : current);
+        } catch (error: unknown) {
+            message.error(error instanceof Error ? error.message : 'Could not update that video.');
+        } finally {
+            setSavingMediaId((current) => current === id ? null : current);
+        }
+    }
+
+    async function onShareProfile(): Promise<void> {
+        try {
+            await navigator.clipboard.writeText(window.location.href);
             message.success('Profile link copied.');
         } catch {
             message.error('Could not copy the profile link.');
         }
     }
 
-    function onAdd(): void {
-        message.info("Project requests aren't open yet.");
+    async function onAddCredit(values: CreditFormValues): Promise<void> {
+        if (!session) {
+            return;
+        }
+        setAddingCredit(true);
+        try {
+            const project = await createProject(session.accessToken, creditInput(values));
+            rememberProjects([...projectsRef.current, project]);
+            creditForm.resetFields();
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not add that project.');
+            setAddingCredit(false);
+            return;
+        }
+        try {
+            await persistTypes(saveQueue, projectsRef, selectedTypeIdsRef, session.accessToken);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not update project types.');
+        } finally {
+            setAddingCredit(false);
+        }
     }
 
-    function onMessage(): void {
-        message.info("Messaging isn't available yet.");
+    async function onSaveCredit(project: Project, values: CreditFormValues): Promise<void> {
+        if (!session) {
+            return;
+        }
+        setSavingCreditId(project.id);
+        try {
+            const updated = await updateProject(session.accessToken, project.id, creditInput(values));
+            rememberProjects(projectsRef.current.map((row) => row.id === updated.id ? updated : row));
+            setEditingCreditId(null);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not update that project.');
+        } finally {
+            setSavingCreditId(null);
+        }
     }
 
-    if (!accessToken) {
-        return null;
+    async function onRemoveCredit(project: Project): Promise<void> {
+        if (!session) {
+            return;
+        }
+        setRemovingCreditId(project.id);
+        try {
+            await saveQueue.current;
+            await deleteProject(session.accessToken, project.id);
+            setEditingCreditId((current) => current === project.id ? null : current);
+            rememberProjects(projectsRef.current.filter((row) => row.id !== project.id));
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not remove that project.');
+        } finally {
+            setRemovingCreditId(null);
+        }
     }
 
-    const name = user ? publicName(user.first_name, user.last_name) : 'Profile';
-    const heading = user?.title?.trim() || name;
-    const positionLabel = snapshot && snapshot.positionNames.length > 0 ? snapshot.positionNames.join(' & ') : null;
-    const subtitle = snapshot ? workedOn(snapshot.credits.map((credit) => credit.name)) : null;
-    const rateLabel = snapshot ? formatPerDay(snapshot.dayRate, snapshot.currency) : null;
-    const role = [positionLabel, rateLabel].filter((part): part is string => Boolean(part)).join(' · ');
-    const where = snapshot ? cityLine(snapshot.homeCity, snapshot.otherCities) : null;
-    const visibleMedia = snapshot && !showAllMedia ? snapshot.media.slice(0, 4) : snapshot?.media ?? [];
-    const moreMedia = Boolean(snapshot && snapshot.media.length > 4 && !showAllMedia);
-    const mosaic = !showAllMedia && visibleMedia.length >= 3;
-    const mediaClass = showAllMedia
-        ? 'crew-media is-expanded'
-        : mosaic
-            ? 'crew-media is-mosaic'
-            : visibleMedia.length === 1
-                ? 'crew-media is-single'
-                : 'crew-media is-pair';
-    const moreMenu: MenuProps['items'] = [{ key: 'copy', label: 'Copy profile link' }];
+    function changeTypes(typeIds: string[]): void {
+        if (!session) {
+            return;
+        }
+        rememberTypeIds(typeIds);
+        const token = session.accessToken;
+        void persistTypes(saveQueue, projectsRef, selectedTypeIdsRef, token).catch((error: unknown) => {
+            message.error(error instanceof Error ? error.message : 'Could not update project types.');
+        });
+    }
 
-    const content = (
+    const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Your profile';
+    const heading = user?.title?.trim() || displayName;
+    const positionName = data ? data.positions.find((position) => position.id === data.positionId)?.name ?? null : null;
+    const subtitle = data ? workedOn(data.projects.map((project) => project.name)) : null;
+    const currency = data?.currencies.find((row) => row.id === data.currencyId);
+    const rateLabel = data ? formatPerDay(data.dayRate, currency) : null;
+    const role = [positionName, rateLabel].filter((part): part is string => Boolean(part)).join(' · ');
+    const where = data ? cityLine(data.locales, data.cities) : null;
+    const homeLocale = data?.locales.find((locale) => locale.home_city) ?? data?.locales[0];
+    const homeCity = data?.cities.find((city) => city.id === homeLocale?.production_city_id)?.name ?? null;
+    const appliesTo = [positionName, homeCity].filter((part): part is string => Boolean(part)).join(' · ');
+    const visibleMedia = data?.media ?? [];
+    const mosaic = visibleMedia.length >= 3;
+    const mediaClass = mosaic
+        ? 'crew-media is-mosaic'
+        : visibleMedia.length === 1
+            ? 'crew-media is-single'
+            : 'crew-media is-pair';
+    const viewingLabel = [positionName, homeCity].filter((part): part is string => Boolean(part)).join(' · ');
+    const calendarRate = readOnly && rateLabel
+        ? [rateLabel, positionName].filter((part): part is string => Boolean(part)).join(' · ')
+        : null;
+    const canSubmit = (data?.media.length ?? 0) >= minimumMedia;
+    const positionOptions = data ? positionSelectOptions(data.disciplines, data.positions) : [];
+    const positionById = new Map(data?.positions.map((position) => [position.id, position.name]));
+
+    const review = (
         <>
             {loadError ? (
                 <Result
                     status="error"
-                    title="Could not load this profile"
+                    title="Could not load your profile"
                     subTitle={loadError}
                     extra={(
                         <Button type="primary" onClick={() => setAttempt((value) => value + 1)}>
@@ -396,442 +928,1128 @@ function ProfileScreen({
                         </Button>
                     )}
                 />
-            ) : !snapshot || !user ? (
-                <Spin size="large" description="Loading profile…" />
+            ) : !data || !user || !session ? (
+                <Spin size="large" description="Loading your profile…" />
             ) : (
-                <div className="crew-profile">
+                <div className={readOnly ? 'crew-profile is-review is-readonly' : 'crew-profile is-review'}>
                     <div className="crew-main">
+                        {readOnly ? (
+                            <div className="review-in-review" role="status">
+                                <span>
+                                    Your profile is in review. An administrator will approve it before you go live — usually within 24 hours.
+                                </span>
+                            </div>
+                        ) : null}
                         <div className="crew-intro">
                             <div>
                                 <h1>{heading}</h1>
                                 {subtitle ? <p>{subtitle}</p> : null}
                             </div>
-                            <div className="crew-actions">
-                                <Dropdown
-                                    menu={{ items: moreMenu, onClick: () => void onShare() }}
-                                    trigger={['click']}
-                                >
-                                    <button type="button" className="crew-icon-btn" aria-label="More">
-                                        <EllipsisOutlined />
-                                    </button>
-                                </Dropdown>
-                                <Button className="crew-message" onClick={onMessage}>Message</Button>
-                                <Button type="primary" className="crew-add" onClick={onAdd}>Add to Project</Button>
-                                <button
-                                    type="button"
-                                    className={saved ? 'crew-icon-btn is-on' : 'crew-icon-btn'}
-                                    aria-pressed={saved}
-                                    aria-label={saved ? 'Remove saved profile' : 'Save profile'}
-                                    onClick={() => setSaved((value) => !value)}
-                                >
-                                    <HeartOutlined />
-                                </button>
-                                <button type="button" className="crew-icon-btn" aria-label="Share profile" onClick={() => void onShare()}>
-                                    <ShareAltOutlined />
-                                </button>
-                            </div>
+                            {!readOnly && !editingProfile ? (
+                                <div className="review-viewing">
+                                    <Button
+                                        htmlType="button"
+                                        className="review-share"
+                                        icon={<ShareAltOutlined />}
+                                        onClick={() => void onShareProfile()}
+                                    >
+                                        Share profile
+                                    </Button>
+                                    <span className="review-viewing-menu">
+                                        Viewing: {viewingLabel || 'Your profile'}
+                                    </span>
+                                </div>
+                            ) : null}
                         </div>
 
                         {visibleMedia.length > 0 ? (
+                            <div className="review-media-wrap">
                             <div className={mediaClass}>
-                                {visibleMedia.map((item, index) => (
-                                    <MediaTile
-                                        key={item.id}
-                                        item={item}
-                                        accessToken={accessToken}
-                                        thumbnailPath={paths.thumbnail(item.id)}
-                                        featured={mosaic && index === 0}
-                                        play={index === 0 && item.media_type !== 'photo'}
-                                        showAll={moreMedia && index === visibleMedia.length - 1}
-                                        onOpen={() => {
-                                            if (item.media_type === 'photo') {
-                                                setEnlargedPhotoId(item.id);
-                                                return;
-                                            }
-                                            openMedia(item, message);
-                                        }}
-                                        onShowAll={() => setShowAllMedia(true)}
-                                    />
-                                ))}
+                                {visibleMedia.map((item, index) => {
+                                    const label = mediaLabel(item, index, visibleMedia.length);
+                                    const embed = embedSrc(item);
+                                    const photo = item.media_type === 'photo';
+                                    return (
+                                        <div key={item.id} className={mosaic && index === 0 ? 'crew-tile crew-tile-hero' : 'crew-tile'}>
+                                            {embed ? (
+                                                <MediaEmbed
+                                                    src={embed}
+                                                    id={item.id}
+                                                    accessToken={session.accessToken}
+                                                    label={label}
+                                                    status={item.status}
+                                                />
+                                            ) : photo ? (
+                                                <button
+                                                    type="button"
+                                                    className="crew-tile-open"
+                                                    aria-label="View photo"
+                                                    onClick={() => setEnlargedPhotoId(item.id)}
+                                                >
+                                                    <MediaThumb id={item.id} accessToken={session.accessToken} fallback="Photo" />
+                                                    <MediaMark media={item} />
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    className="crew-tile-open"
+                                                    aria-label={index === 0 ? 'Play video' : 'Open video'}
+                                                    onClick={() => openMedia(item, message)}
+                                                >
+                                                    <MediaThumb id={item.id} accessToken={session.accessToken} />
+                                                    <MediaMark media={item} />
+                                                    {index === 0 ? (
+                                                        <span className="crew-play" aria-hidden="true">
+                                                            <CaretRightFilled />
+                                                        </span>
+                                                    ) : null}
+                                                </button>
+                                            )}
+                                            {index === 0 ? <span className="crew-cover">Cover · autoplays</span> : null}
+                                            {readOnly ? null : (
+                                                <div className="crew-tile-tools">
+                                                    {photo ? null : (
+                                                        <button
+                                                            type="button"
+                                                            className="crew-tile-tool"
+                                                            aria-label={`Edit ${label}`}
+                                                            onClick={() => onEditMedia(item)}
+                                                        >
+                                                            <EditOutlined />
+                                                        </button>
+                                                    )}
+                                                    {mediaUrl(item) ? (
+                                                        <button
+                                                            type="button"
+                                                            className="crew-tile-tool"
+                                                            aria-label={`Open ${label}`}
+                                                            onClick={() => {
+                                                                const url = mediaUrl(item);
+                                                                if (url) {
+                                                                    window.open(url, '_blank', 'noopener,noreferrer');
+                                                                }
+                                                            }}
+                                                        >
+                                                            <ExportOutlined />
+                                                        </button>
+                                                    ) : null}
+                                                    <button
+                                                        type="button"
+                                                        className="crew-tile-tool"
+                                                        aria-label={`Delete ${label}`}
+                                                        disabled={removingMediaId === item.id}
+                                                        onClick={() => onRemoveMedia(item.id)}
+                                                    >
+                                                        <DeleteOutlined />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                             </div>
                         ) : (
                             <div className="crew-media-empty">No media yet</div>
                         )}
                         <PhotoLightbox
-                            accessToken={accessToken}
+                            accessToken={session.accessToken}
                             id={enlargedPhotoId}
-                            path={enlargedPhotoId ? paths.thumbnail(enlargedPhotoId) : null}
+                            path={enlargedPhotoId ? `/api/me/media/${encodeURIComponent(enlargedPhotoId)}/thumbnail` : null}
                             onClose={() => setEnlargedPhotoId(null)}
                         />
-                        {showAllMedia && snapshot.media.length > 4 ? (
-                            <button type="button" className="crew-show-less" onClick={() => setShowAllMedia(false)}>
-                                Show less
-                            </button>
-                        ) : null}
-
-                        <div className="crew-identity">
-                            <span className="crew-avatar" aria-hidden="true">
-                                {photoUrl ? <img src={photoUrl} alt="" onError={() => setPhotoUrl(null)} /> : initials(user.first_name, user.last_name)}
-                            </span>
-                            <div>
-                                <div className="crew-name-row">
-                                    <h2>{name}</h2>
-                                    {snapshot.unionLabel ? <span className="crew-union">{snapshot.unionLabel}</span> : null}
-                                </div>
-                                {role ? <p className="crew-role">{role}</p> : null}
-                                {where ? (
-                                    <p className="crew-where">
-                                        <EnvironmentOutlined aria-hidden="true" />
-                                        {where}
-                                    </p>
-                                ) : null}
+                        {readOnly ? null : (
+                            <div className="review-media-actions">
+                                <Button htmlType="button" className="media-upload" icon={<UploadOutlined />} onClick={openUploadDialog}>
+                                    Upload
+                                </Button>
+                                <Button htmlType="button" className="media-upload" icon={<PictureOutlined />} onClick={openPhotoDialog}>
+                                    Photo
+                                </Button>
+                                <Button htmlType="button" className="media-add" icon={<LinkOutlined />} onClick={openLinkDialog}>
+                                    YouTube / Vimeo
+                                </Button>
                             </div>
-                        </div>
+                        )}
 
-                        {user.bio ? (
-                            <section className="crew-about" aria-labelledby="crew-about-title">
-                                <div className="crew-about-head">
-                                    <h2 id="crew-about-title">About</h2>
+                        <div className="review-columns">
+                            <div>
+                        {!readOnly && editingProfile ? (
+                            <ProfileEditor
+                                data={data}
+                                user={user}
+                                photoUrl={photoUrl}
+                                saving={savingProfile}
+                                onCancel={() => setEditingProfile(false)}
+                                onSave={(values, photoFile) => void onSaveProfile(values, photoFile)}
+                            />
+                        ) : (
+                            <>
+                                <div className="crew-identity">
+                                    <span className="crew-avatar" aria-hidden="true">
+                                        {photoUrl ? <img src={photoUrl} alt="" onError={() => setPhotoUrl(null)} /> : initials(user.first_name, user.last_name)}
+                                    </span>
+                                    <div>
+                                        <div className="crew-name-row">
+                                            <h2>{displayName}</h2>
+                                            <span className="crew-union">{unionLabels[data.unionStatus]}</span>
+                                            <span className={readOnly ? 'crew-status is-pending' : 'crew-status is-available'}>
+                                                {readOnly ? 'Pending review' : 'Available now'}
+                                            </span>
+                                        </div>
+                                        {role ? <p className="crew-role">{role}</p> : null}
+                                        {where ? (
+                                            <p className="crew-where">
+                                                <EnvironmentOutlined aria-hidden="true" />
+                                                {where}
+                                            </p>
+                                        ) : null}
+                                    </div>
                                 </div>
-                                <p>{user.bio}</p>
-                            </section>
-                        ) : null}
+                                {user.bio || !readOnly ? (
+                                    <section className="crew-about" aria-labelledby="crew-about-title">
+                                        <div className="crew-about-head">
+                                            <h2 id="crew-about-title">About</h2>
+                                            {readOnly ? null : (
+                                                <Button
+                                                    htmlType="button"
+                                                    className="review-edit"
+                                                    aria-label="Edit profile"
+                                                    icon={<EditOutlined />}
+                                                    onClick={() => setEditingProfile(true)}
+                                                >
+                                                    Edit
+                                                </Button>
+                                            )}
+                                        </div>
+                                        {user.bio ? <p>{user.bio}</p> : null}
+                                    </section>
+                                ) : null}
+                            </>
+                        )}
 
                         <div className="crew-stats">
                             <div className="crew-stat">
-                                <strong>{countLabel(snapshot.projectsCompleted)}</strong>
+                                <strong>{countLabel(data.projectsCompleted)}</strong>
                                 <span>Projects completed</span>
                             </div>
                             <div className="crew-stat">
-                                <strong>{responseLabel(snapshot.responseTimeHours)}</strong>
-                                <span>Average Response</span>
+                                <strong>{responseLabel(data.responseTimeHours)}</strong>
+                                <span>Response time</span>
                             </div>
                             <div className="crew-stat">
-                                <strong>100%</strong>
-                                <span>Repeat Clients</span>
+                                <strong>{countLabel(data.yearsInBusiness)}</strong>
+                                <span>Years in the business</span>
                             </div>
                             <div className="crew-stat">
-                                <strong>{countLabel(snapshot.yearsInBusiness)}</strong>
-                                <span>Years Active</span>
+                                <strong>{data.locales.length}</strong>
+                                <span>Cities</span>
                             </div>
                         </div>
 
-                        {snapshot.credits.length > 0 ? (
-                            <section className="crew-panel" aria-labelledby="crew-experience-title">
-                                <div className="crew-panel-head">
-                                    <h2 id="crew-experience-title">Past experience</h2>
-                                </div>
+                        <section className="crew-panel" aria-labelledby="crew-experience-title">
+                            <div className="crew-panel-head">
+                                <h2 id="crew-experience-title">Past experience</h2>
+                                {readOnly ? <span className="review-verified">Verified by reference</span> : (
+                                    <Button
+                                        htmlType="button"
+                                        className="review-edit"
+                                        icon={editingExperience ? <CheckOutlined /> : <EditOutlined />}
+                                        aria-expanded={editingExperience}
+                                        aria-controls="past-experience-add"
+                                        aria-label={editingExperience ? 'Done editing past experience' : 'Edit past experience'}
+                                        onClick={() => setEditingExperience((current) => !current)}
+                                    >
+                                        {editingExperience ? 'Done' : 'Edit'}
+                                    </Button>
+                                )}
+                            </div>
+                            {data.projects.length === 0 ? (
+                                <p className="review-empty-copy">
+                                    {readOnly ? 'No credits yet.' : 'Add a credit so clients can see where you have worked.'}
+                                </p>
+                            ) : (
                                 <ul className="credit-list">
-                                    {snapshot.credits.map((credit) => (
-                                        <ProjectCredit
-                                            key={credit.id}
-                                            name={credit.name}
-                                            handle={false}
-                                            facts={projectFacts({
-                                                date: credit.date,
-                                                position: credit.position,
-                                                company: credit.company,
-                                                leadProducer: credit.leadProducer,
-                                                leadProducerEmail: credit.leadProducerEmail,
-                                            })}
-                                        />
+                                    {data.projects.map((project) => (
+                                        !readOnly && editingCreditId === project.id ? (
+                                            <li key={project.id} className="credit-plain is-editing">
+                                                <Form
+                                                    className="review-credit-form"
+                                                    requiredMark={false}
+                                                    initialValues={{
+                                                        name: project.name,
+                                                        position_id: project.position_id,
+                                                        lead_producer_name: project.lead_producer_name,
+                                                        lead_producer_email: project.lead_producer_email ?? '',
+                                                        date: project.date,
+                                                        production_company: project.production_company ?? '',
+                                                    }}
+                                                    onFinish={(values: CreditFormValues) => void onSaveCredit(project, values)}
+                                                >
+                                                    <Form.Item
+                                                        name="name"
+                                                        style={{ marginBottom: 8 }}
+                                                        rules={[{ required: true, whitespace: true, message: 'Enter a project title.' }]}
+                                                    >
+                                                        <Input
+                                                            autoFocus
+                                                            aria-label={`Project title for ${project.name}`}
+                                                            maxLength={255}
+                                                        />
+                                                    </Form.Item>
+                                                    <Flex gap={8} wrap="wrap" align="flex-start">
+                                                        <Form.Item
+                                                            name="position_id"
+                                                            style={{ flex: '1 1 180px', marginBottom: 0 }}
+                                                            rules={[{ required: true, message: 'Choose a position.' }]}
+                                                        >
+                                                            <Select
+                                                                showSearch
+                                                                popupMatchSelectWidth={false}
+                                                                aria-label={`Position for ${project.name}`}
+                                                                placeholder="Position"
+                                                                optionFilterProp="label"
+                                                                options={positionOptions}
+                                                            />
+                                                        </Form.Item>
+                                                        <Form.Item
+                                                            name="lead_producer_name"
+                                                            style={{ flex: '1 1 180px', marginBottom: 0 }}
+                                                            rules={[{ required: true, whitespace: true, message: 'Enter the lead producer.' }]}
+                                                        >
+                                                            <Input aria-label={`Lead producer for ${project.name}`} />
+                                                        </Form.Item>
+                                                        <Form.Item
+                                                            name="lead_producer_email"
+                                                            style={{ flex: '1 1 200px', marginBottom: 0 }}
+                                                            rules={leadProducerEmailRules}
+                                                        >
+                                                            <Input
+                                                                type="email"
+                                                                inputMode="email"
+                                                                autoComplete="off"
+                                                                aria-label={`Lead producer email for ${project.name}`}
+                                                            />
+                                                        </Form.Item>
+                                                        <Form.Item
+                                                            name="date"
+                                                            style={{ flex: '0 1 150px', marginBottom: 0 }}
+                                                            rules={[{ required: true, message: 'Enter a date.' }]}
+                                                        >
+                                                            <Input type="date" aria-label={`Date for ${project.name}`} />
+                                                        </Form.Item>
+                                                        <Form.Item name="production_company" style={{ flex: '1 1 160px', marginBottom: 0 }}>
+                                                            <Input aria-label={`Production company for ${project.name}`} placeholder="Production company" />
+                                                        </Form.Item>
+                                                        <Button
+                                                            htmlType="submit"
+                                                            type="text"
+                                                            aria-label={`Save ${project.name}`}
+                                                            icon={<CheckOutlined />}
+                                                            loading={savingCreditId === project.id}
+                                                        />
+                                                        <Button
+                                                            htmlType="button"
+                                                            type="text"
+                                                            aria-label={`Remove ${project.name}`}
+                                                            icon={<DeleteOutlined />}
+                                                            loading={removingCreditId === project.id}
+                                                            disabled={savingCreditId === project.id}
+                                                            onClick={() => void onRemoveCredit(project)}
+                                                        />
+                                                    </Flex>
+                                                </Form>
+                                            </li>
+                                        ) : (
+                                            <ProjectCredit
+                                                key={project.id}
+                                                boxed={false}
+                                                name={project.name}
+                                                status="Reference pending"
+                                                facts={projectFacts({
+                                                    date: project.date,
+                                                    position: positionById.get(project.position_id),
+                                                    company: project.production_company,
+                                                    leadProducer: project.lead_producer_name,
+                                                    leadProducerEmail: project.lead_producer_email,
+                                                })}
+                                                actions={readOnly ? undefined : (
+                                                    <>
+                                                        <Button
+                                                            htmlType="button"
+                                                            type="text"
+                                                            className="credit-edit"
+                                                            aria-label={`Edit ${project.name}`}
+                                                            icon={<EditOutlined />}
+                                                            onClick={() => setEditingCreditId(project.id)}
+                                                        />
+                                                        <Button
+                                                            htmlType="button"
+                                                            type="text"
+                                                            className="credit-remove"
+                                                            aria-label={`Remove ${project.name}`}
+                                                            icon={<DeleteOutlined />}
+                                                            loading={removingCreditId === project.id}
+                                                            onClick={() => void onRemoveCredit(project)}
+                                                        />
+                                                    </>
+                                                )}
+                                            />
+                                        )
                                     ))}
                                 </ul>
-                            </section>
+                            )}
+
+                            {readOnly || !editingExperience ? null : (
+                            <Form
+                                form={creditForm}
+                                className="review-experience-add"
+                                id="past-experience-add"
+                                requiredMark={false}
+                                onFinish={(values) => void onAddCredit(values)}
+                            >
+                                <Flex gap={8} align="flex-start" wrap="wrap">
+                                    <Form.Item
+                                        name="name"
+                                        style={{ flex: '1.4 1 180px', marginBottom: 0 }}
+                                        rules={[{ required: true, whitespace: true, message: 'Enter a project title.' }]}
+                                    >
+                                        <Input ref={addCreditTitleRef} placeholder="Project title" aria-label="Project title" maxLength={255} />
+                                    </Form.Item>
+                                    <Form.Item
+                                        name="position_id"
+                                        style={{ flex: '1 1 160px', marginBottom: 0 }}
+                                        rules={[{ required: true, message: 'Choose a position.' }]}
+                                    >
+                                        <Select
+                                            showSearch
+                                            popupMatchSelectWidth={false}
+                                            aria-label="Position"
+                                            placeholder="Position"
+                                            optionFilterProp="label"
+                                            options={positionOptions}
+                                        />
+                                    </Form.Item>
+                                    <Form.Item
+                                        name="lead_producer_name"
+                                        style={{ flex: '1 1 160px', marginBottom: 0 }}
+                                        rules={[{ required: true, whitespace: true, message: 'Enter the lead producer.' }]}
+                                    >
+                                        <Input placeholder="Lead producer" aria-label="Lead producer" />
+                                    </Form.Item>
+                                    <Form.Item
+                                        name="lead_producer_email"
+                                        style={{ flex: '1 1 180px', marginBottom: 0 }}
+                                        rules={leadProducerEmailRules}
+                                    >
+                                        <Input
+                                            type="email"
+                                            inputMode="email"
+                                            autoComplete="off"
+                                            placeholder="Lead producer email"
+                                            aria-label="Lead producer email"
+                                        />
+                                    </Form.Item>
+                                    <Form.Item
+                                        name="date"
+                                        style={{ flex: '0 1 150px', marginBottom: 0 }}
+                                        rules={[{ required: true, message: 'Enter a date.' }]}
+                                    >
+                                        <Input type="date" aria-label="Date" />
+                                    </Form.Item>
+                                    <Form.Item name="production_company" style={{ flex: '1 1 150px', marginBottom: 0 }}>
+                                        <Input placeholder="Production company" aria-label="Production company" />
+                                    </Form.Item>
+                                    <Button htmlType="submit" className="experience-add" icon={<PlusOutlined />} loading={addingCredit}>
+                                        Add credit
+                                    </Button>
+                                </Flex>
+                            </Form>
+                            )}
+
+                            <Typography.Text className="review-types-label">Project types</Typography.Text>
+                            <div style={{ marginTop: 8 }}>
+                                <ProjectTypeField
+                                    disciplines={data.disciplines}
+                                    projectTypes={data.projectTypes}
+                                    value={selectedTypeIds}
+                                    onChange={changeTypes}
+                                    readOnly={readOnly}
+                                    showPicker={editingExperience}
+                                />
+                            </div>
+                        </section>
+
+                        {onboarding && !readOnly && !canSubmit ? (
+                            <p className="review-minimum">Add at least 2 items before you submit.</p>
                         ) : null}
+                        {onboarding && !readOnly ? (
+                        <div className="review-submit-row">
+                            <Button
+                                htmlType="button"
+                                className="review-back"
+                                icon={<ArrowLeftOutlined />}
+                                loading={returning}
+                                disabled={submitting}
+                                onClick={() => void onBack()}
+                            >
+                                Go back
+                            </Button>
+                            <Button
+                                type="primary"
+                                htmlType="button"
+                                className="review-submit"
+                                loading={submitting}
+                                disabled={!canSubmit}
+                                onClick={() => void onSubmit()}
+                            >
+                                <SendOutlined aria-hidden />
+                                Submit profile
+                                <ArrowRightOutlined aria-hidden />
+                            </Button>
+                        </div>
+                        ) : null}
+                            </div>
+                            <div className="review-rail">
+                            <AvailabilityCalendar
+                                rows={data.availability}
+                                appliesTo={appliesTo}
+                                editable
+                                legend={readOnly ? 'none' : 'status'}
+                                rateLabel={calendarRate}
+                                accessToken={session.accessToken}
+                                onSaved={(availability) => {
+                                    setData((current) => current ? { ...current, availability } : current);
+                                }}
+                            />
+                            </div>
+                        </div>
                     </div>
 
-                    <BookingCard
-                        dayRate={snapshot.dayRate}
-                        currency={snapshot.currency}
-                        positionName={snapshot.positionNames[0] ?? null}
-                        flatFee={snapshot.flatFee}
-                        onAdd={onAdd}
-                    />
+                    <Modal
+                        title="Add a YouTube or Vimeo video"
+                        open={linkOpen}
+                        okText="Add"
+                        cancelText="Cancel"
+                        confirmLoading={addingMedia}
+                        destroyOnHidden
+                        width={480}
+                        onOk={() => {
+                            void onAddLink();
+                        }}
+                        onCancel={() => {
+                            if (!addingMedia) {
+                                setLinkOpen(false);
+                            }
+                        }}
+                    >
+                        <Input
+                            autoFocus
+                            className="media-link"
+                            prefix={<LinkOutlined />}
+                            placeholder="Paste a Vimeo or YouTube link..."
+                            aria-label="Vimeo or YouTube link"
+                            value={link}
+                            status={linkError ? 'error' : undefined}
+                            onChange={(event) => {
+                                setLink(event.target.value);
+                                if (linkError) {
+                                    setLinkError(null);
+                                }
+                            }}
+                            onPressEnter={() => {
+                                void onAddLink();
+                            }}
+                        />
+                        {linkError ? (
+                            <Typography.Text type="danger" role="alert" style={{ display: 'block', marginTop: 8, fontSize: 13 }}>
+                                {linkError}
+                            </Typography.Text>
+                        ) : null}
+                        <div onDragOver={onThumbDragOver} onDrop={onThumbDrop} onDragLeave={leaveDrop}>
+                        <button
+                            type="button"
+                            className={thumbOver ? 'media-thumb-pick is-dropping' : 'media-thumb-pick'}
+                            onClick={() => thumbRef.current?.click()}
+                            {...fileDropHandlers(() => setThumbOver(true), () => setThumbOver(false), (file) => {
+                                void chooseThumbnail(file);
+                            })}
+                        >
+                            {thumbPreview ? (
+                                <img src={thumbPreview} alt="Selected thumbnail" draggable={false} />
+                            ) : (
+                                <span><PictureOutlined /> Drop a thumbnail</span>
+                            )}
+                        </button>
+                        <input
+                            ref={thumbRef}
+                            type="file"
+                            accept="image/jpeg,image/png"
+                            hidden
+                            aria-label="Thumbnail"
+                            onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = '';
+                                if (file) {
+                                    void chooseThumbnail(file);
+                                }
+                            }}
+                        />
+                        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                            JPG or PNG · up to 8 MB. This image is shown on the video.
+                        </Typography.Text>
+                        {thumbError ? (
+                            <Typography.Text type="danger" role="alert" style={{ display: 'block', marginTop: 8, fontSize: 13 }}>
+                                {thumbError}
+                            </Typography.Text>
+                        ) : null}
+                        </div>
+                    </Modal>
+                    <Modal
+                        title="Upload a video"
+                        open={uploadOpen}
+                        okText="Upload"
+                        cancelText="Cancel"
+                        confirmLoading={uploading}
+                        okButtonProps={{ disabled: !videoFile || !thumbFile }}
+                        destroyOnHidden
+                        width={440}
+                        onOk={() => {
+                            void onUpload();
+                        }}
+                        onCancel={closeUpload}
+                    >
+                        <div onDragOver={onUploadDragOver} onDrop={onUploadDrop} onDragLeave={leaveDrop}>
+                        <button
+                            type="button"
+                            className={videoOver ? 'media-upload-note is-dropping' : 'media-upload-note'}
+                            onClick={() => videoRef.current?.click()}
+                            disabled={uploading}
+                            {...fileDropHandlers(() => {
+                                setVideoOver(true);
+                                setThumbOver(false);
+                            }, () => setVideoOver(false), chooseVideo)}
+                        >
+                            {videoFile ? videoFile.name : 'Drop an MP4, MOV, or WebM'}
+                        </button>
+                        <input
+                            ref={videoRef}
+                            type="file"
+                            accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
+                            hidden
+                            aria-label="Video file"
+                            onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = '';
+                                if (file) {
+                                    chooseVideo(file);
+                                }
+                            }}
+                        />
+                        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                            MP4, MOV, or WebM · up to 200 MB.
+                        </Typography.Text>
+                        {videoError ? (
+                            <Typography.Text type="danger" role="alert" style={{ display: 'block', marginTop: 8, fontSize: 13 }}>
+                                {videoError}
+                            </Typography.Text>
+                        ) : null}
+                        <button
+                            type="button"
+                            className={thumbOver ? 'media-thumb-pick is-dropping' : 'media-thumb-pick'}
+                            onClick={() => uploadThumbRef.current?.click()}
+                            disabled={uploading}
+                            {...fileDropHandlers(() => {
+                                setThumbOver(true);
+                                setVideoOver(false);
+                            }, () => setThumbOver(false), (file) => {
+                                void chooseThumbnail(file);
+                            })}
+                        >
+                            {thumbPreview ? (
+                                <img src={thumbPreview} alt="Selected thumbnail" draggable={false} />
+                            ) : (
+                                <span><PictureOutlined /> Drop a thumbnail</span>
+                            )}
+                        </button>
+                        <input
+                            ref={uploadThumbRef}
+                            type="file"
+                            accept="image/jpeg,image/png"
+                            hidden
+                            aria-label="Upload thumbnail"
+                            onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = '';
+                                if (file) {
+                                    void chooseThumbnail(file);
+                                }
+                            }}
+                        />
+                        {uploading ? (
+                            <Progress
+                                percent={uploadPercent}
+                                strokeColor={copyThat.pink}
+                                style={{ marginTop: 16 }}
+                                aria-label="Upload progress"
+                            />
+                        ) : null}
+                        </div>
+                    </Modal>
+                    <Modal
+                        title="Upload a photo"
+                        open={photoOpen}
+                        okText="Upload"
+                        cancelText="Cancel"
+                        confirmLoading={uploading}
+                        okButtonProps={{ disabled: !photoFile }}
+                        destroyOnHidden
+                        width={440}
+                        onOk={() => {
+                            void onUploadPhoto();
+                        }}
+                        onCancel={closePhoto}
+                    >
+                        <button
+                            type="button"
+                            className={photoOver ? 'media-thumb-pick is-primary is-dropping' : 'media-thumb-pick is-primary'}
+                            onClick={() => photoRef.current?.click()}
+                            disabled={uploading}
+                            {...fileDropHandlers(() => setPhotoOver(true), () => setPhotoOver(false), (file) => {
+                                void choosePhoto(file);
+                            })}
+                        >
+                            {photoPreview ? (
+                                <img src={photoPreview} alt="Selected photo" draggable={false} />
+                            ) : (
+                                <span><PictureOutlined /> Drop a JPG or PNG</span>
+                            )}
+                        </button>
+                        <input
+                            ref={photoRef}
+                            type="file"
+                            accept="image/jpeg,image/png"
+                            hidden
+                            aria-label="Photo"
+                            onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = '';
+                                if (file) {
+                                    void choosePhoto(file);
+                                }
+                            }}
+                        />
+                        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                            JPG or PNG · up to 8 MB.
+                        </Typography.Text>
+                        {photoError ? (
+                            <Typography.Text type="danger" role="alert" style={{ display: 'block', marginTop: 8, fontSize: 13 }}>
+                                {photoError}
+                            </Typography.Text>
+                        ) : null}
+                        {uploading ? (
+                            <Progress
+                                percent={uploadPercent}
+                                strokeColor={copyThat.pink}
+                                style={{ marginTop: 16 }}
+                                aria-label="Upload progress"
+                            />
+                        ) : null}
+                    </Modal>
+                    <Modal
+                        title="Edit video link"
+                        open={editingMediaId !== null}
+                        okText="Save"
+                        cancelText="Cancel"
+                        confirmLoading={savingMediaId !== null}
+                        destroyOnHidden
+                        width={440}
+                        onOk={() => {
+                            if (editingMediaId) {
+                                void onSaveMedia(editingMediaId);
+                            }
+                        }}
+                        onCancel={() => {
+                            if (!savingMediaId) {
+                                setEditingMediaId(null);
+                            }
+                        }}
+                    >
+                        <Input
+                            autoFocus
+                            className="media-link"
+                            prefix={<LinkOutlined />}
+                            placeholder="Paste a Vimeo or YouTube link..."
+                            aria-label="Replacement link"
+                            value={editUrl}
+                            status={editError ? 'error' : undefined}
+                            onChange={(event) => {
+                                setEditUrl(event.target.value);
+                                if (editError) {
+                                    setEditError(null);
+                                }
+                            }}
+                        />
+                        {editError ? (
+                            <Typography.Text type="danger" role="alert" style={{ display: 'block', marginTop: 8, fontSize: 13 }}>
+                                {editError}
+                            </Typography.Text>
+                        ) : null}
+                    </Modal>
                 </div>
             )}
+
+            {onboarding ? (
+                <Typography.Paragraph className="review-footnote">
+                    Review takes ~24h — you'll show as “Pending review” until approved.
+                </Typography.Paragraph>
+            ) : null}
         </>
     );
 
-    return framed ? <Frame>{content}</Frame> : content;
+    if (onboarding) {
+        return review;
+    }
+
+    const sheet = (
+        <ConfigProvider theme={onboardingTheme}>
+            <div className="review-sheet">{review}</div>
+        </ConfigProvider>
+    );
+    return framed ? <Frame>{sheet}</Frame> : sheet;
 }
 
-function BookingCard({
-    dayRate,
-    currency,
-    positionName,
-    flatFee,
-    onAdd,
+function ProfileEditor({
+    data,
+    user,
+    photoUrl,
+    saving,
+    onCancel,
+    onSave,
 }: {
-    dayRate: number | null;
-    currency: Currency | undefined;
-    positionName: string | null;
-    flatFee: boolean;
-    onAdd: () => void;
+    data: ReviewData;
+    user: { first_name: string; last_name: string; email: string; phone: string | null; title: string | null; bio: string | null };
+    photoUrl: string | null;
+    saving: boolean;
+    onCancel: () => void;
+    onSave: (values: ProfileEditValues, photoFile: File | null) => void;
 }) {
-    const [start, setStart] = useState<string | null>(null);
-    const [end, setEnd] = useState<string | null>(null);
-    const [days, setDays] = useState(1);
-    const [prep, setPrep] = useState<DateWindow | null>(null);
-    const [wrap, setWrap] = useState<DateWindow | null>(null);
-    const [offerFee, setOfferFee] = useState(false);
-    const [details, setDetails] = useState(false);
-    const counted = inclusiveDays(start, end);
-    const rangeError = start && end && counted === null ? 'Shoot end is before the start.' : null;
-    const total = dayRate === null ? null : dayRate * days;
-    const fee = total === null ? null : total * bookingFeeRate;
-    const dayMenu: MenuProps['items'] = Array.from({ length: 21 }, (_, index) => {
-        const count = index + 1;
-        return { key: String(count), label: count === 1 ? '1 day' : `${count} days` };
-    });
+    const { message } = AntdApp.useApp();
+    const [form] = Form.useForm<ProfileEditValues>();
+    const fileRef = useRef<HTMLInputElement>(null);
+    const [photoFile, setPhotoFile] = useState<File | null>(null);
+    const [preview, setPreview] = useState<string | null>(null);
+    const currencyId = Form.useWatch('currency_id', form);
+    const disciplineId = Form.useWatch('discipline_id', form);
+    const currencyCode = data.currencies.find((currency) => currency.id === currencyId)?.code;
+    const ratePrefix = currencyCode ? (currencySymbols[currencyCode] ?? currencyCode) : undefined;
 
     useEffect(() => {
-        if (counted) {
-            setDays(counted);
+        if (!photoFile) {
+            setPreview(null);
+            return;
         }
-    }, [counted]);
+        const url = URL.createObjectURL(photoFile);
+        setPreview(url);
+        return () => {
+            URL.revokeObjectURL(url);
+        };
+    }, [photoFile]);
+
+    useEffect(() => {
+        if (!disciplineId) {
+            return;
+        }
+        const positionId = form.getFieldValue('position_id');
+        const matches = data.positions.some(
+            (position) => position.id === positionId && position.discipline_id === disciplineId,
+        );
+        if (positionId && !matches) {
+            form.setFieldValue('position_id', undefined);
+        }
+    }, [data.positions, disciplineId, form]);
+
+    async function choosePhoto(file: File): Promise<void> {
+        if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
+            message.error('Use a JPG or PNG photo.');
+            return;
+        }
+        if (file.size > 8 * 1024 * 1024) {
+            message.error('Use a photo smaller than 8 MB.');
+            return;
+        }
+        try {
+            const bitmap = await createImageBitmap(file);
+            const tooSmall = bitmap.width < 400 || bitmap.height < 400;
+            bitmap.close();
+            if (tooSmall) {
+                message.error('Use a photo at least 400×400px.');
+                return;
+            }
+        } catch {
+            message.error('Could not read that photo.');
+            return;
+        }
+        setPhotoFile(file);
+    }
+
+    const photoSrc = preview ?? photoUrl;
 
     return (
-        <aside className="crew-booking" aria-label="Booking">
-            <div className="crew-price">
-                <strong>{dayRate === null ? 'Rate on request' : formatAmount(dayRate, currency, 0)}</strong>
-                {dayRate !== null ? (
-                    <span>{positionName ? `per day · ${positionName}` : 'per day'}</span>
-                ) : null}
-            </div>
-
-            <div className="crew-shoot">
-                <label>
-                    <span>Shoot start</span>
-                    <DatePicker
-                        variant="borderless"
-                        format="M/D/YYYY"
-                        placeholder="Select"
-                        allowClear
-                        onChange={(_date, dateString) => setStart(dateText(dateString))}
-                    />
-                </label>
-                <label>
-                    <span>Shoot end</span>
-                    <DatePicker
-                        variant="borderless"
-                        format="M/D/YYYY"
-                        placeholder="Select"
-                        allowClear
-                        onChange={(_date, dateString) => setEnd(dateText(dateString))}
-                    />
-                </label>
-            </div>
-            {rangeError ? <p className="crew-range-error">{rangeError}</p> : null}
-
-            {prep ? (
-                <ExtraDays label="Prep" value={prep} onChange={setPrep} onRemove={() => setPrep(null)} />
-            ) : (
-                <button type="button" className="crew-extra-add" onClick={() => setPrep({ start: null, end: null })}>
-                    <PlusOutlined />
-                    Add prep days
-                </button>
-            )}
-            {wrap ? (
-                <ExtraDays label="Wrap" value={wrap} onChange={setWrap} onRemove={() => setWrap(null)} />
-            ) : (
-                <button type="button" className="crew-extra-add" onClick={() => setWrap({ start: null, end: null })}>
-                    <PlusOutlined />
-                    Add wrap days
-                </button>
-            )}
-            <p className="crew-book-note">Book only what you need — prep and wrap are optional.</p>
-
-            <p className="crew-section-label">Cancellation policies</p>
-            {dayRate !== null && total !== null ? (
-                <Dropdown
-                    menu={{
-                        items: dayMenu,
-                        onClick: ({ key }) => setDays(Number(key)),
-                        selectedKeys: [String(days)],
-                    }}
-                    trigger={['click']}
-                >
-                    <button type="button" className="crew-quote" aria-label="Booked days">
-                        <span>
-                            <strong>{days === 1 ? 'Day rate × 1 day' : `Day rate × ${days} days`}</strong>
-                            <span>{formatAmount(total, currency, 2)} total</span>
-                        </span>
-                        <Tooltip title="The total is the day rate times booked days. Shoot dates fill this in. The 8% booking fee is separate and is not charged yet.">
-                            <span className="crew-quote-info" onClick={(event) => event.stopPropagation()}>
-                                <InfoCircleOutlined />
-                            </span>
-                        </Tooltip>
-                    </button>
-                </Dropdown>
-            ) : null}
-
-            {flatFee ? (
-                <div className="crew-offer">
-                    <div>
-                        <strong>Offer a project fee</strong>
-                        <p>Clients can offer one project price instead of the day rate.</p>
-                    </div>
-                    <Switch
-                        className="flat-fee-switch"
-                        checked={offerFee}
-                        onChange={setOfferFee}
-                        aria-label="Offer a project fee"
-                    />
-                </div>
-            ) : null}
-
-            <Button type="primary" className="crew-book" onClick={onAdd}>Add to Project</Button>
-            <p className="crew-charge">You won't be charged yet</p>
-
-            {fee !== null && total !== null ? (
-                <>
-                    <div className="crew-fee">
-                        <span>8% total booking fee</span>
-                        <strong>{formatAmount(fee, currency, 2)}</strong>
-                    </div>
-                    <button
-                        type="button"
-                        className="crew-budget"
-                        aria-expanded={details}
-                        onClick={() => setDetails((value) => !value)}
-                    >
-                        Go to details on budget
-                        <ArrowRightOutlined />
-                    </button>
-                    {details ? (
-                        <dl className="crew-breakdown">
-                            <div>
-                                <dt>{days === 1 ? 'Day rate × 1 day' : `Day rate × ${days} days`}</dt>
-                                <dd>{formatAmount(total, currency, 2)}</dd>
-                            </div>
-                            <div>
-                                <dt>Booking fee (8%)</dt>
-                                <dd>{formatAmount(fee, currency, 2)}</dd>
-                            </div>
-                            {offerFee ? (
-                                <div>
-                                    <dt>Project fee</dt>
-                                    <dd>Offered</dd>
-                                </div>
-                            ) : null}
-                            <div>
-                                <dt>Total with fee</dt>
-                                <dd>{formatAmount(total + fee, currency, 2)}</dd>
-                            </div>
-                        </dl>
-                    ) : null}
-                </>
-            ) : null}
-        </aside>
-    );
-}
-
-function ExtraDays({
-    label,
-    value,
-    onChange,
-    onRemove,
-}: {
-    label: string;
-    value: DateWindow;
-    onChange: (value: DateWindow) => void;
-    onRemove: () => void;
-}) {
-    return (
-        <div className="crew-extra">
-            <div>
-                <span className="crew-extra-label">{label}</span>
-                <div className="crew-extra-dates">
-                    <DatePicker
-                        variant="borderless"
-                        format="M/D/YYYY"
-                        placeholder="Start"
-                        allowClear
-                        onChange={(_date, dateString) => onChange({ ...value, start: dateText(dateString) })}
-                    />
-                    <span aria-hidden="true">—</span>
-                    <DatePicker
-                        variant="borderless"
-                        format="M/D/YYYY"
-                        placeholder="End"
-                        allowClear
-                        onChange={(_date, dateString) => onChange({ ...value, end: dateText(dateString) })}
-                    />
-                </div>
-            </div>
-            <button type="button" className="crew-extra-remove" aria-label={`Remove ${label.toLowerCase()} days`} onClick={onRemove}>
-                <MinusOutlined />
-            </button>
-        </div>
-    );
-}
-
-function MediaTile({
-    item,
-    accessToken,
-    thumbnailPath,
-    featured,
-    play,
-    showAll,
-    onOpen,
-    onShowAll,
-}: {
-    item: UserMedia;
-    accessToken: string;
-    thumbnailPath: string;
-    featured: boolean;
-    play: boolean;
-    showAll: boolean;
-    onOpen: () => void;
-    onShowAll: () => void;
-}) {
-    const photo = item.media_type === 'photo';
-    return (
-        <div className={featured ? 'crew-tile crew-tile-hero' : 'crew-tile'}>
-            <button
-                type="button"
-                className="crew-tile-open"
-                onClick={onOpen}
-                aria-label={photo ? 'View photo' : play ? 'Play video' : 'Open video'}
-            >
-                <MediaThumb id={item.id} accessToken={accessToken} path={thumbnailPath} fallback={photo ? 'Photo' : 'Video'} />
-                <span className="media-mark" aria-hidden="true">
-                    {photo ? <PictureFilled /> : <VideoCameraFilled />}
+        <div className="review-editor">
+            <button type="button" className="basic-photo-pick" onClick={() => fileRef.current?.click()}>
+                <span className="basic-photo-ring">
+                    {photoSrc ? <img src={photoSrc} alt="Profile photo" /> : <CameraOutlined />}
                 </span>
-                {play ? (
-                    <span className="crew-play" aria-hidden="true">
-                        <CaretRightFilled />
-                    </span>
-                ) : null}
+                <span>
+                    <Typography.Text strong style={{ display: 'block', fontSize: 14 }}>
+                        Change profile photo
+                    </Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        JPG or PNG · at least 400×400px
+                    </Typography.Text>
+                </span>
             </button>
-            {showAll ? (
-                <button type="button" className="crew-show-all" onClick={onShowAll}>
-                    Show all media
-                </button>
-            ) : null}
+            <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png"
+                hidden
+                aria-label="Profile photo file"
+                onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (file) {
+                        void choosePhoto(file);
+                    }
+                }}
+            />
+            <Form
+                form={form}
+                className="profile-form"
+                layout="vertical"
+                requiredMark={false}
+                style={{ marginTop: 16 }}
+                initialValues={{
+                    phone: user.phone ?? '',
+                    title: user.title ?? '',
+                    bio: user.bio ?? '',
+                    discipline_id: data.disciplineId,
+                    position_id: data.positionId,
+                    day_rate: data.dayRate ?? undefined,
+                    currency_id: data.currencyId ?? undefined,
+                    union_status: data.unionStatus,
+                    flat_fee: data.flatFee,
+                    locales: data.locales,
+                }}
+                onFinish={(values) => onSave(values, photoFile)}
+            >
+                <Flex gap={12} wrap="wrap">
+                    <Form.Item label="First name" style={{ flex: '1 1 160px' }}>
+                        <Input readOnly className="profile-readonly" value={user.first_name} />
+                    </Form.Item>
+                    <Form.Item label="Last name" style={{ flex: '1 1 160px' }}>
+                        <Input readOnly className="profile-readonly" value={user.last_name} />
+                    </Form.Item>
+                </Flex>
+                <Form.Item label="Work email">
+                    <Input readOnly className="profile-readonly" prefix={<MailOutlined />} value={user.email} />
+                </Form.Item>
+                <Form.Item
+                    label="Phone"
+                    name="phone"
+                    rules={[{ validator: validatePhone }]}
+                >
+                    <Input inputMode="tel" autoComplete="tel" prefix={<PhoneOutlined />} placeholder="+52 55 0000 0000" />
+                </Form.Item>
+                <Form.Item
+                    label="Title"
+                    name="title"
+                    rules={[
+                        { required: true, whitespace: true, message: 'Add a title for your profile.' },
+                        { max: titleLimit, message: 'Title must be 120 characters or fewer.' },
+                    ]}
+                >
+                    <Input maxLength={titleLimit} placeholder="Commercial director" />
+                </Form.Item>
+                <Form.Item
+                    label="Bio"
+                    name="bio"
+                    rules={[
+                        { required: true, whitespace: true, message: 'Tell us a bit about you.' },
+                        { max: bioLimit, message: 'Bio must be 300 characters or fewer.' },
+                    ]}
+                >
+                    <Input.TextArea
+                        className="basic-bio"
+                        rows={4}
+                        maxLength={bioLimit}
+                        showCount
+                    />
+                </Form.Item>
+                <Form.Item
+                    label="Discipline"
+                    name="discipline_id"
+                    rules={[{ required: true, message: 'Choose a discipline.' }]}
+                >
+                    <Radio.Group className="profile-choice">
+                        {data.disciplines.map((discipline) => (
+                            <Radio.Button key={discipline.id} value={discipline.id}>
+                                <span className="profile-choice-label">
+                                    {disciplineIcon(discipline.name)}
+                                    {discipline.name}
+                                </span>
+                            </Radio.Button>
+                        ))}
+                    </Radio.Group>
+                </Form.Item>
+                <Form.Item
+                    label="Position"
+                    name="position_id"
+                    rules={[{ required: true, message: 'Choose a position.' }]}
+                >
+                    <Select
+                        showSearch
+                        disabled={!disciplineId}
+                        placeholder={disciplineId ? 'Select a position' : 'Choose a discipline first'}
+                        optionFilterProp="label"
+                        options={data.positions
+                            .filter((position) => position.discipline_id === disciplineId)
+                            .map((position) => ({ value: position.id, label: position.name }))}
+                    />
+                </Form.Item>
+                <Flex gap={12} align="flex-start" wrap="wrap">
+                    <Form.Item
+                        label="Day rate"
+                        name="day_rate"
+                        style={{ flex: '1.4 1 180px' }}
+                        rules={[{ validator: validateRate }]}
+                    >
+                        <InputNumber<string>
+                            stringMode
+                            min="0"
+                            precision={2}
+                            controls={false}
+                            prefix={ratePrefix}
+                            style={{ width: '100%' }}
+                            formatter={(value) => formatRateInput(value)}
+                            parser={(value) => (value ?? '').replace(/,/g, '')}
+                            placeholder="0.00"
+                        />
+                    </Form.Item>
+                    <Form.Item
+                        label="Currency"
+                        name="currency_id"
+                        style={{ flex: '1 1 140px' }}
+                        rules={[{ required: true, message: 'Choose a currency.' }]}
+                    >
+                        <Select
+                            placeholder="Currency"
+                            options={data.currencies.map((row) => ({
+                                value: row.id,
+                                label: row.code,
+                            }))}
+                        />
+                    </Form.Item>
+                </Flex>
+                <Form.Item
+                    label="Union status"
+                    name="union_status"
+                    rules={[{ required: true, message: 'Choose a union status.' }]}
+                >
+                    <Radio.Group className="union-choice">
+                        {unionOptions.map((option) => (
+                            <Radio.Button key={option.value} value={option.value}>
+                                {option.label}
+                            </Radio.Button>
+                        ))}
+                    </Radio.Group>
+                </Form.Item>
+                <div className="flat-fee-card">
+                    <Flex align="center" justify="space-between" gap={16}>
+                        <Flex vertical>
+                            <Typography.Text strong>Would consider flat fee offers</Typography.Text>
+                            <Typography.Text type="secondary">
+                                Clients can offer one project price instead of your day rate.
+                            </Typography.Text>
+                        </Flex>
+                        <Form.Item name="flat_fee" valuePropName="checked" noStyle>
+                            <Switch className="flat-fee-switch" aria-label="Would consider flat fee offers" />
+                        </Form.Item>
+                    </Flex>
+                </div>
+                <Form.Item
+                    label="Working as a local in"
+                    name="locales"
+                    style={{ marginTop: 8 }}
+                    rules={[{ validator: validateLocales }]}
+                >
+                    <LocaleField cities={data.cities} />
+                </Form.Item>
+                <div className="review-editor-actions">
+                    <Button htmlType="button" disabled={saving} onClick={onCancel}>
+                        Cancel
+                    </Button>
+                    <Button type="primary" htmlType="submit" loading={saving}>
+                        Save profile
+                    </Button>
+                </div>
+            </Form>
         </div>
     );
 }
 
-function MediaThumb({
+function MediaEmbed({
+    src,
     id,
     accessToken,
-    path,
-    fallback = 'Video',
+    label,
+    status,
 }: {
+    src: string;
     id: string;
     accessToken: string;
-    path: string;
-    fallback?: string;
+    label: string;
+    status: UserMedia['status'];
 }) {
+    const [playing, setPlaying] = useState(false);
+
+    useEffect(() => {
+        setPlaying(false);
+    }, [src]);
+
+    if (!playing) {
+        return (
+            <button type="button" className="crew-tile-open" aria-label={`Play ${label}`} onClick={() => setPlaying(true)}>
+                <MediaThumb id={id} accessToken={accessToken} />
+                <MediaMark media={{ media_type: 'youtube', status }} />
+                <span className="crew-play" aria-hidden="true">
+                    <CaretRightFilled />
+                </span>
+            </button>
+        );
+    }
+
+    return (
+        <iframe
+            className="crew-tile-frame"
+            src={withAutoplay(src)}
+            title={label}
+            allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+        />
+    );
+}
+
+function MediaThumb({ id, accessToken, fallback = 'Video' }: { id: string; accessToken: string; fallback?: string }) {
     const [src, setSrc] = useState<string | null>(null);
 
     useEffect(() => {
         let active = true;
         let url: string | null = null;
         setSrc(null);
-        void getMediaThumbnail(accessToken, id, path).then((blob) => {
+        void getMediaThumbnail(accessToken, id).then((blob) => {
             if (!active) {
                 return;
             }
@@ -849,13 +2067,33 @@ function MediaThumb({
                 URL.revokeObjectURL(url);
             }
         };
-    }, [accessToken, id, path]);
+    }, [accessToken, id]);
 
     if (!src) {
         return <span className="crew-tile-fallback">{fallback}</span>;
     }
 
     return <img src={src} alt="" />;
+}
+
+function withAutoplay(src: string): string {
+    const url = new URL(src);
+    url.searchParams.set('autoplay', '1');
+    return url.toString();
+}
+
+function embedSrc(item: UserMedia): string | null {
+    if (item.media_type === 'upload' || item.media_type === 'photo') {
+        return null;
+    }
+    const link = classifyMediaLink(item.ref);
+    if (!link) {
+        return null;
+    }
+    if (link.media_type === 'youtube') {
+        return `https://www.youtube.com/embed/${link.videoId}`;
+    }
+    return `https://player.vimeo.com/video/${link.videoId}`;
 }
 
 function openMedia(item: UserMedia, message: ReturnType<typeof AntdApp.useApp>['message']): void {
@@ -870,15 +2108,39 @@ function openMedia(item: UserMedia, message: ReturnType<typeof AntdApp.useApp>['
     window.open(url, '_blank', 'noopener,noreferrer');
 }
 
-async function loadRates(accessToken: string, path: string) {
-    try {
-        return await getWorkProfile(accessToken, path);
-    } catch (error: unknown) {
-        if (error instanceof ApiError && error.status === 404) {
-            return null;
-        }
-        throw error;
-    }
+function persistTypes(
+    saveQueue: { current: Promise<void> },
+    projectsRef: { current: Project[] },
+    selectedTypeIdsRef: { current: string[] },
+    accessToken: string,
+): Promise<void> {
+    const run = saveQueue.current.then(async () => {
+        const typeIds = selectedTypeIdsRef.current;
+        await Promise.all(projectsRef.current.map((project) => updateProjectProjectTypes(accessToken, project.id, typeIds)));
+    });
+    saveQueue.current = run.then(() => undefined, () => undefined);
+    return run;
+}
+
+function creditInput(values: CreditFormValues) {
+    return {
+        name: values.name.trim(),
+        position_id: values.position_id,
+        lead_producer_name: values.lead_producer_name.trim(),
+        lead_producer_email: values.lead_producer_email.trim(),
+        date: values.date,
+        production_company: blankToNull(values.production_company),
+    };
+}
+
+const leadProducerEmailRules = [
+    { required: true, whitespace: true, message: 'Enter the lead producer email.' },
+    { type: 'email' as const, message: 'Enter a valid email address.' },
+];
+
+function blankToNull(value: string | undefined): string | null {
+    const trimmed = value?.trim() ?? '';
+    return trimmed.length > 0 ? trimmed : null;
 }
 
 function countLabel(value: number | null): string {
@@ -886,40 +2148,42 @@ function countLabel(value: number | null): string {
 }
 
 function responseLabel(hours: number | null): string {
-    return hours === null ? '—' : `< ${hours}h`;
+    return hours === null ? '—' : `Under ${hours} hours`;
 }
 
-function toCredit(project: Project, positions: Array<{ id: string; name: string }>): Credit {
-    return {
-        id: project.id,
-        name: project.name,
-        date: project.date,
-        position: positions.find((row) => row.id === project.position_id)?.name ?? null,
-        company: project.production_company,
-        leadProducer: project.lead_producer_name,
-        leadProducerEmail: project.lead_producer_email,
-    };
+function positionSelectOptions(disciplines: Discipline[], positions: Position[]): Array<{
+    label: string;
+    options: Array<{ value: string; label: string }>;
+}> {
+    return disciplines.map((discipline) => ({
+        label: discipline.name,
+        options: positions
+            .filter((position) => position.discipline_id === discipline.id)
+            .map((position) => ({ value: position.id, label: position.name })),
+    }));
 }
 
-function profileHeading(user: CurrentUser | null): string {
-    const title = user?.title?.trim();
-    if (title) {
-        return title;
+function orderNamed<T extends { name: string }>(rows: T[], preferred: string[]): T[] {
+    return [...rows].sort((left, right) => {
+        const leftRank = rank(preferred, left.name);
+        const rightRank = rank(preferred, right.name);
+        if (leftRank !== rightRank) {
+            return leftRank - rightRank;
+        }
+        return left.name.localeCompare(right.name);
+    });
+}
+
+function rank(order: string[], name: string): number {
+    const index = order.indexOf(name);
+    return index === -1 ? order.length : index;
+}
+
+function disciplineIcon(name: string): ReactNode {
+    if (name === 'Shooting') {
+        return <VideoCameraOutlined />;
     }
-    return user ? publicName(user.first_name, user.last_name) : 'Profile';
-}
-
-function publicName(first: string, last: string): string {
-    const given = first.trim();
-    const initial = last.trim().charAt(0);
-    if (given && initial) {
-        return `${given} ${initial}`;
-    }
-    return given || last.trim() || 'Crew';
-}
-
-function initials(first: string, last: string): string {
-    return `${first.trim().charAt(0)}${last.trim().charAt(0)}`.toUpperCase() || '?';
+    return <PlaySquareOutlined />;
 }
 
 function workedOn(names: string[]): string | null {
@@ -942,12 +2206,23 @@ function workedOn(names: string[]): string | null {
     return `Worked on ${lead} and ${last}.`;
 }
 
-function cityLine(home: string | null, others: string[]): string | null {
-    const parts = [
-        ...(home ? [`Local in ${home}`] : []),
-        ...others,
-    ];
-    return parts.length > 0 ? parts.join(' · ') : null;
+function cityLine(locales: SetupCity[], cities: ProductionCity[]): string | null {
+    const home = locales.find((locale) => locale.home_city) ?? locales[0];
+    if (!home) {
+        return null;
+    }
+    const nameOf = (id: string) => cities.find((city) => city.id === id)?.name;
+    const homeName = nameOf(home.production_city_id);
+    if (!homeName) {
+        return null;
+    }
+    const others = locales
+        .filter((locale) => locale !== home)
+        .flatMap((locale) => {
+            const name = nameOf(locale.production_city_id);
+            return name ? [name] : [];
+        });
+    return [`Local in ${homeName}`, ...others].join(' · ');
 }
 
 function formatPerDay(amount: number | null, currency: Currency | undefined): string | null {
@@ -955,57 +2230,115 @@ function formatPerDay(amount: number | null, currency: Currency | undefined): st
         return null;
     }
     const digits = Number.isInteger(amount) ? 0 : 2;
-    return `${formatAmount(amount, currency, digits)} per day`;
-}
-
-function formatAmount(amount: number, currency: Currency | undefined, digits: number): string {
     const formatted = amount.toLocaleString('en-US', {
         minimumFractionDigits: digits,
         maximumFractionDigits: digits,
     });
-    const code = currency?.code;
-    const symbol = code ? currencySymbols[code] : undefined;
-    if (symbol) {
-        return `${symbol}${formatted}`;
-    }
-    return code ? `${formatted} ${code}` : formatted;
+    const symbol = currency ? currencySymbols[currency.code] : undefined;
+    const money = symbol ? `${symbol}${formatted}` : currency ? `${formatted} ${currency.code}` : formatted;
+    return `${money} per day`;
 }
 
-function inclusiveDays(start: string | null, end: string | null): number | null {
-    if (!start || !end) {
-        return null;
+function formatRateInput(value: string | number | undefined | null): string {
+    if (value === undefined || value === null || value === '') {
+        return '';
     }
-    const from = parseUsDate(start);
-    const to = parseUsDate(end);
-    if (!from || !to) {
-        return null;
-    }
-    const diff = Math.round((to.getTime() - from.getTime()) / 86_400_000);
-    if (diff < 0) {
-        return null;
-    }
-    return diff + 1;
+    const [whole, fraction] = String(value).split('.');
+    const withCommas = (whole ?? '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return fraction !== undefined ? `${withCommas}.${fraction}` : withCommas;
 }
 
-function parseUsDate(value: string): Date | null {
-    const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value);
-    const monthText = match?.[1];
-    const dayText = match?.[2];
-    const yearText = match?.[3];
-    if (!monthText || !dayText || !yearText) {
-        return null;
+function readRate(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+        return value;
     }
-    const month = Number(monthText);
-    const day = Number(dayText);
-    const year = Number(yearText);
-    const date = new Date(year, month - 1, day);
-    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
-        return null;
+    if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = Number(value.replace(/,/g, ''));
+        if (Number.isFinite(parsed) && parsed >= 0) {
+            return parsed;
+        }
     }
-    return date;
+    return null;
 }
 
-function dateText(value: string | string[] | null | undefined): string | null {
-    const text = Array.isArray(value) ? value[0] : value;
-    return text ? text : null;
+function validateRate(_: unknown, value: unknown): Promise<void> {
+    if (readRate(value) === null) {
+        return Promise.reject(new Error('Enter a day rate.'));
+    }
+    return Promise.resolve();
+}
+
+function validatePhone(_: unknown, value: unknown): Promise<void> {
+    if (typeof value === 'string' && isPhone(value.trim())) {
+        return Promise.resolve();
+    }
+    return Promise.reject(new Error('Enter a phone number with at least 7 digits.'));
+}
+
+function isPhone(phone: string): boolean {
+    return /^[0-9+().\-\s]+$/.test(phone) && (phone.match(/\d/g)?.length ?? 0) >= 7;
+}
+
+function validateLocales(_: unknown, value: unknown): Promise<void> {
+    if (!Array.isArray(value) || value.length === 0) {
+        return Promise.reject(new Error('Add at least one city.'));
+    }
+    const homes = value.filter((row) => isSetupCity(row) && row.home_city);
+    if (homes.length !== 1) {
+        return Promise.reject(new Error('Choose one home city.'));
+    }
+    const ids = value.map((row) => (isSetupCity(row) ? row.production_city_id : ''));
+    if (new Set(ids).size !== value.length) {
+        return Promise.reject(new Error('Each city can only be added once.'));
+    }
+    return Promise.resolve();
+}
+
+function isSetupCity(value: unknown): value is SetupCity {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const row = value as Record<string, unknown>;
+    return typeof row.production_city_id === 'string' && typeof row.home_city === 'boolean';
+}
+
+function initials(first: string, last: string): string {
+    return `${first.trim().charAt(0)}${last.trim().charAt(0)}`.toUpperCase() || '?';
+}
+
+function mediaLabel(item: UserMedia, index: number, total: number): string {
+    const source = item.media_type === 'youtube'
+        ? 'YouTube video'
+        : item.media_type === 'vimeo'
+            ? 'Vimeo video'
+            : item.media_type === 'photo'
+                ? 'Photo'
+                : 'Uploaded video';
+    const place = index === 0 ? 'cover' : `${index + 1} of ${total}`;
+    return `${source}, ${place}`;
+}
+
+function videoContentType(file: File): string | null {
+    const type = file.type.toLowerCase();
+    if (type === 'video/mp4' || type === 'video/quicktime' || type === 'video/webm') {
+        return type;
+    }
+    if (type && type !== 'application/octet-stream') {
+        return null;
+    }
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.mp4')) {
+        return 'video/mp4';
+    }
+    if (name.endsWith('.mov')) {
+        return 'video/quicktime';
+    }
+    if (name.endsWith('.webm')) {
+        return 'video/webm';
+    }
+    return null;
+}
+
+function isAbort(error: unknown): boolean {
+    return error instanceof DOMException && error.name === 'AbortError';
 }

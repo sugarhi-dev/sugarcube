@@ -47,7 +47,12 @@ test('uploads a video and thumbnail', async ({ page }) => {
 
     const uploaded = page.getByRole('listitem', { name: /Uploaded video, cover/ });
     await expect(uploaded.locator('img')).toHaveAttribute('src', /^blob:/);
-    await expect(uploaded.locator('.media-mark .anticon-video-camera')).toBeVisible();
+    await expect(uploaded.getByRole('button', { name: /^Play / })).toHaveCount(0);
+    await expect(uploaded.locator('iframe')).toHaveCount(0);
+    const mark = uploaded.locator('.media-mark');
+    await expect(mark.locator('.anticon-video-camera')).toBeVisible();
+    await expect(mark).toHaveAttribute('title', 'The media is being prepared');
+    await expect(mark).toHaveCSS('color', 'rgb(217, 45, 32)');
     await expect(page.getByText('1 of 2 — add 1 more')).toBeVisible();
 
     const reloadedThumb = page.waitForResponse((response) =>
@@ -85,6 +90,19 @@ test('uploads a photo', async ({ page }) => {
 
     const photo = page.getByRole('listitem', { name: /Photo, cover/ });
     await expect(photo.locator('img')).toHaveAttribute('src', /^blob:/);
+    await photo.getByRole('button', { name: 'View photo' }).click();
+    const viewer = page.getByRole('dialog', { name: 'Photo' });
+    const viewerImage = viewer.locator('img');
+    await expect(viewerImage).toBeVisible();
+    const viewerBox = await viewer.boundingBox();
+    const viewport = page.viewportSize();
+    if (!viewerBox || !viewport) {
+        throw new Error('Could not measure the photo view.');
+    }
+    expect(viewerBox.width).toBeGreaterThan(viewport.width * 0.9);
+    expect(viewerBox.height).toBeGreaterThan(viewport.height * 0.9);
+    await page.keyboard.press('Escape');
+    await expect(viewer).toBeHidden();
     const mark = photo.locator('.media-mark');
     await expect(mark.locator('.anticon-picture')).toBeVisible();
     const remove = photo.getByRole('button', { name: /^Delete / });
@@ -207,12 +225,16 @@ test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) =>
     const youtube = page.getByRole('listitem', { name: /YouTube video, cover/ });
     await expect(youtube.locator('img')).toHaveAttribute('src', /^blob:/);
     await expect(youtube).toHaveCSS('width', /^33\d(\.\d+)?px$/);
+    await youtube.getByRole('button', { name: 'Play YouTube video, cover' }).click();
+    await expect(youtube.locator('iframe')).toHaveAttribute('src', 'https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1');
     await expect(youtube.getByText('Cover')).toBeVisible();
     await expect(page.getByText('1 of 2 — add 1 more')).toBeVisible();
 
     await addLink(page, vimeoUrl);
     const vimeo = page.getByRole('listitem', { name: /Vimeo video, 2 of 2/ });
     await expect(vimeo.locator('img')).toHaveAttribute('src', /^blob:/);
+    await vimeo.getByRole('button', { name: 'Play Vimeo video, 2 of 2' }).click();
+    await expect(vimeo.locator('iframe')).toHaveAttribute('src', 'https://player.vimeo.com/video/76979871?autoplay=1');
     await expect(page.getByText('2 of 2')).toBeVisible();
 
     await dragCard(page, vimeo, youtube);
@@ -353,7 +375,7 @@ async function dragCard(page: Page, source: ReturnType<Page['getByRole']>, targe
 async function fillTrackRecord(page: Page): Promise<void> {
     await page.getByLabel('Projects completed').fill('18');
     await page.getByLabel('Years in the business').fill('3');
-    await chooseOption(page, 'Response time', '< 12 hours');
+    await chooseOption(page, 'Response time', 'Under 12 hours');
 }
 
 async function chooseOption(page: Page, label: string, option: string, search?: string): Promise<void> {

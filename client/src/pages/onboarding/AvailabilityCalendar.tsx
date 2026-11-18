@@ -13,9 +13,19 @@ type AvailabilityCalendarProps = {
     editable: boolean;
     accessToken: string;
     onSaved: (rows: UserAvailability[]) => void;
+    legend?: 'status' | 'none';
+    rateLabel?: string | null;
 };
 
-export function AvailabilityCalendar({ rows, appliesTo, editable, accessToken, onSaved }: AvailabilityCalendarProps) {
+export function AvailabilityCalendar({
+    rows,
+    appliesTo,
+    editable,
+    accessToken,
+    onSaved,
+    legend = 'status',
+    rateLabel = null,
+}: AvailabilityCalendarProps) {
     const [month, setMonth] = useState(() => dayjs());
     const [open, setOpen] = useState(false);
     const days = useMemo(() => daysInRange(rows), [rows]);
@@ -24,15 +34,30 @@ export function AvailabilityCalendar({ rows, appliesTo, editable, accessToken, o
         <aside className="availability-card" aria-label="Your availability">
             <h2>Your availability</h2>
             <MonthCalendar month={month} onMonth={setMonth} days={days} />
-            <ul className="availability-legend">
-                <li><span className="availability-swatch" /> Available</li>
-                <li><span className="availability-swatch is-blocked" /> Blocked</li>
-                <li><span className="availability-swatch is-booked" /> Booked</li>
-            </ul>
-            {editable ? (
+            {legend === 'none' ? null : (
+                <ul className="availability-legend">
+                    <li><span className="availability-swatch" /> Available</li>
+                    <li><span className="availability-swatch is-blocked" /> Blocked</li>
+                </ul>
+            )}
+            {rateLabel ? (
+                <div className="availability-rate">
+                    <strong>{rateLabel}</strong>
+                    {editable ? (
+                        <Button htmlType="button" className="availability-set" onClick={() => setOpen(true)}>
+                            Update calendar
+                        </Button>
+                    ) : null}
+                </div>
+            ) : editable ? (
                 <Button htmlType="button" className="availability-set" onClick={() => setOpen(true)}>
-                    Update Calendar
+                    Update calendar
                 </Button>
+            ) : null}
+            {editable && legend !== 'none' ? (
+                <p className="availability-note">
+                    Drag across days to block time out. Blocked days hide this profile from search.
+                </p>
             ) : null}
             <SetAvailabilityModal
                 open={open}

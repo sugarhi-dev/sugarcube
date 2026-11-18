@@ -94,7 +94,7 @@ const CompleteExperienceRequestSchema = z.object({
         description: 'Years the user has worked in the business.',
     }),
     response_time_hours: z.number().int().min(1).max(999).meta({
-        description: 'Average response time in hours. A value of 12 is shown as < 12h.',
+        description: 'Average response time in hours. A value of 12 is shown as Under 12 hours.',
     }),
 });
 

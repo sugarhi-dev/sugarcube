@@ -1,6 +1,7 @@
 import { classifyMediaLink } from '@sugarcube/schema';
 import { Binary, Context, Logic, type BinaryObject } from '@sugarcube/server-core';
 import { ulid } from 'ulidx';
+import { z } from 'zod';
 import { UserMediaSchema, type UserMedia } from '../entities/userMedia.js';
 import { UserMediaRepo } from '../repositories/userMediaRepo.js';
 import { constraintFailure } from './pgError.js';
@@ -12,7 +13,13 @@ const mediaConstraints = {
     user_media_media_type_check: { statusCode: 400, message: 'Media type is not allowed.' },
     user_media_sort_order_check: { statusCode: 400, message: 'Media order is not allowed.' },
     user_media_thumbnail_check: { statusCode: 400, message: 'Thumbnail is not valid.' },
+    user_media_status_check: { statusCode: 400, message: 'Media status is not allowed.' },
+    user_media_stream_url_check: { statusCode: 400, message: 'Stream URL is not valid.' },
 };
+
+export const streamShareTtlSeconds = 12 * 60 * 60;
+
+const StreamUrlSchema = z.string().trim().min(1).max(2048).startsWith('https://');
 
 export class UserMediaLogic extends Logic {
     private readonly userMediaRepo: UserMediaRepo;
@@ -66,6 +73,7 @@ export class UserMediaLogic extends Logic {
             media_type: 'upload',
             ref,
             thumbnail: null,
+            status: 'pending',
         });
         try {
             return await this.userMediaRepo.createUserMedia(ctx, media);
@@ -222,6 +230,40 @@ export class UserMediaLogic extends Logic {
             return null;
         }
         return image;
+    }
+
+    async uploadedVideoShareUrl(ctx: Context, media: UserMedia): Promise<string | null> {
+        if (media.media_type !== 'upload' || !ulidPattern.test(media.ref)) {
+            return null;
+        }
+
+        this.log.trace(`${ctx.traceId} sign user_media ${media.id}`);
+        try {
+            return await this.binary.presignGetAbsolute(media.ref, streamShareTtlSeconds);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log.error(`${ctx.traceId} video share url failed: ${message}`);
+            return null;
+        }
+    }
+
+    async markStreamReady(ctx: Context, id: string, streamUrl: string): Promise<UserMedia | null> {
+        const url = StreamUrlSchema.safeParse(streamUrl);
+        if (!url.success) {
+            ctx.error('Stream URL is not valid.', 400);
+            return null;
+        }
+
+        try {
+            const media = await this.userMediaRepo.markStreamReady(ctx, id, url.data);
+            if (!media) {
+                ctx.error('Media not found.', 404);
+                return null;
+            }
+            return media;
+        } catch (error) {
+            return this.rejectConstraint(ctx, error);
+        }
     }
 
     private async storeBinary(ctx: Context, data: Uint8Array, contentType: string, kind: 'video' | 'photo' | 'thumbnail'): Promise<string | null> {

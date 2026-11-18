@@ -153,7 +153,7 @@ function waitForTypeSaves(page: Page, count: number): Promise<Response[]> {
 async function fillTrackRecord(page: Page): Promise<void> {
     await page.getByLabel('Projects completed').fill('18');
     await page.getByLabel('Years in the business').fill('3');
-    await chooseOption(page, 'Response time', '< 12 hours');
+    await chooseOption(page, 'Response time', 'Under 12 hours');
 }
 
 function isTypeSave(response: Response): boolean {

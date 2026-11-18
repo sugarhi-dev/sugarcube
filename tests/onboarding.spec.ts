@@ -20,7 +20,7 @@ test('logs in and completes profile setup', async ({ page }) => {
 
     await expect(page.getByRole('heading', { name: 'Tell us about you' })).toBeVisible();
     await expect(page.getByText('STEP 1 OF 6')).toBeVisible();
-    await expect(page.getByRole('listitem').filter({ hasText: 'Basic Info' })).toHaveAttribute('aria-current', 'step');
+    await expect(page.getByRole('listitem').filter({ hasText: 'Basic info' })).toHaveAttribute('aria-current', 'step');
     await expect(page.getByText('CREW SETUP')).toBeVisible();
     await expect(page.getByLabel('First name')).toHaveValue(devUser.firstName);
     await expect(page.getByLabel('Last name')).toHaveValue(devUser.lastName);
@@ -146,7 +146,7 @@ test('logs in and completes profile setup', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Experience & project types' })).toBeVisible();
     await expect(page.getByLabel('Projects completed')).toHaveValue('18');
     await expect(page.getByLabel('Years in the business')).toHaveValue('3');
-    await expect(page.locator('.ant-form-item', { has: page.getByRole('combobox', { name: 'Response time' }) })).toContainText('< 12 hours');
+    await expect(page.locator('.ant-form-item', { has: page.getByRole('combobox', { name: 'Response time' }) })).toContainText('Under 12 hours');
     await page.getByRole('button', { name: 'Continue — upload media' }).click();
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
 });
@@ -183,7 +183,7 @@ function pngChunk(type: string, data: Buffer): Buffer {
 async function fillTrackRecord(page: Page): Promise<void> {
     await page.getByLabel('Projects completed').fill('18');
     await page.getByLabel('Years in the business').fill('3');
-    await chooseOption(page, 'Response time', '< 12 hours');
+    await chooseOption(page, 'Response time', 'Under 12 hours');
 }
 
 async function chooseOption(page: Page, label: string, option: string, search?: string): Promise<void> {

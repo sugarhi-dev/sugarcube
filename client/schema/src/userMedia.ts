@@ -4,12 +4,13 @@ export const MediaTypeSchema = z.enum(['youtube', 'vimeo', 'upload', 'photo']);
 
 export type MediaType = z.infer<typeof MediaTypeSchema>;
 
-// Media the browser may keep. The owner and sort position stay on the server entity.
+// Media the browser may keep. The owner, sort position, thumbnail, and stream URL stay on the server entity.
 // ref is a YouTube or Vimeo URL, or the ULID of a self-uploaded video or photo.
 export const UserMediaSchema = z.object({
     id: z.ulid(),
     media_type: MediaTypeSchema,
     ref: z.string().min(1).max(2048),
+    status: z.enum(['pending', 'ready']).nullable(),
 }).strip();
 
 export type UserMedia = z.infer<typeof UserMediaSchema>;

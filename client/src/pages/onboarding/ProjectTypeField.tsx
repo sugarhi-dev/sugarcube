@@ -50,6 +50,7 @@ export function ProjectTypeField({
     value = [],
     onChange,
     readOnly = false,
+    showPicker = true,
 }: {
     id?: string;
     disciplines: Discipline[];
@@ -57,11 +58,13 @@ export function ProjectTypeField({
     value?: string[];
     onChange?: (value: string[]) => void;
     readOnly?: boolean;
+    showPicker?: boolean;
 }) {
     const generatedId = useId();
     const selectId = id ?? generatedId;
     const selectRef = useRef<RefSelectProps>(null);
     const [pickerKey, setPickerKey] = useState(0);
+    const canPick = !readOnly && showPicker;
     const selected = new Set(value);
     const byId = new Map(projectTypes.map((projectType) => [projectType.id, projectType]));
     const disciplineName = new Map(disciplines.map((discipline) => [discipline.id, discipline.name]));
@@ -85,7 +88,7 @@ export function ProjectTypeField({
 
     return (
         <Flex vertical gap={10}>
-            {readOnly ? null : (
+            {canPick ? (
                 <>
                     <label htmlFor={selectId} className="visually-hidden">Project types</label>
                     <Select
@@ -105,7 +108,7 @@ export function ProjectTypeField({
                         style={{ width: '100%' }}
                     />
                 </>
-            )}
+            ) : null}
             <Flex gap={8} wrap="wrap" align="center">
                 {value.map((typeId) => {
                     const projectType = byId.get(typeId);
@@ -125,23 +128,22 @@ export function ProjectTypeField({
                         </Tag>
                     );
                 })}
-                {readOnly ? null : (
+                {canPick ? (
                     <Button
                         type="dashed"
-                        shape="round"
                         className="add-project-type"
                         icon={<PlusOutlined />}
                         onClick={() => selectRef.current?.focus()}
                     >
                         Add project type
                     </Button>
-                )}
+                ) : null}
             </Flex>
-            {readOnly ? null : (
+            {canPick ? (
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                     Pick all that apply. Clients filter crew by project type.
                 </Typography.Text>
-            )}
+            ) : null}
         </Flex>
     );
 }

@@ -201,7 +201,7 @@ export class UserRepo extends Repository {
                  title = $4,
                  status = CASE WHEN status = 'basic' THEN 'setup' ELSE status END,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status IN ('basic', 'media', 'review')
+             WHERE id = $1 AND status IN ('basic', 'media', 'review', 'admin-review')
              RETURNING ${userColumns}`,
             [userId, input.phone, input.bio, input.title],
         );
@@ -215,7 +215,7 @@ export class UserRepo extends Repository {
             `UPDATE user_account
              SET photo = $2,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status IN ('basic', 'media', 'review')
+             WHERE id = $1 AND status IN ('basic', 'media', 'review', 'admin-review')
              RETURNING ${userColumns}`,
             [userId, photo],
         );
@@ -234,7 +234,7 @@ export class UserRepo extends Repository {
             const locked = await query<{ id: string }>(
                 `SELECT id
                  FROM user_account
-                 WHERE id = $1 AND status IN ('setup', 'media', 'review')
+                 WHERE id = $1 AND status IN ('setup', 'media', 'review', 'admin-review')
                  FOR UPDATE`,
                 [userId],
             );
@@ -304,7 +304,7 @@ export class UserRepo extends Repository {
                 `UPDATE user_account
                  SET status = CASE WHEN status = 'setup' THEN 'experience' ELSE status END,
                      updated_at = CURRENT_TIMESTAMP
-                 WHERE id = $1 AND status IN ('setup', 'media', 'review')
+                 WHERE id = $1 AND status IN ('setup', 'media', 'review', 'admin-review')
                  RETURNING ${userColumns}`,
                 [userId],
             );

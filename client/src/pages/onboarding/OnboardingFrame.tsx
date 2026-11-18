@@ -1,12 +1,12 @@
 import { CheckOutlined } from '@ant-design/icons';
-import { Flex, Layout, Typography } from 'antd';
+import { ConfigProvider, Layout } from 'antd';
 import type { ReactNode } from 'react';
-import { copyThat } from '../../theme.ts';
+import { onboardingTheme } from '../../theme.ts';
 
 const { Content, Sider } = Layout;
 
 const steps = [
-    { title: 'Basic Info' },
+    { title: 'Basic info' },
     { title: 'Set up your profile' },
     { title: 'Experience & project types' },
     { title: 'Upload your media' },
@@ -30,32 +30,30 @@ export function OnboardingFrame({
     contentWidth = 560,
 }: OnboardingFrameProps) {
     return (
-        <Layout className="onboarding-shell">
-            <Sider width={248} theme="dark" className="onboarding-sider">
-                <Flex vertical style={{ height: '100%', padding: '22px 18px 20px' }}>
-                    <Typography.Title level={4} style={{ margin: 0, color: '#fff', fontSize: 18, fontWeight: 800, letterSpacing: '0.08em' }}>
-                        COPY
-                        <Typography.Text style={{ color: copyThat.accent, fontSize: 18, fontWeight: 800, letterSpacing: '0.08em' }}>
-                            THAT
-                        </Typography.Text>
-                    </Typography.Title>
-                    <Typography.Text style={{ display: 'block', marginTop: 18, color: '#8d8680', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em' }}>
-                        {accountLabel}
-                    </Typography.Text>
-                    <Flex vertical gap={14} style={{ marginTop: 22 }} role="list" aria-label="Setup steps">
-                        {steps.map((item, index) => (
-                            <StepRow key={item.title} index={index} title={item.title} current={step} />
-                        ))}
-                    </Flex>
-                    <Typography.Paragraph style={{ marginTop: 'auto', marginBottom: 0, color: '#6f6964', fontSize: 12, lineHeight: 1.45 }}>
-                        {note}
-                    </Typography.Paragraph>
-                </Flex>
-            </Sider>
-            <Content style={{ background: copyThat.canvas, padding: '32px 40px 48px' }}>
-                <div style={{ width: `min(${contentWidth}px, 100%)` }}>{children}</div>
-            </Content>
-        </Layout>
+        <ConfigProvider theme={onboardingTheme}>
+            <Layout className="onboarding-shell">
+                <Sider width={232} theme="light" className="onboarding-sider">
+                    <div className="onboarding-sider-inner">
+                        <p className="onboarding-brand">
+                            COPY
+                            <span className="onboarding-brand-accent">THAT</span>
+                        </p>
+                        <p className="onboarding-account">{accountLabel}</p>
+                        <div className="onboarding-steps" role="list" aria-label="Setup steps">
+                            {steps.map((item, index) => (
+                                <StepRow key={item.title} index={index} title={item.title} current={step} />
+                            ))}
+                        </div>
+                        <p className="onboarding-note">{note}</p>
+                    </div>
+                </Sider>
+                <Content className="onboarding-main" style={{ '--onboarding-progress': step - 1 }}>
+                    <div className="onboarding-main-inner" style={{ width: `min(${contentWidth}px, 100%)` }}>
+                        {children}
+                    </div>
+                </Content>
+            </Layout>
+        </ConfigProvider>
     );
 }
 
@@ -63,36 +61,19 @@ function StepRow({ index, title, current }: { index: number; title: string; curr
     const number = index + 1;
     const done = number < current;
     const active = number === current;
-    const markerColor = done ? '#2f9e44' : active ? copyThat.pinkHot : 'transparent';
-    const titleColor = active ? '#ffffff' : done ? '#d9d3cc' : '#8a837c';
+    const state = done ? 'is-done' : active ? 'is-current' : 'is-upcoming';
 
     return (
-        <Flex gap={12} align="flex-start" role="listitem" aria-current={active ? 'step' : undefined}>
-            <Flex
-                align="center"
-                justify="center"
-                style={{
-                    width: 24,
-                    height: 24,
-                    flex: '0 0 24px',
-                    borderRadius: '50%',
-                    background: markerColor,
-                    border: done || active ? 'none' : '1px solid #4a453f',
-                    color: '#fff',
-                    fontSize: 12,
-                    fontWeight: 700,
-                }}
-            >
+        <div className={`onboarding-step ${state}`} role="listitem" aria-current={active ? 'step' : undefined}>
+            <span className="onboarding-step-marker">
                 {done ? <CheckOutlined /> : number}
-            </Flex>
-            <Flex vertical gap={2}>
-                <Typography.Text style={{ color: titleColor, fontWeight: active ? 700 : 600, fontSize: 14, lineHeight: '24px' }}>
-                    {title}
-                </Typography.Text>
-                <Typography.Text style={{ color: '#6f6964', fontSize: 12 }}>
+            </span>
+            <span className="onboarding-step-copy">
+                <span className="onboarding-step-title">{title}</span>
+                <span className="onboarding-step-meta">
                     {number} of {steps.length}
-                </Typography.Text>
-            </Flex>
-        </Flex>
+                </span>
+            </span>
+        </div>
     );
 }

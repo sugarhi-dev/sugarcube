@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, ArrowRightOutlined, DeleteOutlined, EditOutlined, HolderOutlined, LinkOutlined, PictureFilled, PictureOutlined, PlusOutlined, UploadOutlined, VideoCameraFilled } from '@ant-design/icons';
+import { ArrowLeftOutlined, ArrowRightOutlined, CaretRightFilled, DeleteOutlined, EditOutlined, HolderOutlined, LinkOutlined, PictureOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import { classifyMediaLink, mediaUrl, type UserMedia } from '@sugarcube/schema';
 import { App as AntdApp, Button, Flex, Input, Modal, Progress, Result, Spin, Typography } from 'antd';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
@@ -8,6 +8,8 @@ import { completeMedia, returnToStep } from '../../api/me.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
+import { MediaMark } from '../../components/MediaMark.tsx';
+import { PhotoLightbox } from '../profile/PhotoLightbox.tsx';
 import { fileDragKind, fileDropHandlers, imageFile, isFileDrag, useKeepFileDrop } from './fileDrop.ts';
 import { onboardingExperiencePath } from './OnboardingExperience.tsx';
 import { OnboardingFrame } from './OnboardingFrame.tsx';
@@ -73,6 +75,7 @@ export function OnboardingMedia() {
     const [ready, setReady] = useState(false);
     const [continuing, setContinuing] = useState(false);
     const [returning, setReturning] = useState(false);
+    const [photoId, setPhotoId] = useState<string | null>(null);
 
     useEffect(() => {
         document.title = 'Upload your media';
@@ -632,6 +635,7 @@ export function OnboardingMedia() {
         if (editingId === id) {
             setEditingId(null);
         }
+        setPhotoId((current) => current === id ? null : current);
         remember(itemsRef.current.filter((item) => item.id !== id));
         setRemovingId(id);
         enqueue(async () => {
@@ -644,12 +648,14 @@ export function OnboardingMedia() {
     }
 
     const canReview = ready && items.length >= minimumMedia;
+    const enlarged = items.find((item) => item.id === photoId);
+    const enlargedPhotoId = enlarged && canViewPhoto(enlarged) ? enlarged.id : null;
 
     return (
         <OnboardingFrame
             step={4}
             accountLabel={accountLabel}
-            contentWidth={680}
+            contentWidth={960}
             note="Reels autoplay on your profile — paste a Vimeo or YouTube link and we handle the rest."
         >
             <Typography.Text style={{ color: copyThat.pink, fontSize: 12, fontWeight: 700, letterSpacing: '0.12em' }}>
@@ -687,7 +693,9 @@ export function OnboardingMedia() {
                         <Button htmlType="button" className="media-add" icon={<LinkOutlined />} onClick={openLinkDialog}>
                             YouTube / Vimeo
                         </Button>
-                        <span className="media-count">{mediaProgressLabel(items.length, minimumMedia)}</span>
+                        <span className={items.length >= minimumMedia ? 'media-count is-ready' : 'media-count'}>
+                            {mediaProgressLabel(items.length, minimumMedia)}
+                        </span>
                     </Flex>
 
                     <div className="media-grid" role="list" aria-label="Your media">
@@ -704,10 +712,19 @@ export function OnboardingMedia() {
                                     aria-grabbed={draggingId === item.id}
                                     onKeyDown={(event) => onKeyDown(event, item.id)}
                                 >
-                                    {session ? <MediaPreview item={item} accessToken={session.accessToken} /> : null}
-                                    <span className="media-mark" aria-hidden="true">
-                                        {item.media_type === 'photo' ? <PictureFilled /> : <VideoCameraFilled />}
-                                    </span>
+                                    {session ? (
+                                        <MediaStage
+                                            item={item}
+                                            label={label}
+                                            accessToken={session.accessToken}
+                                            onViewPhoto={() => {
+                                                if (canViewPhoto(item)) {
+                                                    setPhotoId(item.id);
+                                                }
+                                            }}
+                                        />
+                                    ) : null}
+                                    <MediaMark media={item} />
                                     <button
                                         type="button"
                                         className="media-card-grip"
@@ -744,8 +761,15 @@ export function OnboardingMedia() {
                                 </div>
                             );
                         })}
-                        <button type="button" className="media-slot" aria-label="Add a video" onClick={openLinkDialog}>
+                        <button
+                            type="button"
+                            className={items.length === 0 ? 'media-slot is-empty' : 'media-slot'}
+                            aria-label="Add a video"
+                            onClick={openLinkDialog}
+                        >
                             <PlusOutlined />
+                            <span className="media-slot-title">Add media</span>
+                            <span className="media-slot-hint">Video, photo or link</span>
                         </button>
                     </div>
                     <Modal
@@ -792,6 +816,7 @@ export function OnboardingMedia() {
                         <button
                             type="button"
                             className={thumbOver ? 'media-thumb-pick is-dropping' : 'media-thumb-pick'}
+                            aria-label={thumbFile ? 'Selected thumbnail' : 'Drop a thumbnail'}
                             onClick={() => thumbRef.current?.click()}
                             {...fileDropHandlers(() => setThumbOver(true), () => setThumbOver(false), (file) => {
                                 void chooseThumbnail(file);
@@ -800,7 +825,11 @@ export function OnboardingMedia() {
                             {thumbPreview ? (
                                 <img src={thumbPreview} alt="Selected thumbnail" draggable={false} />
                             ) : (
-                                <span><PictureOutlined /> Drop a thumbnail</span>
+                                <span className="media-drop-copy">
+                                    <PictureOutlined />
+                                    <span>Drop a thumbnail</span>
+                                    <span className="media-drop-browse">or browse files</span>
+                                </span>
                             )}
                         </button>
                         <input
@@ -845,6 +874,7 @@ export function OnboardingMedia() {
                         <button
                             type="button"
                             className={videoOver ? 'media-upload-note is-dropping' : 'media-upload-note'}
+                            aria-label={videoFile ? videoFile.name : 'Drop an MP4, MOV, or WebM'}
                             onClick={() => videoRef.current?.click()}
                             disabled={uploading}
                             {...fileDropHandlers(() => {
@@ -852,7 +882,13 @@ export function OnboardingMedia() {
                                 setThumbOver(false);
                             }, () => setVideoOver(false), chooseVideo)}
                         >
-                            {videoFile ? videoFile.name : 'Drop an MP4, MOV, or WebM'}
+                            {videoFile ? videoFile.name : (
+                                <span className="media-drop-copy">
+                                    <UploadOutlined />
+                                    <span>Drop an MP4, MOV, or WebM</span>
+                                    <span className="media-drop-browse">or browse files</span>
+                                </span>
+                            )}
                         </button>
                         <input
                             ref={videoRef}
@@ -879,6 +915,7 @@ export function OnboardingMedia() {
                         <button
                             type="button"
                             className={thumbOver ? 'media-thumb-pick is-dropping' : 'media-thumb-pick'}
+                            aria-label={thumbFile ? 'Selected thumbnail' : 'Drop a thumbnail'}
                             onClick={() => uploadThumbRef.current?.click()}
                             disabled={uploading}
                             {...fileDropHandlers(() => {
@@ -891,7 +928,11 @@ export function OnboardingMedia() {
                             {thumbPreview ? (
                                 <img src={thumbPreview} alt="Selected thumbnail" draggable={false} />
                             ) : (
-                                <span><PictureOutlined /> Drop a thumbnail</span>
+                                <span className="media-drop-copy">
+                                    <PictureOutlined />
+                                    <span>Drop a thumbnail</span>
+                                    <span className="media-drop-browse">or browse files</span>
+                                </span>
                             )}
                         </button>
                         <input
@@ -943,6 +984,7 @@ export function OnboardingMedia() {
                         <button
                             type="button"
                             className={photoOver ? 'media-thumb-pick is-primary is-dropping' : 'media-thumb-pick is-primary'}
+                            aria-label={photoFile ? 'Selected photo' : 'Drop a JPG or PNG'}
                             onClick={() => photoRef.current?.click()}
                             disabled={uploading}
                             {...fileDropHandlers(() => setPhotoOver(true), () => setPhotoOver(false), (file) => {
@@ -952,7 +994,11 @@ export function OnboardingMedia() {
                             {photoPreview ? (
                                 <img src={photoPreview} alt="Selected photo" draggable={false} />
                             ) : (
-                                <span><PictureOutlined /> Drop a JPG or PNG</span>
+                                <span className="media-drop-copy">
+                                    <PictureOutlined />
+                                    <span>Drop a JPG or PNG</span>
+                                    <span className="media-drop-browse">or browse files</span>
+                                </span>
                             )}
                         </button>
                         <input
@@ -1026,6 +1072,15 @@ export function OnboardingMedia() {
                             </Typography.Text>
                         ) : null}
                     </Modal>
+                    {session ? (
+                        <PhotoLightbox
+                            fullscreen
+                            accessToken={session.accessToken}
+                            id={enlargedPhotoId}
+                            path={enlargedPhotoId ? `/api/me/media/${encodeURIComponent(enlargedPhotoId)}/thumbnail` : null}
+                            onClose={() => setPhotoId(null)}
+                        />
+                    ) : null}
                 </>
             )}
 
@@ -1054,16 +1109,69 @@ export function OnboardingMedia() {
                     loading={continuing}
                     disabled={!canReview}
                     onClick={() => void onContinue()}
-                    style={canReview ? {
-                        background: `linear-gradient(90deg, ${copyThat.pinkHot} 0%, ${copyThat.pink} 100%)`,
-                        border: 'none',
-                    } : undefined}
                 >
                     Continue — review
                 </Button>
             </Flex>
         </OnboardingFrame>
     );
+}
+
+function MediaStage({
+    item,
+    label,
+    accessToken,
+    onViewPhoto,
+}: {
+    item: UserMedia;
+    label: string;
+    accessToken: string;
+    onViewPhoto: () => void;
+}) {
+    const [playing, setPlaying] = useState(false);
+    const embed = embedSrc(item);
+
+    useEffect(() => {
+        setPlaying(false);
+    }, [embed]);
+
+    if (item.status === 'pending') {
+        return <MediaPreview item={item} accessToken={accessToken} />;
+    }
+
+    if (playing && embed) {
+        return (
+            <iframe
+                className="media-card-frame"
+                src={withAutoplay(embed)}
+                title={label}
+                allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+            />
+        );
+    }
+
+    if (embed) {
+        return (
+            <button type="button" className="media-card-open" aria-label={`Play ${label}`} onClick={() => setPlaying(true)}>
+                <MediaPreview item={item} accessToken={accessToken} />
+                <span className="media-card-play" aria-hidden="true">
+                    <CaretRightFilled />
+                </span>
+            </button>
+        );
+    }
+
+    if (item.media_type === 'photo') {
+        return (
+            <button type="button" className="media-card-open" aria-label="View photo" onClick={onViewPhoto}>
+                <MediaPreview item={item} accessToken={accessToken} />
+            </button>
+        );
+    }
+
+    return <MediaPreview item={item} accessToken={accessToken} />;
 }
 
 function MediaPreview({ item, accessToken }: { item: UserMedia; accessToken: string }) {
@@ -1107,6 +1215,30 @@ function MediaPreview({ item, accessToken }: { item: UserMedia; accessToken: str
     );
 }
 
+function canViewPhoto(item: UserMedia): boolean {
+    return item.media_type === 'photo' && item.status !== 'pending';
+}
+
+function embedSrc(item: UserMedia): string | null {
+    if (item.status === 'pending' || item.media_type === 'upload' || item.media_type === 'photo') {
+        return null;
+    }
+    const link = classifyMediaLink(item.ref);
+    if (!link) {
+        return null;
+    }
+    if (link.media_type === 'youtube') {
+        return `https://www.youtube.com/embed/${link.videoId}`;
+    }
+    return `https://player.vimeo.com/video/${link.videoId}`;
+}
+
+function withAutoplay(src: string): string {
+    const url = new URL(src);
+    url.searchParams.set('autoplay', '1');
+    return url.toString();
+}
+
 function videoContentType(file: File): string | null {
     const type = file.type.toLowerCase();
     if (type === 'video/mp4' || type === 'video/quicktime' || type === 'video/webm') {
@@ -1135,7 +1267,7 @@ function isAbort(error: unknown): boolean {
 function mediaProgressLabel(count: number, minimum: number): string {
     const remaining = Math.max(minimum - count, 0);
     if (remaining === 0) {
-        return `${count} of ${minimum}`;
+        return `${count} added — ready to go live`;
     }
     return `${count} of ${minimum} — add ${remaining} more`;
 }

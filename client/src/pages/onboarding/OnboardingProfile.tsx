@@ -1,6 +1,7 @@
 import {
     ArrowLeftOutlined,
     ArrowRightOutlined,
+    CheckOutlined,
     PlaySquareOutlined,
     VideoCameraOutlined,
 } from '@ant-design/icons';
@@ -151,7 +152,7 @@ export function OnboardingProfile() {
     }, [catalog, disciplineId, form]);
 
     const currencyCode = catalog?.currencies.find((currency) => currency.id === currencyId)?.code;
-    const ratePrefix = currencyCode ? (currencySymbols[currencyCode] ?? currencyCode) : undefined;
+    const ratePrefix = currencyCode ? (currencySymbols[currencyCode] ?? currencyCode) : '$';
 
     async function onBack(): Promise<void> {
         if (!session || returning) {
@@ -253,7 +254,7 @@ export function OnboardingProfile() {
                             {catalog.disciplines.map((discipline) => (
                                 <Radio.Button key={discipline.id} value={discipline.id}>
                                     <span className="profile-choice-label">
-                                        {disciplineIcon(discipline.name)}
+                                        {discipline.id === disciplineId ? <CheckOutlined /> : disciplineIcon(discipline.name)}
                                         {discipline.name}
                                     </span>
                                 </Radio.Button>
@@ -368,10 +369,6 @@ export function OnboardingProfile() {
                             loading={saving}
                             icon={<ArrowRightOutlined />}
                             iconPlacement="end"
-                            style={{
-                                background: `linear-gradient(90deg, ${copyThat.pinkHot} 0%, ${copyThat.pink} 100%)`,
-                                border: 'none',
-                            }}
                         >
                             Continue — experience
                         </Button>

@@ -7,11 +7,13 @@ export function PhotoLightbox({
     id,
     path,
     onClose,
+    fullscreen = false,
 }: {
     accessToken: string;
     id: string | null;
     path: string | null;
     onClose: () => void;
+    fullscreen?: boolean;
 }) {
     const [src, setSrc] = useState<string | null>(null);
     const [failed, setFailed] = useState(false);
@@ -52,13 +54,16 @@ export function PhotoLightbox({
             open={id !== null}
             title="Photo"
             footer={null}
-            centered
+            centered={!fullscreen}
             destroyOnHidden
-            width="min(960px, calc(100vw - 48px))"
+            width={fullscreen ? '100vw' : 'min(960px, calc(100vw - 48px))'}
+            style={fullscreen ? { top: 0, height: '100vh', maxWidth: '100vw', margin: 0, paddingBottom: 0 } : undefined}
             classNames={{
-                container: 'photo-lightbox-panel',
-                body: 'photo-lightbox-body',
+                wrapper: fullscreen ? 'photo-lightbox-wrap is-fullscreen' : undefined,
+                container: fullscreen ? 'photo-lightbox-panel is-fullscreen' : 'photo-lightbox-panel',
+                body: fullscreen ? 'photo-lightbox-body is-fullscreen' : 'photo-lightbox-body',
             }}
+            styles={fullscreen ? { wrapper: { padding: 0 } } : undefined}
             onCancel={onClose}
         >
             {src ? (
