@@ -26,7 +26,8 @@ export function App() {
             <AntdApp>
                 <BrowserRouter basename={basename}>
                     <Routes>
-                        <Route path="/" element={<LandingPage />} />
+                        <Route path="/" element={<SignInPage />} />
+                        <Route path="/landing" element={<LandingPage />} />
                         <Route element={<RequireSession><SignedIn /></RequireSession>}>
                             <Route path={profilePath} element={<ProfilePage />} />
                             <Route path={calendarPath} element={<CalendarPage />} />
