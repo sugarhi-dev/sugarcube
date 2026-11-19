@@ -3,7 +3,7 @@ import { App as AntdApp, Button, Flex, Form, Input, Typography } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError } from '../../api/http.ts';
-import { getProfilePhoto, getWorkProfile, returnToStep, saveBasic, uploadProfilePhoto } from '../../api/me.ts';
+import { getProfilePhoto, getWorkProfile, listWorkProfiles, returnToStep, saveBasic, uploadProfilePhoto } from '../../api/me.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
@@ -37,6 +37,7 @@ export function OnboardingBasic() {
     const [preview, setPreview] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [returning, setReturning] = useState(false);
+    const [addingProfile, setAddingProfile] = useState<boolean | null>(null);
     const accessToken = session?.accessToken ?? null;
     const storedPhoto = user?.photo ?? null;
 
@@ -71,6 +72,34 @@ export function OnboardingBasic() {
             active = false;
         };
     }, [accessToken, form]);
+
+    useEffect(() => {
+        if (!accessToken) {
+            return;
+        }
+
+        let active = true;
+        void listWorkProfiles(accessToken).then((profiles) => {
+            if (!active) {
+                return;
+            }
+            const another = profiles.some((profile) => profile.status !== 'draft');
+            setAddingProfile(another);
+            if (another) {
+                form.setFieldValue('phone', user?.phone ?? '');
+            }
+        }).catch((error: unknown) => {
+            if (!active) {
+                return;
+            }
+            setAddingProfile(false);
+            message.error(error instanceof Error ? error.message : 'Could not load your profiles.');
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [accessToken, form, user?.phone]);
 
     useEffect(() => {
         if (photoFile) {
@@ -135,7 +164,7 @@ export function OnboardingBasic() {
     }
 
     async function onBack(): Promise<void> {
-        if (!session || returning) {
+        if (!session || returning || addingProfile !== false) {
             return;
         }
 
@@ -250,7 +279,14 @@ export function OnboardingBasic() {
                     name="phone"
                     rules={[{ validator: validatePhone }]}
                 >
-                    <Input inputMode="tel" autoComplete="tel" prefix={<PhoneOutlined />} placeholder="+52 55 0000 0000" />
+                    <Input
+                        inputMode="tel"
+                        autoComplete="tel"
+                        readOnly={addingProfile === true}
+                        className={addingProfile === true ? 'profile-readonly' : undefined}
+                        prefix={<PhoneOutlined />}
+                        placeholder="+52 55 0000 0000"
+                    />
                 </Form.Item>
                 <Form.Item
                     label="Title"
@@ -287,7 +323,7 @@ export function OnboardingBasic() {
                         htmlType="button"
                         icon={<ArrowLeftOutlined />}
                         loading={returning}
-                        disabled={saving}
+                        disabled={saving || addingProfile !== false}
                         onClick={() => void onBack()}
                         style={{ color: copyThat.muted }}
                     >

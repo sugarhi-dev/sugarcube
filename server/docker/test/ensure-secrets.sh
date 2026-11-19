@@ -38,6 +38,8 @@ KEYCLOAK_ISSUER=https://test.sugarcube.tv/idp/realms/sugarcube
 KEYCLOAK_JWKS_URL=http://keycloak:8080/idp/realms/sugarcube/protocol/openid-connect/certs
 PORT=3000
 DATABASE_URL=postgresql://sugarcube:${postgres_password}@postgres:5432/sugarcube
+RESEND_API_KEY=
+EMAIL_FROM=admin@sugarcube.tv
 EOF
 
 echo "Generated test secrets at $env_file"

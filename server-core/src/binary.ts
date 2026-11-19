@@ -37,8 +37,6 @@ export class Binary extends Base {
         this.bucket = bucket;
         this.client = new S3Client({
             region: aws?.region ?? 'us-east-1',
-            // Seaweed is a path-style endpoint. Real S3 uses the virtual-hosted
-            // bucket hostname, which the SDK builds from the region.
             ...(aws ? { forcePathStyle: false } : { endpoint, forcePathStyle: true }),
             useDualstackEndpoint: false,
             requestChecksumCalculation: 'WHEN_REQUIRED',
