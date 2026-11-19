@@ -114,6 +114,34 @@ export function getWorkProfile(accessToken: string, path = '/api/me/work-profile
     return readOne(accessToken, path, UserWorkProfileSchema, 'Work profile response was not valid.');
 }
 
+export function createLocale(accessToken: string, input: SetupCity): Promise<UserLocale> {
+    return readOne(accessToken, '/api/me/locales', UserLocaleSchema, 'City response was not valid.', {
+        method: 'POST',
+        body: JSON.stringify(input),
+    });
+}
+
+export function updateLocale(accessToken: string, id: string, input: Partial<SetupCity>): Promise<UserLocale> {
+    return readOne(accessToken, `/api/me/locales/${encodeURIComponent(id)}`, UserLocaleSchema, 'City response was not valid.', {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+    });
+}
+
+export type WorkProfileInput = {
+    day_rate: number | null;
+    currency_id: string | null;
+    union_status: UnionStatus;
+    flat_fee: boolean;
+};
+
+export function saveWorkProfile(accessToken: string, input: WorkProfileInput): Promise<UserWorkProfile> {
+    return readOne(accessToken, '/api/me/work-profile', UserWorkProfileSchema, 'Work profile response was not valid.', {
+        method: 'PUT',
+        body: JSON.stringify(input),
+    });
+}
+
 export function submitProfile(accessToken: string): Promise<CurrentUser> {
     return readUser(accessToken, '/api/me/review', { method: 'PUT' });
 }
@@ -128,8 +156,9 @@ async function readOne<T extends z.ZodType>(
     path: string,
     schema: T,
     message: string,
+    init?: RequestInit,
 ): Promise<z.output<T>> {
-    const body = await apiJson(accessToken, path);
+    const body = await apiJson(accessToken, path, init);
     return parseResponse(schema, body, message);
 }
 

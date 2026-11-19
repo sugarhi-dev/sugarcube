@@ -10,6 +10,8 @@ import { OnboardingMedia, onboardingMediaPath } from './pages/onboarding/Onboard
 import { OnboardingProfile, onboardingProfilePath } from './pages/onboarding/OnboardingProfile.tsx';
 import { OnboardingReview, onboardingReviewPath } from './pages/onboarding/OnboardingReview.tsx';
 import { ProfilePage, profilePath } from './pages/profile/ProfilePage.tsx';
+import { settingsPath, settingsSectionPath } from './pages/settings/paths.ts';
+import { SettingsPage } from './pages/settings/SettingsPage.tsx';
 import { SignInPage } from './pages/SignInPage.tsx';
 import { copyThatTheme } from './theme.ts';
 
@@ -24,6 +26,8 @@ export function App() {
                         <Route element={<RequireSession><SignedIn /></RequireSession>}>
                             <Route path="/" element={<ProfilePage />} />
                             <Route path={profilePath} element={<ProfilePage />} />
+                            <Route path={settingsPath} element={<Navigate to={settingsSectionPath('personal')} replace />} />
+                            <Route path={`${settingsPath}/:section`} element={<SettingsPage />} />
                             <Route path={onboardingAccountTypePath} element={<OnboardingAccountType />} />
                             <Route path={onboardingBasicPath} element={<OnboardingBasic />} />
                             <Route path={onboardingProfilePath} element={<OnboardingProfile />} />

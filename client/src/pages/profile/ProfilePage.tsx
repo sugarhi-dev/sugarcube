@@ -7,7 +7,6 @@ import {
     DeleteOutlined,
     EditOutlined,
     EnvironmentOutlined,
-    ExportOutlined,
     LinkOutlined,
     MailOutlined,
     PhoneOutlined,
@@ -1018,21 +1017,6 @@ export function ProfilePage({ onboarding = false, framed = true }: ProfilePagePr
                                                             <EditOutlined />
                                                         </button>
                                                     )}
-                                                    {mediaUrl(item) ? (
-                                                        <button
-                                                            type="button"
-                                                            className="crew-tile-tool"
-                                                            aria-label={`Open ${label}`}
-                                                            onClick={() => {
-                                                                const url = mediaUrl(item);
-                                                                if (url) {
-                                                                    window.open(url, '_blank', 'noopener,noreferrer');
-                                                                }
-                                                            }}
-                                                        >
-                                                            <ExportOutlined />
-                                                        </button>
-                                                    ) : null}
                                                     <button
                                                         type="button"
                                                         className="crew-tile-tool"
