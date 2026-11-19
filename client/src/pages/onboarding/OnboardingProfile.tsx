@@ -394,13 +394,14 @@ async function loadSavedSetup(token: string): Promise<SavedSetup> {
         ...(home ? [home] : []),
         ...locales.filter((locale) => locale !== home),
     ];
+    const configured = rates?.discipline_id != null || rates?.day_rate != null;
     return {
         discipline_id: rates?.discipline_id ?? undefined,
         position_id: rates?.position_id ?? undefined,
         day_rate: rates?.day_rate ?? undefined,
         currency_id: rates?.currency_id ?? undefined,
-        union_status: rates?.union_status,
-        flat_fee: rates?.flat_fee ?? false,
+        union_status: configured ? rates?.union_status : undefined,
+        flat_fee: configured ? (rates?.flat_fee ?? false) : false,
         locales: ordered.map((locale) => ({
             production_city_id: locale.production_city_id,
             home_city: locale.home_city,

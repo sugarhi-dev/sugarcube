@@ -94,6 +94,20 @@ export async function backToReview(accessToken: string, id: string): Promise<Adm
     return body;
 }
 
+export async function reactivateUser(accessToken: string, id: string): Promise<AdminUser> {
+    const response = await adminFetch(accessToken, `/api/admin/users/${encodeURIComponent(id)}/reactivate`, 'POST');
+    if (!response.ok) {
+        throw new Error(await readError(response, 'Could not reactivate this user'));
+    }
+
+    const body: unknown = await readJson(response);
+    if (!isAdminUser(body)) {
+        throw new Error('Reactivate response was not valid.');
+    }
+
+    return body;
+}
+
 export async function approveUser(accessToken: string, id: string): Promise<AdminUser> {
     const response = await adminFetch(accessToken, `/api/admin/users/${encodeURIComponent(id)}/approve`, 'POST');
     if (!response.ok) {

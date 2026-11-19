@@ -1,5 +1,6 @@
 import { Database, Repository, type Context } from '@sugarcube/server-core';
 import { ProjectSchema, type Project } from '../entities/project.js';
+import { viewingProfile } from './viewingProfile.js';
 
 type ProjectRow = {
     id: string;
@@ -26,7 +27,7 @@ export class ProjectRepo extends Repository {
         const result = await this.database.query<ProjectRow>(
             `SELECT ${projectColumns}
              FROM projects
-             WHERE user_account_id = $1
+             WHERE user_account_id = $1 AND ${viewingProfile('$1')}
              ORDER BY created_at`,
             [userAccountId],
         );
@@ -38,7 +39,7 @@ export class ProjectRepo extends Repository {
         const result = await this.database.query<ProjectRow>(
             `SELECT ${projectColumns}
              FROM projects
-             WHERE id = $1 AND user_account_id = $2`,
+             WHERE id = $1 AND user_account_id = $2 AND ${viewingProfile('$2')}`,
             [id, userAccountId],
         );
         const row = result.rows[0];
@@ -50,9 +51,9 @@ export class ProjectRepo extends Repository {
         const result = await this.database.query<ProjectRow>(
             `INSERT INTO projects (
                  id, user_account_id, name, position_id, lead_producer_name,
-                 lead_producer_email, date, production_company
+                 lead_producer_email, date, production_company, user_work_profile_id
              )
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT viewing_work_profile_id FROM user_account WHERE id = $2::varchar))
              RETURNING ${projectColumns}`,
             [
                 project.id,
@@ -79,7 +80,7 @@ export class ProjectRepo extends Repository {
                  date = $7,
                  production_company = $8,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND user_account_id = $2
+             WHERE id = $1 AND user_account_id = $2 AND ${viewingProfile('$2')}
              RETURNING ${projectColumns}`,
             [
                 project.id,
@@ -105,13 +106,13 @@ export class ProjectRepo extends Repository {
                    AND EXISTS (
                        SELECT 1
                        FROM projects
-                       WHERE projects.id = $1 AND projects.user_account_id = $2
+                       WHERE projects.id = $1 AND projects.user_account_id = $2 AND ${viewingProfile('projects.user_account_id')}
                    )`,
                 [id, userAccountId],
             );
             const result = await query(
                 `DELETE FROM projects
-                 WHERE id = $1 AND user_account_id = $2`,
+                 WHERE id = $1 AND user_account_id = $2 AND ${viewingProfile('$2')}`,
                 [id, userAccountId],
             );
             return (result.rowCount ?? 0) > 0;

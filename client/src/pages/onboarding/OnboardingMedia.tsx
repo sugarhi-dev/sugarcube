@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, ArrowRightOutlined, CaretRightFilled, DeleteOutlined, EditOutlined, HolderOutlined, LinkOutlined, PictureOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, ArrowRightOutlined, CaretRightFilled, DeleteOutlined, EditOutlined, HolderOutlined, LinkOutlined, PictureOutlined, UploadOutlined } from '@ant-design/icons';
 import { classifyMediaLink, mediaUrl, type UserMedia } from '@sugarcube/schema';
 import { App as AntdApp, Button, Flex, Input, Modal, Progress, Result, Spin, Typography } from 'antd';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
@@ -761,16 +761,6 @@ export function OnboardingMedia() {
                                 </div>
                             );
                         })}
-                        <button
-                            type="button"
-                            className={items.length === 0 ? 'media-slot is-empty' : 'media-slot'}
-                            aria-label="Add a video"
-                            onClick={openLinkDialog}
-                        >
-                            <PlusOutlined />
-                            <span className="media-slot-title">Add media</span>
-                            <span className="media-slot-hint">Video, photo or link</span>
-                        </button>
                     </div>
                     <Modal
                         title="Add a YouTube or Vimeo video"

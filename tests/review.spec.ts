@@ -104,7 +104,7 @@ test('reviews the crew profile and submits it', async ({ page }) => {
     await page.getByRole('button', { name: 'Continue — review' }).click();
     await expectReview(page);
 
-    await page.goto('./');
+    await page.goto('profile');
     await expectReview(page);
 
     const submitted = page.waitForResponse((response) =>
@@ -113,7 +113,7 @@ test('reviews the crew profile and submits it', async ({ page }) => {
     expect((await submitted).status()).toBe(200);
     await expectWait(page);
 
-    await page.goto('./');
+    await page.goto('profile');
     await expectWait(page);
     await page.reload();
     await expectWait(page);

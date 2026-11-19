@@ -14,13 +14,16 @@ import {
     VerifiedOutlined,
     VideoCameraOutlined,
 } from '@ant-design/icons';
-import { Input } from 'antd';
+import { App as AntdApp, Input } from 'antd';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { getProfilePhotoUrl } from '../api/me.ts';
+import { createWorkProfile, getProfilePhotoUrl } from '../api/me.ts';
 import { beginSignOut } from '../auth/oidc.ts';
+import { calendarPath } from '../pages/calendar/paths.ts';
+import { profilePath } from '../pages/profile/ProfilePage.tsx';
 import { onSettingsPath, settingsSectionPath } from '../pages/settings/paths.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../store/hooks.ts';
+import { profileLoaded } from '../store/profileSlice.ts';
 import { sessionCleared } from '../store/sessionSlice.ts';
 
 type AccountItem = {
@@ -34,7 +37,7 @@ const menuSections: Array<{ label: string; items: AccountItem[] }> = [
     {
         label: 'Menu',
         items: [
-            { key: 'dashboard', label: 'Dashboard', icon: <HomeOutlined /> },
+            { key: 'dashboard', label: 'Profile', icon: <HomeOutlined /> },
             { key: 'projects', label: 'Projects', icon: <VideoCameraOutlined /> },
             { key: 'short-list', label: 'Short List', icon: <BookOutlined /> },
             { key: 'calendar', label: 'Calendar', icon: <CalendarOutlined /> },
@@ -71,6 +74,8 @@ export function Frame({ children }: { children: ReactNode }) {
     const user = useAppSelector((state) => state.profile.user);
     const [photoUrl, setPhotoUrl] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
+    const creatingProfile = useRef(false);
+    const { message } = AntdApp.useApp();
     const accountRef = useRef<HTMLDivElement>(null);
     const menuId = useId();
     const accessToken = session?.accessToken ?? null;
@@ -140,7 +145,11 @@ export function Frame({ children }: { children: ReactNode }) {
         }
         setMenuOpen(false);
         if (key === 'dashboard') {
-            navigate('/');
+            navigate(profilePath);
+            return;
+        }
+        if (key === 'calendar') {
+            navigate(calendarPath);
             return;
         }
         if (key === 'settings') {
@@ -149,6 +158,30 @@ export function Frame({ children }: { children: ReactNode }) {
         }
         if (key === 'notifications') {
             navigate(settingsSectionPath('notifications'));
+            return;
+        }
+        if (key === 'new-profile') {
+            void onNewProfile();
+        }
+    }
+
+    async function onNewProfile(): Promise<void> {
+        if (!session || creatingProfile.current) {
+            return;
+        }
+        if (user?.status !== 'live') {
+            message.info('You can add another profile after this one is approved.');
+            return;
+        }
+
+        creatingProfile.current = true;
+        try {
+            const updated = await createWorkProfile(session.accessToken);
+            dispatch(profileLoaded({ user: updated, forSubject: session.profile.subject }));
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : 'Could not start a new profile.');
+        } finally {
+            creatingProfile.current = false;
         }
     }
 
@@ -158,6 +191,7 @@ export function Frame({ children }: { children: ReactNode }) {
     const displayName = [given, family].filter(Boolean).join(' ') || 'Your account';
     const email = user?.email || session?.profile.email || '';
     const onDashboard = location.pathname === '/' || location.pathname === '/profile';
+    const onCalendar = location.pathname === calendarPath;
     const onSettings = onSettingsPath(location.pathname);
     const onNotifications = location.pathname === settingsSectionPath('notifications');
 
@@ -217,6 +251,7 @@ export function Frame({ children }: { children: ReactNode }) {
                                                         item={item}
                                                         current={
                                                             (item.key === 'dashboard' && onDashboard)
+                                                            || (item.key === 'calendar' && onCalendar)
                                                             || (item.key === 'settings' && onSettings && !onNotifications)
                                                             || (item.key === 'notifications' && onNotifications)
                                                         }

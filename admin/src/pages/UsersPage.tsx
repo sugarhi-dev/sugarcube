@@ -3,7 +3,7 @@ import { Alert, App as AntdApp, Table } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { approveUser, backToReview, listUsers, requestChanges, type DirectoryUser } from '../api/users.ts';
+import { approveUser, backToReview, listUsers, reactivateUser, requestChanges, type DirectoryUser } from '../api/users.ts';
 import { RequestChangesDialog } from '../components/RequestChangesDialog.tsx';
 import { openProfile } from './UserProfilePage.tsx';
 import { useFrameDetail } from '../components/Navigator.tsx';
@@ -136,6 +136,24 @@ export function UsersPage() {
         }
     }
 
+    async function reactivate(user: DirectoryUser): Promise<void> {
+        if (!accessToken || busyId || !canReactivate(user)) {
+            return;
+        }
+        setBusyId(user.id);
+        try {
+            const updated = await reactivateUser(accessToken, user.id);
+            setUsers((rows) => rows.map((row) => row.id === updated.id
+                ? { ...row, status: updated.status, updated_at: updated.updated_at }
+                : row));
+            message.success(`${displayName(updated)} is live again.`);
+        } catch (cause: unknown) {
+            message.error(cause instanceof Error ? cause.message : 'Could not reactivate this user.');
+        } finally {
+            setBusyId(null);
+        }
+    }
+
     async function approveSelected(): Promise<void> {
         if (!accessToken || busyId || pendingSelected.length === 0) {
             return;
@@ -210,6 +228,7 @@ export function UsersPage() {
                     onApprove={() => void approve(user)}
                     onRequestChanges={() => openChanges(user)}
                     onBackToReview={() => void moveBackToReview(user)}
+                    onReactivate={() => void reactivate(user)}
                     onReject={() => message.info('Rejection isn’t available yet.')}
                 />
             ),
@@ -258,7 +277,7 @@ export function UsersPage() {
                     <button type="button" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>Next ›</button>
                 </span>
             </div>
-            <p className="users-note">Status is the profile status. Approve, reject, and request changes are available when the status is admin-review. Back to Review is available when the status is admin-review or live and sets the profile status to review.</p>
+            <p className="users-note">Status is the profile status. Approve, reject, and request changes are available when the status is admin-review. Back to Review is available when the status is admin-review or live and sets the profile status to review. Reactivate is available when the status is deactivated and sets the profile status to live.</p>
             <RequestChangesDialog
                 user={changesFor}
                 sending={changesFor !== null && busyId === changesFor.id}
@@ -305,6 +324,7 @@ function RowActions({
     onApprove,
     onRequestChanges,
     onBackToReview,
+    onReactivate,
     onReject,
 }: {
     user: DirectoryUser;
@@ -313,6 +333,7 @@ function RowActions({
     onApprove: () => void;
     onRequestChanges: () => void;
     onBackToReview: () => void;
+    onReactivate: () => void;
     onReject: () => void;
 }) {
     const enabled = canModerate(user) && !busy;
@@ -329,6 +350,11 @@ function RowActions({
             <button type="button" className="user-back" disabled={busy || !canReturnToReview(user)} onClick={onBackToReview}>
                 Back to Review
             </button>
+            {canReactivate(user) ? (
+                <button type="button" className="user-reactivate" disabled={busy} onClick={onReactivate}>
+                    Reactivate
+                </button>
+            ) : null}
             <button type="button" className="user-reject" disabled={!enabled} onClick={onReject}>
                 <CloseOutlined />
                 Reject
@@ -344,6 +370,10 @@ function canModerate(user: DirectoryUser): boolean {
 
 function canReturnToReview(user: DirectoryUser): boolean {
     return user.status === 'admin-review' || user.status === 'live';
+}
+
+function canReactivate(user: DirectoryUser): boolean {
+    return user.status === 'deactivated';
 }
 
 function displayName(user: { first_name: string; last_name: string }): string {
@@ -377,7 +407,7 @@ function statusTone(status: string): string {
     if (status === 'admin-review') {
         return 'pending';
     }
-    if (status === 'invisible') {
+    if (status === 'invisible' || status === 'deactivated') {
         return 'off';
     }
     return 'plain';

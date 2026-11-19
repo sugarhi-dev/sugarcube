@@ -1,6 +1,6 @@
 import { Context, Logic } from '@sugarcube/server-core';
 import { ulid } from 'ulidx';
-import { UserWorkProfileSchema, type UnionStatus, type UserWorkProfile } from '../entities/userWorkProfile.js';
+import { UserWorkProfileSchema, type UnionStatus, type UserWorkProfile, type WorkProfileChoice } from '../entities/userWorkProfile.js';
 import { UserWorkProfileRepo } from '../repositories/userWorkProfileRepo.js';
 import { constraintFailure } from './pgError.js';
 
@@ -13,6 +13,7 @@ export type UserWorkProfileWrite = {
 
 const workProfileConstraints = {
     user_work_profile_user_account_id_key: { statusCode: 409, message: 'A work profile already exists.' },
+    user_work_profile_status_check: { statusCode: 400, message: 'Profile status is not allowed.' },
     user_work_profile_currency_id_fkey: { statusCode: 400, message: 'Currency not found.' },
     user_work_profile_user_account_id_fkey: { statusCode: 404, message: 'Profile not found.' },
     user_work_profile_union_status_check: { statusCode: 400, message: 'Union status is not allowed.' },
@@ -28,6 +29,8 @@ const workProfileConstraints = {
         statusCode: 400,
         message: 'Discipline and position must both be set or both be empty.',
     },
+    user_work_profile_bio_check: { statusCode: 400, message: 'Bio must be 300 characters or fewer.' },
+    user_work_profile_title_check: { statusCode: 400, message: 'Title must be 120 characters or fewer.' },
 };
 
 export class UserWorkProfileLogic extends Logic {
@@ -36,6 +39,10 @@ export class UserWorkProfileLogic extends Logic {
     constructor(userWorkProfileRepo: UserWorkProfileRepo) {
         super();
         this.userWorkProfileRepo = userWorkProfileRepo;
+    }
+
+    listWorkProfileChoices(ctx: Context, userAccountId: string): Promise<WorkProfileChoice[]> {
+        return this.userWorkProfileRepo.listWorkProfileChoices(ctx, userAccountId);
     }
 
     async getUserWorkProfile(ctx: Context, userAccountId: string): Promise<UserWorkProfile | null> {

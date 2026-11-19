@@ -1,5 +1,6 @@
 import { Database, Repository, type Context } from '@sugarcube/server-core';
 import { UserLocaleSchema, type UserLocale } from '../entities/userLocale.js';
+import { viewingProfile } from './viewingProfile.js';
 
 type UserLocaleRow = {
     id: string;
@@ -18,7 +19,7 @@ export class UserLocaleRepo extends Repository {
         const result = await this.database.query<UserLocaleRow>(
             `SELECT id, user_account_id, production_city_id, home_city
              FROM user_locale
-             WHERE user_account_id = $1
+             WHERE user_account_id = $1 AND ${viewingProfile('$1')}
              ORDER BY home_city DESC, created_at`,
             [userAccountId],
         );
@@ -30,7 +31,7 @@ export class UserLocaleRepo extends Repository {
         const result = await this.database.query<UserLocaleRow>(
             `SELECT id, user_account_id, production_city_id, home_city
              FROM user_locale
-             WHERE id = $1 AND user_account_id = $2`,
+             WHERE id = $1 AND user_account_id = $2 AND ${viewingProfile('$2')}`,
             [id, userAccountId],
         );
         const row = result.rows[0];
@@ -45,8 +46,8 @@ export class UserLocaleRepo extends Repository {
                 await clearHomeCity(query, locale.user_account_id);
             }
             const result = await query<UserLocaleRow>(
-                `INSERT INTO user_locale (id, user_account_id, production_city_id, home_city)
-                 VALUES ($1, $2, $3, $4)
+                `INSERT INTO user_locale (id, user_account_id, production_city_id, home_city, user_work_profile_id)
+                 VALUES ($1, $2, $3, $4, (SELECT viewing_work_profile_id FROM user_account WHERE id = $2::varchar))
                  RETURNING id, user_account_id, production_city_id, home_city`,
                 [locale.id, locale.user_account_id, locale.production_city_id, locale.home_city],
             );
@@ -62,7 +63,7 @@ export class UserLocaleRepo extends Repository {
                 await query(
                     `UPDATE user_locale
                      SET home_city = false, updated_at = CURRENT_TIMESTAMP
-                     WHERE user_account_id = $1 AND id <> $2 AND home_city`,
+                     WHERE ${viewingProfile('$1')} AND id <> $2 AND home_city`,
                     [locale.user_account_id, locale.id],
                 );
             }
@@ -71,7 +72,7 @@ export class UserLocaleRepo extends Repository {
                  SET production_city_id = $3,
                      home_city = $4,
                      updated_at = CURRENT_TIMESTAMP
-                 WHERE id = $1 AND user_account_id = $2
+                 WHERE id = $1 AND user_account_id = $2 AND ${viewingProfile('$2')}
                  RETURNING id, user_account_id, production_city_id, home_city`,
                 [locale.id, locale.user_account_id, locale.production_city_id, locale.home_city],
             );
@@ -84,7 +85,7 @@ export class UserLocaleRepo extends Repository {
         this.log.trace(`${ctx.traceId} delete user_locale ${id}`);
         const result = await this.database.query(
             `DELETE FROM user_locale
-             WHERE id = $1 AND user_account_id = $2`,
+             WHERE id = $1 AND user_account_id = $2 AND ${viewingProfile('$2')}`,
             [id, userAccountId],
         );
         return (result.rowCount ?? 0) > 0;
@@ -104,7 +105,7 @@ async function clearHomeCity(query: SqlQuery, userAccountId: string): Promise<vo
     await query(
         `UPDATE user_locale
          SET home_city = false, updated_at = CURRENT_TIMESTAMP
-         WHERE user_account_id = $1 AND home_city`,
+         WHERE ${viewingProfile('$1')} AND home_city`,
         [userAccountId],
     );
 }

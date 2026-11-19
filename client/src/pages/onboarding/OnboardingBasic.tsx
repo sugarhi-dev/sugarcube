@@ -2,7 +2,8 @@ import { ArrowLeftOutlined, ArrowRightOutlined, CameraOutlined, MailOutlined, Ph
 import { App as AntdApp, Button, Flex, Form, Input, Typography } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { getProfilePhoto, returnToStep, saveBasic, uploadProfilePhoto } from '../../api/me.ts';
+import { ApiError } from '../../api/http.ts';
+import { getProfilePhoto, getWorkProfile, returnToStep, saveBasic, uploadProfilePhoto } from '../../api/me.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
@@ -30,6 +31,7 @@ export function OnboardingBasic() {
     const session = useSession();
     const user = useAppSelector((state) => state.profile.user);
     const { message } = AntdApp.useApp();
+    const [form] = Form.useForm<BasicFormValues>();
     const fileRef = useRef<HTMLInputElement>(null);
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
@@ -41,6 +43,34 @@ export function OnboardingBasic() {
     useEffect(() => {
         document.title = 'Tell us about you';
     }, []);
+
+    useEffect(() => {
+        if (!accessToken) {
+            return;
+        }
+
+        let active = true;
+        void getWorkProfile(accessToken).then((profile) => {
+            if (!active) {
+                return;
+            }
+            const currentBio = form.getFieldValue('bio');
+            const currentTitle = form.getFieldValue('title');
+            form.setFieldsValue({
+                ...(typeof currentBio !== 'string' || currentBio.trim() === '' ? { bio: profile.bio ?? '' } : {}),
+                ...(typeof currentTitle !== 'string' || currentTitle.trim() === '' ? { title: profile.title ?? '' } : {}),
+            });
+        }).catch((error: unknown) => {
+            if (!active || (error instanceof ApiError && error.status === 404)) {
+                return;
+            }
+            message.error(error instanceof Error ? error.message : 'Could not load your title and bio.');
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [accessToken, form]);
 
     useEffect(() => {
         if (photoFile) {
@@ -190,6 +220,7 @@ export function OnboardingBasic() {
             />
 
             <Form
+                form={form}
                 className="basic-form"
                 layout="vertical"
                 requiredMark={false}
@@ -198,8 +229,8 @@ export function OnboardingBasic() {
                     last_name: user?.last_name ?? '',
                     email: user?.email ?? '',
                     phone: user?.phone ?? '',
-                    title: user?.title ?? '',
-                    bio: user?.bio ?? '',
+                    title: '',
+                    bio: '',
                 }}
                 onFinish={(values) => void onFinish(values)}
             >

@@ -13,6 +13,7 @@ import { ProjectTypeController } from '../controllers/projectTypeController.js';
 import { UserAvailabilityController } from '../controllers/userAvailabilityController.js';
 import { UserController } from '../controllers/userController.js';
 import { UserMediaController } from '../controllers/userMediaController.js';
+import { UserSettingsController } from '../controllers/userSettingsController.js';
 import { CurrencyLogic } from '../logic/currencyLogic.js';
 import { DisciplineLogic } from '../logic/disciplineLogic.js';
 import { PositionLogic } from '../logic/positionLogic.js';
@@ -24,6 +25,7 @@ import { UserAvailabilityLogic } from '../logic/userAvailabilityLogic.js';
 import { UserLocaleLogic } from '../logic/userLocaleLogic.js';
 import { UserLogic } from '../logic/userLogic.js';
 import { UserMediaLogic } from '../logic/userMediaLogic.js';
+import { UserSettingsLogic } from '../logic/userSettingsLogic.js';
 import { UserWorkProfileLogic } from '../logic/userWorkProfileLogic.js';
 import { CurrencyRepo } from '../repositories/currencyRepo.js';
 import { DisciplineRepo } from '../repositories/disciplineRepo.js';
@@ -36,6 +38,7 @@ import { UserAvailabilityRepo } from '../repositories/userAvailabilityRepo.js';
 import { UserLocaleRepo } from '../repositories/userLocaleRepo.js';
 import { UserRepo } from '../repositories/userRepo.js';
 import { UserMediaRepo } from '../repositories/userMediaRepo.js';
+import { UserSettingsRepo } from '../repositories/userSettingsRepo.js';
 import { UserWorkProfileRepo } from '../repositories/userWorkProfileRepo.js';
 
 export class ApiService extends RestService {
@@ -66,6 +69,7 @@ export class ApiService extends RestService {
         const userAvailabilityRepo = new UserAvailabilityRepo(this.database);
         const userLocaleRepo = new UserLocaleRepo(this.database);
         const userMediaRepo = new UserMediaRepo(this.database);
+        const userSettingsRepo = new UserSettingsRepo(this.database);
         const userWorkProfileRepo = new UserWorkProfileRepo(this.database);
 
         const binary = new Binary(this.config);
@@ -80,6 +84,7 @@ export class ApiService extends RestService {
         const userAvailabilityLogic = new UserAvailabilityLogic(userAvailabilityRepo);
         const userLocaleLogic = new UserLocaleLogic(userLocaleRepo);
         const userMediaLogic = new UserMediaLogic(userMediaRepo, binary);
+        const userSettingsLogic = new UserSettingsLogic(userSettingsRepo);
         const userWorkProfileLogic = new UserWorkProfileLogic(userWorkProfileRepo);
 
         this.addController(new AuthController(this.config, this.app, userLogic));
@@ -103,6 +108,7 @@ export class ApiService extends RestService {
         ));
         this.addController(new UserAvailabilityController(this.app, userLogic, userAvailabilityLogic));
         this.addController(new UserMediaController(this.app, userLogic, userMediaLogic));
+        this.addController(new UserSettingsController(this.app, userLogic, userSettingsLogic));
         this.addController(new CloudflareStreamController(this.app, userMediaLogic));
     }
 }

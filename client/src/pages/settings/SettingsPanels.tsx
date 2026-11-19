@@ -11,56 +11,47 @@ import {
     StarOutlined,
     TeamOutlined,
 } from '@ant-design/icons';
-import { App as AntdApp, Button, Input, Switch } from 'antd';
-import { useState, type ReactNode } from 'react';
-import type { CurrentUser } from '../../api/me.ts';
-import { SettingsFooter, SettingsHeading } from './SettingsFrame.tsx';
+import { App as AntdApp, Button, Input, Modal, Switch } from 'antd';
+import { useEffect, useState, type ReactNode } from 'react';
+import { deactivateAccount, deleteAccount } from '../../api/me.ts';
+import { beginSignOut } from '../../auth/oidc.ts';
+import { useAppDispatch, useSession } from '../../store/hooks.ts';
+import { profileLoaded } from '../../store/profileSlice.ts';
+import { sessionCleared } from '../../store/sessionSlice.ts';
+import { SettingsFooter, SettingsHeading, useSavedClock } from './SettingsFrame.tsx';
 
-type Channel = {
-    key: string;
-    title: string;
-    detail: string;
-    email: boolean;
-    push: boolean;
+export type NotificationChoices = {
+    booking: { email: boolean; push: boolean };
+    messages: { email: boolean; push: boolean };
+    receipts: { email: boolean; push: boolean };
+    reminders: { email: boolean; push: boolean };
+    tips: { email: boolean; push: boolean };
 };
 
-const defaultChannels: Channel[] = [
-    {
-        key: 'booking',
+const notificationCopy: Record<keyof NotificationChoices, { title: string; detail: string }> = {
+    booking: {
         title: 'Booking & project updates',
         detail: 'Requests, confirmations, call sheets and schedule changes.',
-        email: true,
-        push: true,
     },
-    {
-        key: 'messages',
+    messages: {
         title: 'Messages',
         detail: 'New messages from clients and collaborators.',
-        email: true,
-        push: true,
     },
-    {
-        key: 'receipts',
+    receipts: {
         title: 'Payment receipts & invoices',
         detail: 'Deposits, releases and monthly statements.',
-        email: true,
-        push: false,
     },
-    {
-        key: 'reminders',
+    reminders: {
         title: 'Reminders & call times',
         detail: 'Day-before reminders for booked days.',
-        email: true,
-        push: true,
     },
-    {
-        key: 'tips',
+    tips: {
         title: 'Tips & marketing',
         detail: 'Product news and featured crew round-ups.',
-        email: false,
-        push: false,
     },
-];
+};
+
+const notificationOrder = Object.keys(notificationCopy) as Array<keyof NotificationChoices>;
 
 const clientFeatures = [
     {
@@ -161,13 +152,29 @@ export function PaymentsBilling() {
     );
 }
 
-export function NotificationSettings() {
-    const { message } = AntdApp.useApp();
-    const [saved, setSaved] = useState(defaultChannels);
-    const [draft, setDraft] = useState(defaultChannels);
+export function NotificationSettings({
+    choices,
+    saving,
+    savedAt,
+    onSave,
+}: {
+    choices: NotificationChoices;
+    saving: boolean;
+    savedAt: Date | null;
+    onSave: (choices: NotificationChoices) => Promise<boolean>;
+}) {
+    const [draft, setDraft] = useState(choices);
+    useSavedClock(savedAt);
 
-    function setChannel(key: string, field: 'email' | 'push', checked: boolean): void {
-        setDraft((current) => current.map((row) => row.key === key ? { ...row, [field]: checked } : row));
+    useEffect(() => {
+        setDraft(choices);
+    }, [choices]);
+
+    function setChannel(key: keyof NotificationChoices, field: 'email' | 'push', checked: boolean): void {
+        setDraft((current) => ({
+            ...current,
+            [key]: { ...current[key], [field]: checked },
+        }));
     }
 
     return (
@@ -179,8 +186,7 @@ export function NotificationSettings() {
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
-                    setSaved(draft.map((row) => ({ ...row })));
-                    message.info("Notification preferences aren't stored on your account.");
+                    void onSave(draft);
                 }}
             >
                 <div className="settings-notes">
@@ -189,106 +195,123 @@ export function NotificationSettings() {
                         <span>Email</span>
                         <span>Push</span>
                     </div>
-                    {draft.map((row) => (
-                        <div key={row.key} className="settings-note">
-                            <div>
-                                <span className="settings-row-title">{row.title}</span>
-                                <p>{row.detail}</p>
+                    {notificationOrder.map((key) => {
+                        const copy = notificationCopy[key];
+                        const row = draft[key];
+                        return (
+                            <div key={key} className="settings-note">
+                                <div>
+                                    <span className="settings-row-title">{copy.title}</span>
+                                    <p>{copy.detail}</p>
+                                </div>
+                                <span className="settings-note-switch">
+                                    <Switch
+                                        checked={row.email}
+                                        aria-label={`${copy.title} email`}
+                                        onChange={(checked) => setChannel(key, 'email', checked)}
+                                    />
+                                </span>
+                                <span className="settings-note-switch">
+                                    <Switch
+                                        checked={row.push}
+                                        aria-label={`${copy.title} push`}
+                                        onChange={(checked) => setChannel(key, 'push', checked)}
+                                    />
+                                </span>
                             </div>
-                            <span className="settings-note-switch">
-                                <Switch
-                                    checked={row.email}
-                                    aria-label={`${row.title} email`}
-                                    onChange={(checked) => setChannel(row.key, 'email', checked)}
-                                />
-                            </span>
-                            <span className="settings-note-switch">
-                                <Switch
-                                    checked={row.push}
-                                    aria-label={`${row.title} push`}
-                                    onChange={(checked) => setChannel(row.key, 'push', checked)}
-                                />
-                            </span>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
                 <SettingsFooter
-                    savedAt={null}
-                    saving={false}
-                    onCancel={() => setDraft(saved)}
+                    savedAt={savedAt}
+                    saving={saving}
+                    onCancel={() => setDraft(choices)}
                 />
             </form>
         </>
     );
 }
 
-export function AccountSecurity({ user }: { user: CurrentUser }) {
-    const { message } = AntdApp.useApp();
-    const phoneDetail = user.phone
-        ? `Code by SMS to ${maskPhone(user.phone)} on every new device.`
-        : 'Code by SMS on every new device.';
+export function AccountSecurity() {
+    const { message, modal } = AntdApp.useApp();
+    const session = useSession();
+    const dispatch = useAppDispatch();
+    const [deactivating, setDeactivating] = useState(false);
+    const [deleteOpen, setDeleteOpen] = useState(false);
+    const [deleteText, setDeleteText] = useState('');
+    const [deleting, setDeleting] = useState(false);
+
+    function confirmDeactivate(): void {
+        if (deactivating) {
+            return;
+        }
+        modal.confirm({
+            title: 'Deactivate your account?',
+            content: 'Your account and profiles will be hidden. Signing in again turns the account back on and opens your profile.',
+            okText: 'Deactivate',
+            cancelText: 'Cancel',
+            okButtonProps: { danger: true },
+            onOk: () => deactivate(),
+        });
+    }
+
+    async function deactivate(): Promise<void> {
+        const token = session?.accessToken;
+        const subject = session?.profile.subject;
+        if (!token || !subject) {
+            return;
+        }
+
+        setDeactivating(true);
+        try {
+            const user = await deactivateAccount(token);
+            dispatch(profileLoaded({ user, forSubject: subject }));
+        } catch (error) {
+            message.error(error instanceof Error && error.message ? error.message : 'Could not deactivate your account.');
+            throw error;
+        } finally {
+            setDeactivating(false);
+        }
+    }
+
+    function openDelete(): void {
+        if (deleting) {
+            return;
+        }
+        setDeleteText('');
+        setDeleteOpen(true);
+    }
+
+    async function confirmDelete(): Promise<void> {
+        const token = session?.accessToken;
+        const idToken = session?.idToken;
+        if (!token || !idToken || deleteText !== 'delete' || deleting) {
+            return;
+        }
+
+        setDeleting(true);
+        try {
+            await deleteAccount(token);
+            dispatch(sessionCleared());
+            beginSignOut(idToken);
+        } catch (error) {
+            message.error(error instanceof Error && error.message ? error.message : 'Could not delete your account.');
+            setDeleting(false);
+        }
+    }
 
     return (
         <>
             <SettingsHeading
                 title="Account & Security"
-                lede="Login, two-factor authentication and connected accounts."
-            />
-            <p className="settings-kicker">Login</p>
-            <SecurityRow
-                title={`Email — ${user.email}`}
-                detail="Used for login and receipts."
-                action={(
-                    <Button htmlType="button" onClick={() => message.info("Your sign-in email can't be changed here.")}>
-                        Change
-                    </Button>
-                )}
-            />
-            <SecurityRow
-                title="Password"
-                detail="Used to sign in."
-                action={(
-                    <Button htmlType="button" onClick={() => message.info("Password changes aren't available yet.")}>
-                        Change password
-                    </Button>
-                )}
-            />
-            <SecurityRow
-                title="Two-factor authentication"
-                detail={phoneDetail}
-                action={(
-                    <Switch
-                        checked={false}
-                        aria-label="Two-factor authentication"
-                        onChange={() => message.info("Two-factor authentication isn't available yet.")}
-                    />
-                )}
-            />
-            <p className="settings-kicker">Connected accounts</p>
-            <SecurityRow
-                title="Google"
-                detail="Not connected."
-                action={(
-                    <Button htmlType="button" onClick={() => message.info("Connected accounts aren't available yet.")}>
-                        Connect
-                    </Button>
-                )}
-            />
-            <SecurityRow
-                title="Facebook"
-                detail="Not connected."
-                action={(
-                    <Button htmlType="button" onClick={() => message.info("Connected accounts aren't available yet.")}>
-                        Connect
-                    </Button>
-                )}
+                lede="Deactivate or permanently delete your account."
             />
             <p className="settings-kicker is-danger">Danger zone</p>
             <SecurityRow
                 title="Deactivate account"
-                detail="Hide your account and profiles. You can come back anytime."
+                detail="Hide your account and profiles. Sign in again to turn it back on."
                 action={(
-                    <Button htmlType="button" onClick={() => message.info("Account deactivation isn't available.")}>
+                    <Button htmlType="button" loading={deactivating} onClick={confirmDeactivate}>
                         Deactivate
                     </Button>
                 )}
@@ -303,12 +326,37 @@ export function AccountSecurity({ user }: { user: CurrentUser }) {
                         type="primary"
                         className="settings-delete"
                         htmlType="button"
-                        onClick={() => message.warning("Account deletion isn't available.")}
+                        onClick={openDelete}
                     >
-                        Delete…
+                        Delete
                     </Button>
                 )}
             />
+            <Modal
+                title="Delete your account?"
+                open={deleteOpen}
+                okText="Delete"
+                cancelText="Cancel"
+                okButtonProps={{ danger: true, disabled: deleteText !== 'delete' }}
+                confirmLoading={deleting}
+                destroyOnHidden
+                onOk={() => void confirmDelete()}
+                onCancel={() => {
+                    if (!deleting) {
+                        setDeleteOpen(false);
+                    }
+                }}
+            >
+                <p>This permanently deletes your account, profiles, and history. Type delete to confirm.</p>
+                <Input
+                    autoFocus
+                    value={deleteText}
+                    placeholder="delete"
+                    aria-label="Type delete to confirm"
+                    onChange={(event) => setDeleteText(event.target.value)}
+                    onPressEnter={() => void confirmDelete()}
+                />
+            </Modal>
         </>
     );
 }
@@ -402,17 +450,3 @@ function SecurityRow({
     );
 }
 
-function maskPhone(phone: string): string {
-    const trimmed = phone.trim();
-    const parts = trimmed.split(/\s+/);
-    if (parts.length >= 3) {
-        return `${parts.slice(0, 2).join(' ')} **** ${parts[parts.length - 1]}`;
-    }
-    const digits = trimmed.replace(/\D/g, '');
-    if (digits.length < 7) {
-        return trimmed;
-    }
-    const prefixLength = Math.min(4, digits.length - 4);
-    const plus = trimmed.startsWith('+') ? '+' : '';
-    return `${plus}${digits.slice(0, prefixLength)} **** ${digits.slice(-4)}`;
-}

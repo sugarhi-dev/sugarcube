@@ -9,6 +9,9 @@ import { OnboardingExperience, onboardingExperiencePath } from './pages/onboardi
 import { OnboardingMedia, onboardingMediaPath } from './pages/onboarding/OnboardingMedia.tsx';
 import { OnboardingProfile, onboardingProfilePath } from './pages/onboarding/OnboardingProfile.tsx';
 import { OnboardingReview, onboardingReviewPath } from './pages/onboarding/OnboardingReview.tsx';
+import { LandingPage } from './landing/LandingPage.tsx';
+import { CalendarPage } from './pages/calendar/CalendarPage.tsx';
+import { calendarPath } from './pages/calendar/paths.ts';
 import { ProfilePage, profilePath } from './pages/profile/ProfilePage.tsx';
 import { settingsPath, settingsSectionPath } from './pages/settings/paths.ts';
 import { SettingsPage } from './pages/settings/SettingsPage.tsx';
@@ -23,9 +26,10 @@ export function App() {
             <AntdApp>
                 <BrowserRouter basename={basename}>
                     <Routes>
+                        <Route path="/" element={<LandingPage />} />
                         <Route element={<RequireSession><SignedIn /></RequireSession>}>
-                            <Route path="/" element={<ProfilePage />} />
                             <Route path={profilePath} element={<ProfilePage />} />
+                            <Route path={calendarPath} element={<CalendarPage />} />
                             <Route path={settingsPath} element={<Navigate to={settingsSectionPath('personal')} replace />} />
                             <Route path={`${settingsPath}/:section`} element={<SettingsPage />} />
                             <Route path={onboardingAccountTypePath} element={<OnboardingAccountType />} />

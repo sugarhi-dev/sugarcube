@@ -3,18 +3,20 @@ import {
     ProfilePhotoUrlSchema,
     UserLocaleSchema,
     UserWorkProfileSchema,
+    WorkProfileChoiceSchema,
     type AccountType,
     type CurrentUser,
     type ProfilePhotoUrl,
     type UserLocale,
     type UserStatus,
     type UserWorkProfile,
+    type WorkProfileChoice,
 } from '@sugarcube/schema';
 import { z } from 'zod';
 import { apiBlob, apiJson } from './http.ts';
 import { parseResponse, parseResponseList } from './parse.ts';
 
-export type { AccountType, CurrentUser, ProfilePhotoUrl, UserStatus };
+export type { AccountType, CurrentUser, ProfilePhotoUrl, UserStatus, WorkProfileChoice };
 
 export type UnionStatus = 'union' | 'non_union' | 'either';
 
@@ -110,6 +112,21 @@ export function listLocales(accessToken: string, path = '/api/me/locales'): Prom
     return readList(accessToken, path, UserLocaleSchema, 'Cities response was not valid.');
 }
 
+export function listWorkProfiles(accessToken: string): Promise<WorkProfileChoice[]> {
+    return readList(accessToken, '/api/me/work-profiles', WorkProfileChoiceSchema, 'Work profiles response was not valid.');
+}
+
+export function createWorkProfile(accessToken: string): Promise<CurrentUser> {
+    return readUser(accessToken, '/api/me/work-profiles', { method: 'POST' });
+}
+
+export function viewWorkProfile(accessToken: string, id: string): Promise<CurrentUser> {
+    return readUser(accessToken, '/api/me/viewing-work-profile', {
+        method: 'PUT',
+        body: JSON.stringify({ id }),
+    });
+}
+
 export function getWorkProfile(accessToken: string, path = '/api/me/work-profile'): Promise<UserWorkProfile> {
     return readOne(accessToken, path, UserWorkProfileSchema, 'Work profile response was not valid.');
 }
@@ -144,6 +161,14 @@ export function saveWorkProfile(accessToken: string, input: WorkProfileInput): P
 
 export function submitProfile(accessToken: string): Promise<CurrentUser> {
     return readUser(accessToken, '/api/me/review', { method: 'PUT' });
+}
+
+export function deactivateAccount(accessToken: string): Promise<CurrentUser> {
+    return readUser(accessToken, '/api/me/deactivate', { method: 'POST' });
+}
+
+export async function deleteAccount(accessToken: string): Promise<void> {
+    await apiJson(accessToken, '/api/me', { method: 'DELETE' });
 }
 
 async function readUser(accessToken: string, path: string, init?: RequestInit): Promise<CurrentUser> {

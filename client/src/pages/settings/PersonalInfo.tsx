@@ -5,17 +5,13 @@ import type { ProductionCity } from '../../api/catalog.ts';
 import type { CurrentUser } from '../../api/me.ts';
 import { SettingsFooter, SettingsHeading, useSavedClock } from './SettingsFrame.tsx';
 
-const bioLimit = 300;
-
 type PersonalValues = {
     phone: string;
-    bio: string;
     cityId?: string;
 };
 
 export type PersonalSaveInput = {
     phone: string;
-    bio: string;
     cityId: string | null;
 };
 
@@ -46,7 +42,6 @@ export function PersonalInfo({
     const fileRef = useRef<HTMLInputElement>(null);
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
-    const bio = Form.useWatch('bio', form) ?? '';
     useSavedClock(savedAt);
 
     useEffect(() => {
@@ -99,7 +94,6 @@ export function PersonalInfo({
     function onCancel(): void {
         form.setFieldsValue({
             phone: user.phone ?? '',
-            bio: user.bio ?? '',
             cityId: cityId ?? undefined,
         });
         setPhotoFile(null);
@@ -107,28 +101,14 @@ export function PersonalInfo({
 
     async function onFinish(values: PersonalValues): Promise<void> {
         const phone = values.phone.trim();
-        const nextBio = values.bio.trim();
         const phoneChanged = phone !== (user.phone ?? '').trim();
-        const bioChanged = nextBio !== (user.bio ?? '').trim();
-        if (phoneChanged || bioChanged) {
-            const errors: Array<{ name: 'phone' | 'bio'; errors: string[] }> = [];
-            if (!isPhone(phone)) {
-                errors.push({ name: 'phone', errors: ['Enter a phone number with at least 7 digits.'] });
-            }
-            if (!nextBio) {
-                errors.push({ name: 'bio', errors: ['Tell us a bit about you.'] });
-            } else if (nextBio.length > bioLimit) {
-                errors.push({ name: 'bio', errors: ['Bio must be 300 characters or fewer.'] });
-            }
-            if (errors.length > 0) {
-                form.setFields(errors);
-                return;
-            }
+        if (phoneChanged && !isPhone(phone)) {
+            form.setFields([{ name: 'phone', errors: ['Enter a phone number with at least 7 digits.'] }]);
+            return;
         }
 
         const result = await onSave({
             phone,
-            bio: nextBio,
             cityId: values.cityId ?? null,
         }, photoFile);
         if (result.photoSaved) {
@@ -180,7 +160,6 @@ export function PersonalInfo({
                 requiredMark={false}
                 initialValues={{
                     phone: user.phone ?? '',
-                    bio: user.bio ?? '',
                     cityId: cityId ?? undefined,
                 }}
                 onFinish={(values) => void onFinish(values)}
@@ -219,16 +198,6 @@ export function PersonalInfo({
                         options={cityOptions}
                     />
                 </Form.Item>
-                <Form.Item label="Bio" name="bio">
-                    <Input.TextArea
-                        rows={4}
-                        maxLength={bioLimit}
-                        placeholder="Producer & director based in Mexico City — commercials and music videos for global brands."
-                    />
-                </Form.Item>
-                <p className="settings-count">
-                    {bio.length.toLocaleString('en-US')} / {bioLimit.toLocaleString('en-US')}
-                </p>
                 <SettingsFooter savedAt={savedAt} saving={saving} onCancel={onCancel} />
             </Form>
         </>

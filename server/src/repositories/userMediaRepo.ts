@@ -1,5 +1,6 @@
 import { Database, Repository, type Context } from '@sugarcube/server-core';
 import { UserMediaSchema, type UserMedia } from '../entities/userMedia.js';
+import { viewingProfile } from './viewingProfile.js';
 
 type UserMediaRow = {
     id: string;
@@ -24,7 +25,7 @@ export class UserMediaRepo extends Repository {
         const result = await this.database.query<UserMediaRow>(
             `SELECT ${mediaColumns}
              FROM user_media
-             WHERE user_account_id = $1
+             WHERE user_account_id = $1 AND ${viewingProfile('$1')}
              ORDER BY sort_order, created_at`,
             [userAccountId],
         );
@@ -36,7 +37,7 @@ export class UserMediaRepo extends Repository {
         const result = await this.database.query<UserMediaRow>(
             `SELECT ${mediaColumns}
              FROM user_media
-             WHERE id = $1 AND user_account_id = $2`,
+             WHERE id = $1 AND user_account_id = $2 AND ${viewingProfile('$2')}`,
             [id, userAccountId],
         );
         const row = result.rows[0];
@@ -50,13 +51,15 @@ export class UserMediaRepo extends Repository {
             const next = await query<{ sort_order: number }>(
                 `SELECT COALESCE(MAX(sort_order), -1) + 1 AS sort_order
                  FROM user_media
-                 WHERE user_account_id = $1`,
+                 WHERE user_account_id = $1 AND ${viewingProfile('$1')}`,
                 [media.user_account_id],
             );
             const sortOrder = Number(next.rows[0]?.sort_order ?? 0);
             const result = await query<UserMediaRow>(
-                `INSERT INTO user_media (id, user_account_id, media_type, ref, thumbnail, sort_order, status)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                `INSERT INTO user_media (
+                     id, user_account_id, media_type, ref, thumbnail, sort_order, status, user_work_profile_id
+                 )
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT viewing_work_profile_id FROM user_account WHERE id = $2::varchar))
                  RETURNING ${mediaColumns}`,
                 [media.id, media.user_account_id, media.media_type, media.ref, media.thumbnail, sortOrder, media.status],
             );
@@ -71,7 +74,7 @@ export class UserMediaRepo extends Repository {
             const existing = await query<{ id: string }>(
                 `SELECT id
                  FROM user_media
-                 WHERE user_account_id = $1
+                 WHERE user_account_id = $1 AND ${viewingProfile('$1')}
                  ORDER BY sort_order, created_at`,
                 [userAccountId],
             );
@@ -96,7 +99,7 @@ export class UserMediaRepo extends Repository {
             const listed = await query<UserMediaRow>(
                 `SELECT ${mediaColumns}
                  FROM user_media
-                 WHERE user_account_id = $1
+                 WHERE user_account_id = $1 AND ${viewingProfile('$1')}
                  ORDER BY sort_order, created_at`,
                 [userAccountId],
             );
@@ -112,7 +115,7 @@ export class UserMediaRepo extends Repository {
                  ref = $4,
                  thumbnail = $5,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND user_account_id = $2
+             WHERE id = $1 AND user_account_id = $2 AND ${viewingProfile('$2')}
              RETURNING ${mediaColumns}`,
             [media.id, media.user_account_id, media.media_type, media.ref, media.thumbnail],
         );
@@ -124,7 +127,7 @@ export class UserMediaRepo extends Repository {
         this.log.trace(`${ctx.traceId} delete user_media ${id}`);
         const result = await this.database.query<UserMediaRow>(
             `DELETE FROM user_media
-             WHERE id = $1 AND user_account_id = $2
+             WHERE id = $1 AND user_account_id = $2 AND ${viewingProfile('$2')}
              RETURNING ${mediaColumns}`,
             [id, userAccountId],
         );

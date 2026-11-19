@@ -1,13 +1,15 @@
 import {
-    classifyMediaLink,
-    mediaUrl,
+    additionalSettingNames,
+    notificationSettingNames,
+    userSettingNames,
     type Currency,
     type UserLocale,
-    type UserMedia,
+    type UserSetting,
+    type UserSettingName,
     type UserWorkProfile,
 } from '@sugarcube/schema';
 import { App as AntdApp, Button, ConfigProvider, Result, Spin } from 'antd';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useParams } from 'react-router';
 import { ApiError } from '../../api/http.ts';
 import {
@@ -15,7 +17,7 @@ import {
     listProductionCities,
     type ProductionCity,
 } from '../../api/catalog.ts';
-import { listMedia, updateMedia } from '../../api/media.ts';
+import { listSettings, saveSettings } from '../../api/settings.ts';
 import {
     createLocale,
     getProfilePhotoUrl,
@@ -31,7 +33,7 @@ import { Frame } from '../../components/Frame.tsx';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { onboardingTheme } from '../../theme.ts';
-import { AdditionalInfo, type AdditionalSaveInput } from './AdditionalInfo.tsx';
+import { AdditionalInfo, type AdditionalSaveInput, type AdditionalSettings } from './AdditionalInfo.tsx';
 import { PersonalInfo, type PersonalSaveInput, type PersonalSaveResult } from './PersonalInfo.tsx';
 import {
     isSettingsSection,
@@ -43,6 +45,7 @@ import { SettingsFrame } from './SettingsFrame.tsx';
 import {
     AccountSecurity,
     NotificationSettings,
+    type NotificationChoices,
     PaymentsBilling,
     SubscriptionSettings,
 } from './SettingsPanels.tsx';
@@ -51,8 +54,8 @@ type SettingsData = {
     cities: ProductionCity[];
     currencies: Currency[];
     locales: UserLocale[];
+    settings: UserSetting[];
     workProfile: UserWorkProfile | null;
-    vimeo: UserMedia | null;
 };
 
 export function SettingsPage() {
@@ -91,11 +94,11 @@ export function SettingsPage() {
 
         void (async () => {
             try {
-                const [media, locales, cities, currencies, workProfile] = await Promise.all([
-                    listMedia(accessToken),
+                const [locales, cities, currencies, settings, workProfile] = await Promise.all([
                     listLocales(accessToken),
                     listProductionCities(accessToken),
                     listCurrencies(accessToken),
+                    listSettings(accessToken),
                     getWorkProfile(accessToken).catch((error: unknown) => {
                         if (error instanceof ApiError && error.status === 404) {
                             return null;
@@ -110,8 +113,8 @@ export function SettingsPage() {
                     cities,
                     currencies,
                     locales,
+                    settings,
                     workProfile,
-                    vimeo: media.find((item) => item.media_type === 'vimeo') ?? null,
                 });
             } catch (error) {
                 if (!active) {
@@ -147,6 +150,11 @@ export function SettingsPage() {
         };
     }, [photoId, token]);
 
+    const notificationChoices = useMemo(
+        () => readNotifications(data?.settings ?? []),
+        [data?.settings],
+    );
+
     if (!section) {
         return <Navigate to={settingsSectionPath('personal')} replace />;
     }
@@ -173,14 +181,14 @@ export function SettingsPage() {
             }
 
             const phoneChanged = input.phone !== (user.phone ?? '').trim();
-            const bioChanged = input.bio !== (user.bio ?? '').trim();
-            if (phoneChanged || bioChanged) {
-                const title = user.title?.trim() ?? '';
-                if (!title) {
-                    failures.push('Add a title on your profile before saving your phone or bio.');
+            if (phoneChanged) {
+                const title = (data.workProfile?.title ?? '').trim();
+                const bio = (data.workProfile?.bio ?? '').trim();
+                if (!title || !bio) {
+                    failures.push('Add a title and bio on your profile before saving your phone.');
                 } else {
                     try {
-                        const saved = await saveBasic(token, { phone: input.phone, bio: input.bio, title });
+                        const saved = await saveBasic(token, { phone: input.phone, bio, title });
                         dispatch(profileLoaded({ user: saved, forSubject: subject }));
                         savedAny = true;
                     } catch (error) {
@@ -199,7 +207,7 @@ export function SettingsPage() {
                 }
             }
 
-            reportSave(message, failures, savedAny, null);
+            reportSave(message, failures, savedAny);
             if (savedAny) {
                 setSavedAt(new Date());
                 setSavedSection('personal');
@@ -220,13 +228,13 @@ export function SettingsPage() {
         const failures: string[] = [];
         let savedAny = false;
         try {
-            if (input.cityId && input.cityId !== homeCityId(data.locales)) {
+            if (!sameSettings(data.settings, input.settings)) {
                 try {
-                    const locales = await saveHomeCity(token, data.locales, input.cityId);
-                    setData((current) => current ? { ...current, locales } : current);
+                    const saved = await saveSettings(token, settingWrites(input.settings, data.settings));
+                    setData((current) => current ? { ...current, settings: saved } : current);
                     savedAny = true;
                 } catch (error) {
-                    failures.push(errorText(error, 'Could not save your city.'));
+                    failures.push(errorText(error, 'Could not save your additional info.'));
                 }
             }
 
@@ -252,22 +260,7 @@ export function SettingsPage() {
                 }
             }
 
-            const storedVimeo = data.vimeo ? (mediaUrl(data.vimeo) ?? '') : '';
-            if (input.vimeoUrl && input.vimeoUrl !== storedVimeo && data.vimeo) {
-                const link = classifyMediaLink(input.vimeoUrl);
-                if (link && link.media_type === 'vimeo') {
-                    try {
-                        const saved = await updateMedia(token, data.vimeo.id, link.url);
-                        setData((current) => current ? { ...current, vimeo: saved } : current);
-                        savedAny = true;
-                    } catch (error) {
-                        failures.push(errorText(error, 'Could not update your Vimeo reel.'));
-                    }
-                }
-            }
-
-            const unstored = unstoredMessage(input.unstored);
-            reportSave(message, failures, savedAny, unstored);
+            reportSave(message, failures, savedAny);
             if (savedAny) {
                 setSavedAt(new Date());
                 setSavedSection('additional');
@@ -279,8 +272,29 @@ export function SettingsPage() {
         }
     }
 
+    async function saveNotifications(choices: NotificationChoices): Promise<boolean> {
+        if (lock.current || !token || !data) {
+            return false;
+        }
+        lock.current = true;
+        setSaving(true);
+        try {
+            const saved = await saveSettings(token, notificationWrites(choices, data.settings));
+            setData((current) => current ? { ...current, settings: saved } : current);
+            setSavedAt(new Date());
+            setSavedSection('notifications');
+            message.success('Saved changes.');
+            return true;
+        } catch (error) {
+            message.error(errorText(error, 'Could not save your notifications.'));
+            return false;
+        } finally {
+            lock.current = false;
+            setSaving(false);
+        }
+    }
+
     const homeId = data ? homeCityId(data.locales) : null;
-    const vimeoUrl = data?.vimeo ? (mediaUrl(data.vimeo) ?? '') : '';
 
     let body = <div className="settings-loading"><Spin /></div>;
     if (loadError) {
@@ -302,12 +316,13 @@ export function SettingsPage() {
             data,
             photoUrl,
             homeId,
-            vimeoUrl,
             saving,
             savedAt,
             savedSection,
             onSavePersonal: (input, photo) => savePersonal(input, photo),
             onSaveAdditional: (input) => saveAdditional(input),
+            notificationChoices,
+            onSaveNotifications: (choices) => saveNotifications(choices),
         });
     }
 
@@ -332,12 +347,13 @@ function sectionBody(
         data: SettingsData;
         photoUrl: string | null;
         homeId: string | null;
-        vimeoUrl: string;
         saving: boolean;
         savedAt: Date | null;
         savedSection: SettingsSection | null;
         onSavePersonal: (input: PersonalSaveInput, photo: File | null) => Promise<PersonalSaveResult>;
         onSaveAdditional: (input: AdditionalSaveInput) => Promise<boolean>;
+        notificationChoices: NotificationChoices;
+        onSaveNotifications: (choices: NotificationChoices) => Promise<boolean>;
     },
 ) {
     if (section === 'personal') {
@@ -356,13 +372,10 @@ function sectionBody(
     if (section === 'additional') {
         return (
             <AdditionalInfo
-                cities={props.data.cities}
+                settings={readSettings(props.data.settings)}
                 currencies={props.data.currencies}
-                cityId={props.homeId}
                 currencyId={props.data.workProfile?.currency_id ?? null}
                 currencyLocked={!props.data.workProfile || props.data.workProfile.day_rate === null}
-                vimeoUrl={props.vimeoUrl}
-                hasVimeo={props.data.vimeo !== null}
                 saving={props.saving}
                 savedAt={props.savedSection === 'additional' ? props.savedAt : null}
                 onSave={props.onSaveAdditional}
@@ -373,10 +386,17 @@ function sectionBody(
         return <PaymentsBilling />;
     }
     if (section === 'notifications') {
-        return <NotificationSettings />;
+        return (
+            <NotificationSettings
+                choices={props.notificationChoices}
+                saving={props.saving}
+                savedAt={props.savedSection === 'notifications' ? props.savedAt : null}
+                onSave={props.onSaveNotifications}
+            />
+        );
     }
     if (section === 'security') {
-        return <AccountSecurity user={props.user} />;
+        return <AccountSecurity />;
     }
     return <SubscriptionSettings />;
 }
@@ -401,11 +421,121 @@ function homeCityId(locales: UserLocale[]): string | null {
     return locales.find((row) => row.home_city)?.production_city_id ?? null;
 }
 
+const settingFields: Record<(typeof additionalSettingNames)[number], keyof AdditionalSettings> = {
+    company: 'company',
+    role: 'role',
+    company_type: 'companyType',
+    website: 'website',
+    instagram: 'instagram',
+    vimeo: 'vimeo',
+    language: 'language',
+};
+
+const notificationFields: Record<keyof NotificationChoices, { email: UserSettingName; push: UserSettingName }> = {
+    booking: { email: 'notify_booking_email', push: 'notify_booking_push' },
+    messages: { email: 'notify_messages_email', push: 'notify_messages_push' },
+    receipts: { email: 'notify_receipts_email', push: 'notify_receipts_push' },
+    reminders: { email: 'notify_reminders_email', push: 'notify_reminders_push' },
+    tips: { email: 'notify_tips_email', push: 'notify_tips_push' },
+};
+
+const notificationDefaults: NotificationChoices = {
+    booking: { email: true, push: true },
+    messages: { email: true, push: true },
+    receipts: { email: true, push: false },
+    reminders: { email: true, push: true },
+    tips: { email: false, push: false },
+};
+
+function readSettings(rows: UserSetting[]): AdditionalSettings {
+    const byName = new Map(rows.map((row) => [row.name, row.value]));
+    return {
+        company: byName.get('company') ?? '',
+        role: byName.get('role') ?? '',
+        companyType: byName.get('company_type') ?? '',
+        website: byName.get('website') ?? '',
+        instagram: byName.get('instagram') ?? '',
+        vimeo: byName.get('vimeo') ?? '',
+        language: byName.get('language') ?? '',
+    };
+}
+
+function settingWrites(
+    settings: AdditionalSettings,
+    existing: UserSetting[],
+): Array<{ name: UserSettingName; value: string }> {
+    const additional = additionalSettingNames.flatMap((name) => {
+        const value = settings[settingFields[name]].trim();
+        return value ? [{ name, value }] : [];
+    });
+    return [...additional, ...keptSettings(existing, additionalSettingNames)];
+}
+
+function sameSettings(rows: UserSetting[], settings: AdditionalSettings): boolean {
+    const current = readSettings(rows);
+    return additionalSettingNames.every((name) => current[settingFields[name]] === settings[settingFields[name]].trim());
+}
+
+function readNotifications(rows: UserSetting[]): NotificationChoices {
+    const byName = new Map(rows.map((row) => [row.name, row.value]));
+    const choices = {} as NotificationChoices;
+    for (const channel of Object.keys(notificationFields) as Array<keyof NotificationChoices>) {
+        const fields = notificationFields[channel];
+        const fallback = notificationDefaults[channel];
+        choices[channel] = {
+            email: readFlag(byName, fields.email, fallback.email),
+            push: readFlag(byName, fields.push, fallback.push),
+        };
+    }
+    return choices;
+}
+
+function notificationWrites(
+    choices: NotificationChoices,
+    existing: UserSetting[],
+): Array<{ name: UserSettingName; value: string }> {
+    const notifications = (Object.keys(notificationFields) as Array<keyof NotificationChoices>).flatMap((channel) => {
+        const fields = notificationFields[channel];
+        return [
+            { name: fields.email, value: choices[channel].email ? 'true' : 'false' },
+            { name: fields.push, value: choices[channel].push ? 'true' : 'false' },
+        ];
+    });
+    return [...notifications, ...keptSettings(existing, notificationSettingNames)];
+}
+
+function keptSettings(
+    existing: UserSetting[],
+    replaced: readonly string[],
+): Array<{ name: UserSettingName; value: string }> {
+    const replacing = new Set<string>(replaced);
+    return existing.flatMap((row) => {
+        if (replacing.has(row.name) || !isUserSettingName(row.name)) {
+            return [];
+        }
+        return [{ name: row.name, value: row.value }];
+    });
+}
+
+function readFlag(rows: Map<string, string>, name: string, fallback: boolean): boolean {
+    const value = rows.get(name);
+    if (value === 'true') {
+        return true;
+    }
+    if (value === 'false') {
+        return false;
+    }
+    return fallback;
+}
+
+function isUserSettingName(name: string): name is UserSettingName {
+    return (userSettingNames as readonly string[]).includes(name);
+}
+
 function reportSave(
     message: ReturnType<typeof AntdApp.useApp>['message'],
     failures: string[],
     savedAny: boolean,
-    unstored: string | null,
 ): void {
     if (failures.length > 0 && savedAny) {
         message.warning(failures.join(' '));
@@ -415,28 +545,9 @@ function reportSave(
         message.error(failures.join(' '));
         return;
     }
-    if (savedAny && unstored) {
-        message.success(`Saved changes. ${unstored}`);
-        return;
-    }
     if (savedAny) {
         message.success('Saved changes.');
-        return;
     }
-    if (unstored) {
-        message.info(unstored);
-    }
-}
-
-function unstoredMessage(names: string[]): string | null {
-    if (names.length === 0) {
-        return null;
-    }
-    if (names.length === 1) {
-        return `${names[0]} isn't stored on your account.`;
-    }
-    const last = names[names.length - 1];
-    return `${names.slice(0, -1).join(', ')} and ${last} aren't stored on your account.`;
 }
 
 function errorText(error: unknown, fallback: string): string {

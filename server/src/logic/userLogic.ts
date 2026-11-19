@@ -13,8 +13,9 @@ const accountTypeConstraints = {
 
 const basicConstraints = {
     user_account_status_check: { statusCode: 400, message: 'Account status is not allowed.' },
-    user_account_bio_check: { statusCode: 400, message: 'Bio must be 300 characters or fewer.' },
-    user_account_title_check: { statusCode: 400, message: 'Title must be 120 characters or fewer.' },
+    user_work_profile_bio_check: { statusCode: 400, message: 'Bio must be 300 characters or fewer.' },
+    user_work_profile_status_check: { statusCode: 400, message: 'Profile status is not allowed.' },
+    user_work_profile_title_check: { statusCode: 400, message: 'Title must be 120 characters or fewer.' },
 };
 
 const photoConstraints = {
@@ -40,7 +41,9 @@ const setupConstraints = {
         message: 'Day rate and currency must both be set or both be empty.',
     },
     user_locale_user_city_key: { statusCode: 409, message: 'That city is already on the profile.' },
+    user_locale_work_profile_city_key: { statusCode: 409, message: 'That city is already on the profile.' },
     user_locale_home_city_key: { statusCode: 409, message: 'A home city is already set.' },
+    user_locale_work_profile_home_city_key: { statusCode: 409, message: 'A home city is already set.' },
     user_locale_production_city_id_fkey: { statusCode: 400, message: 'Production city not found.' },
     user_locale_user_account_id_fkey: { statusCode: 404, message: 'Profile not found.' },
     user_account_status_check: { statusCode: 400, message: 'Account status is not allowed.' },
@@ -161,6 +164,68 @@ export class UserLogic extends Logic {
         return user;
     }
 
+    async deleteAccount(ctx: Context, keycloakId: string, userId: string): Promise<boolean> {
+        const current = await this.userRepo.findUserByKeycloakId(ctx, keycloakId);
+        if (!current) {
+            ctx.error('Profile not found.', 404);
+            return false;
+        }
+        if (current.id !== userId) {
+            ctx.error('You can only delete your own account.', 403);
+            return false;
+        }
+
+        const binaryIds = await this.userRepo.deleteAccount(ctx, current.id);
+        if (!binaryIds) {
+            ctx.error('Profile not found.', 404);
+            return false;
+        }
+        for (const id of binaryIds) {
+            await this.discardPhoto(id);
+        }
+        return true;
+    }
+
+    async deactivateAccount(ctx: Context, userId: string): Promise<User | null> {
+        const user = await this.userRepo.deactivateAccount(ctx, userId);
+        if (!user) {
+            ctx.error('This account is already deactivated.', 409);
+            return null;
+        }
+        return user;
+    }
+
+    async reactivateOnSignIn(ctx: Context, keycloakId: string): Promise<void> {
+        const current = await this.userRepo.findUserByKeycloakId(ctx, keycloakId);
+        if (!current || current.status !== 'deactivated') {
+            return;
+        }
+
+        const user = await this.userRepo.reactivateUser(ctx, current.id);
+        if (!user) {
+            ctx.error('Could not turn this account back on.', 409);
+        }
+    }
+
+    async reactivateUser(ctx: Context, id: string): Promise<AdminUser | null> {
+        const current = await this.userRepo.findUserById(ctx, id);
+        if (!current) {
+            ctx.error('Profile not found.', 404);
+            return null;
+        }
+        if (current.status !== 'deactivated') {
+            ctx.error('Only a deactivated account can be reactivated.', 409);
+            return null;
+        }
+
+        const user = await this.userRepo.reactivateUser(ctx, id);
+        if (!user) {
+            ctx.error('Only a deactivated account can be reactivated.', 409);
+            return null;
+        }
+        return user;
+    }
+
     async approveUser(ctx: Context, id: string): Promise<AdminUser | null> {
         const current = await this.userRepo.findUserById(ctx, id);
         if (!current) {
@@ -213,7 +278,7 @@ export class UserLogic extends Logic {
 
     async saveBasic(ctx: Context, userId: string, input: BasicWrite): Promise<User | null> {
         try {
-            const user = await this.userRepo.saveBasic(ctx, userId, input);
+            const user = await this.userRepo.saveBasic(ctx, userId, input, ulid());
             if (!user) {
                 ctx.error('Profile details can only be updated while you are setting up or reviewing your profile.', 409);
                 return null;
@@ -342,6 +407,24 @@ export class UserLogic extends Logic {
         const user = await this.userRepo.completeMedia(ctx, userId);
         if (!user) {
             ctx.error('Media can only be completed while your account is on the media step.', 409);
+            return null;
+        }
+        return user;
+    }
+
+    async startWorkProfile(ctx: Context, userId: string): Promise<User | null> {
+        const user = await this.userRepo.startWorkProfile(ctx, userId, ulid());
+        if (!user) {
+            ctx.error('You can add another profile after this account is live.', 409);
+            return null;
+        }
+        return user;
+    }
+
+    async viewWorkProfile(ctx: Context, userId: string, workProfileId: string): Promise<User | null> {
+        const user = await this.userRepo.viewWorkProfile(ctx, userId, workProfileId);
+        if (!user) {
+            ctx.error('Choose a live profile on this account.', 409);
             return null;
         }
         return user;

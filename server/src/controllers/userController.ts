@@ -98,6 +98,10 @@ const CompleteExperienceRequestSchema = z.object({
     }),
 });
 
+const ViewWorkProfileRequestSchema = z.object({
+    id: z.ulid().meta({ description: 'Live work profile to switch to.' }),
+});
+
 const SaveUserWorkProfileRequestSchema = z.object({
     day_rate: z.number().min(0).nullable().default(null).meta({ description: 'Day rate. Empty when no rate is set.' }),
     currency_id: z.ulid().nullable().default(null).meta({ description: 'Currency for the day rate. Required when day rate is set.' }),
@@ -118,6 +122,7 @@ export const userRequestSchemas = {
     CreateUserLocaleRequest: CreateUserLocaleRequestSchema,
     UpdateUserLocaleRequest: UpdateUserLocaleRequestSchema,
     SaveUserWorkProfileRequest: SaveUserWorkProfileRequestSchema,
+    ViewWorkProfileRequest: ViewWorkProfileRequestSchema,
 };
 
 export class UserController extends Controller {
@@ -146,11 +151,16 @@ export class UserController extends Controller {
         this.put('/api/me/media', this.PUT_media.bind(this));
         this.put('/api/me/back', this.PUT_back.bind(this));
         this.put('/api/me/review', this.PUT_review.bind(this));
+        this.post('/api/me/deactivate', this.POST_deactivate.bind(this));
+        this.delete('/api/me', this.DELETE_me.bind(this));
         this.get('/api/me/locales', this.GET_locales.bind(this));
         this.post('/api/me/locales', this.POST_locale.bind(this));
         this.get('/api/me/locales/:id', this.GET_locale.bind(this));
         this.patch('/api/me/locales/:id', this.PATCH_locale.bind(this));
         this.delete('/api/me/locales/:id', this.DELETE_locale.bind(this));
+        this.get('/api/me/work-profiles', this.GET_work_profiles.bind(this));
+        this.post('/api/me/work-profiles', this.POST_work_profiles.bind(this));
+        this.put('/api/me/viewing-work-profile', this.PUT_viewing_work_profile.bind(this));
         this.get('/api/me/work-profile', this.GET_work_profile.bind(this));
         this.put('/api/me/work-profile', this.PUT_work_profile.bind(this));
         this.delete('/api/me/work-profile', this.DELETE_work_profile.bind(this));
@@ -316,6 +326,29 @@ export class UserController extends Controller {
         this.checkAndRespond(ctx, res, updated);
     }
 
+    protected async POST_deactivate(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const updated = await this.userLogic.deactivateAccount(ctx, user.id);
+        this.checkAndRespond(ctx, res, updated);
+    }
+
+    protected async DELETE_me(ctx: Context, req: Request, res: Response): Promise<void> {
+        const subject = authenticatedSubject(req);
+        const user = await this.currentUser(ctx, req);
+        if (!user || !subject) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const deleted = await this.userLogic.deleteAccount(ctx, subject, user.id);
+        this.checkAndRespond(ctx, res, deleted ? { deleted: true } : undefined);
+    }
+
     protected async GET_locales(ctx: Context, req: Request, res: Response): Promise<void> {
         const user = await this.currentUser(ctx, req);
         if (!user) {
@@ -374,6 +407,40 @@ export class UserController extends Controller {
         const id = UserLocaleIdSchema.parse(req.params.id);
         const locale = await this.userLocaleLogic.deleteUserLocale(ctx, user.id, id);
         this.checkAndRespond(ctx, res, locale);
+    }
+
+    protected async GET_work_profiles(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const profiles = await this.userWorkProfileLogic.listWorkProfileChoices(ctx, user.id);
+        this.checkAndRespond(ctx, res, profiles);
+    }
+
+    protected async POST_work_profiles(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const created = await this.userLogic.startWorkProfile(ctx, user.id);
+        this.checkAndRespond(ctx, res, created, 201);
+    }
+
+    protected async PUT_viewing_work_profile(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const body = parseBody(ViewWorkProfileRequestSchema, req.body);
+        const updated = await this.userLogic.viewWorkProfile(ctx, user.id, body.id);
+        this.checkAndRespond(ctx, res, updated);
     }
 
     protected async GET_work_profile(ctx: Context, req: Request, res: Response): Promise<void> {

@@ -19,6 +19,8 @@
     "local-up": "docker compose -f server/docker/local/docker-compose.yml up -d --wait",
     "local-down": "docker compose -f server/docker/local/docker-compose.yml down",
     "local-start": "node scripts/local-start.js",
+    "seed-local": "node server/mock/seed-crew.ts local",
+    "seed-test": "node server/mock/seed-crew.ts test",
     "typecheck": "tsc -b --pretty false && npm run typecheck -w @sugarcube/client && npm run typecheck -w @sugarcube/admin"
   },
   "engines": {

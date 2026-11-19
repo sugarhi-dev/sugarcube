@@ -16,12 +16,34 @@ export { ProjectSchema, type Project } from './project.js';
 export { ProjectTypeSchema, type ProjectType } from './projectType.js';
 export { UserLocaleSchema, type UserLocale } from './userLocale.js';
 export {
+    UserSettingNameSchema,
+    UserSettingSchema,
+    additionalSettingNames,
+    notificationSettingNames,
+    userSettingCompanyTypes,
+    userSettingLanguages,
+    userSettingNames,
+    userSettingRoles,
+    type UserSetting,
+    type UserSettingName,
+} from './userSetting.js';
+export {
     AvailabilityCodeSchema,
+    ProfileUnavailabilitySchema,
     UserAvailabilitySchema,
     type AvailabilityCode,
+    type ProfileUnavailability,
     type UserAvailability,
 } from './userAvailability.js';
-export { UserWorkProfileSchema, type UnionStatus, type UserWorkProfile } from './userWorkProfile.js';
+export {
+    UserWorkProfileSchema,
+    WorkProfileChoiceSchema,
+    WorkProfileStatusSchema,
+    type UnionStatus,
+    type UserWorkProfile,
+    type WorkProfileChoice,
+    type WorkProfileStatus,
+} from './userWorkProfile.js';
 export {
     MediaTypeSchema,
     UserMediaSchema,

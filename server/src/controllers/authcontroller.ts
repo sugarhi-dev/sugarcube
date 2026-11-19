@@ -109,6 +109,13 @@ export class AuthController extends Controller {
         });
 
         await this.userLogic.createUser(ctx, user);
+        if (client_id !== adminClientId) {
+            await this.userLogic.reactivateOnSignIn(ctx, user.keycloak_id);
+            if (ctx.hasError) {
+                this.checkAndRespond(ctx, res);
+                return;
+            }
+        }
 
         this.checkAndRespond(ctx, res, data);
     }

@@ -50,6 +50,7 @@ export class AdminUserController extends Controller {
         this.get('/api/admin/approvals', this.GET_approvals.bind(this));
         this.get('/api/admin/users/:id', this.GET_user.bind(this));
         this.post('/api/admin/users/:id/approve', this.POST_approve.bind(this));
+        this.post('/api/admin/users/:id/reactivate', this.POST_reactivate.bind(this));
         this.post('/api/admin/users/:id/back-to-review', this.POST_back_to_review.bind(this));
         this.post('/api/admin/users/:id/request-changes', this.POST_request_changes.bind(this));
         this.get('/api/admin/users/:id/photo/url', this.GET_photo_url.bind(this));
@@ -123,6 +124,17 @@ export class AdminUserController extends Controller {
 
         const id = UserIdSchema.parse(req.params.id);
         const user = await this.userLogic.approveUser(ctx, id);
+        this.checkAndRespond(ctx, res, user ? toAdminUserResponse(user) : undefined);
+    }
+
+    protected async POST_reactivate(ctx: Context, req: Request, res: Response): Promise<void> {
+        if (!this.requireAdmin(ctx, req)) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const id = UserIdSchema.parse(req.params.id);
+        const user = await this.userLogic.reactivateUser(ctx, id);
         this.checkAndRespond(ctx, res, user ? toAdminUserResponse(user) : undefined);
     }
 
@@ -317,8 +329,6 @@ function toProfile(user: User) {
         last_name: user.last_name,
         email: user.email,
         phone: user.phone,
-        bio: user.bio,
-        title: user.title,
         photo: user.photo,
         status: user.status,
         account_type: user.account_type,

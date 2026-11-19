@@ -5,6 +5,7 @@ import { exchangeCode } from '../api/auth.ts';
 import { readCallback } from '../auth/oidc.ts';
 import { Centered } from '../components/Centered.tsx';
 import { useAppDispatch } from '../store/hooks.ts';
+import { profilePath } from './profile/ProfilePage.tsx';
 import { sessionSaved } from '../store/sessionSlice.ts';
 
 export function CallbackPage() {
@@ -28,7 +29,7 @@ export function CallbackPage() {
                     return;
                 }
                 dispatch(sessionSaved(session));
-                navigate('/', { replace: true });
+                navigate(profilePath, { replace: true });
             } catch (caught) {
                 if (!active) {
                     return;

@@ -16,7 +16,9 @@ export type UserLocalePatch = {
 
 const localeConstraints = {
     user_locale_user_city_key: { statusCode: 409, message: 'That city is already on the profile.' },
+    user_locale_work_profile_city_key: { statusCode: 409, message: 'That city is already on the profile.' },
     user_locale_home_city_key: { statusCode: 409, message: 'A home city is already set.' },
+    user_locale_work_profile_home_city_key: { statusCode: 409, message: 'A home city is already set.' },
     user_locale_production_city_id_fkey: { statusCode: 400, message: 'Production city not found.' },
     user_locale_user_account_id_fkey: { statusCode: 404, message: 'Profile not found.' },
 };

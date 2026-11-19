@@ -3,12 +3,15 @@ import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { ApiError } from '../api/http.ts';
 import { getMe } from '../api/me.ts';
+import { beginSignIn } from '../auth/oidc.ts';
 import { onboardingAccountTypePath } from '../pages/onboarding/OnboardingAccountType.tsx';
 import { onboardingBasicPath } from '../pages/onboarding/OnboardingBasic.tsx';
 import { onboardingExperiencePath } from '../pages/onboarding/OnboardingExperience.tsx';
 import { onboardingMediaPath } from '../pages/onboarding/OnboardingMedia.tsx';
 import { onboardingProfilePath } from '../pages/onboarding/OnboardingProfile.tsx';
 import { onboardingReviewPath } from '../pages/onboarding/OnboardingReview.tsx';
+import { calendarPath } from '../pages/calendar/paths.ts';
+import { profilePath } from '../pages/profile/ProfilePage.tsx';
 import { onSettingsPath } from '../pages/settings/paths.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../store/hooks.ts';
 import { profileFailed, profileLoaded, profileRequested } from '../store/profileSlice.ts';
@@ -87,6 +90,28 @@ export function SignedIn() {
         return <Spin size="large" description="Loading your profile…" fullscreen />;
     }
 
+    if (user.status === 'deactivated') {
+        return (
+            <Centered>
+                <Result
+                    title="Account deactivated"
+                    subTitle="Your account and profiles are hidden. Sign in again to turn the account back on and open your profile."
+                    extra={(
+                        <Button
+                            type="primary"
+                            onClick={() => {
+                                dispatch(sessionCleared());
+                                beginSignIn();
+                            }}
+                        >
+                            Sign in
+                        </Button>
+                    )}
+                />
+            </Centered>
+        );
+    }
+
     const onAccountType = location.pathname === onboardingAccountTypePath;
     const onBasic = location.pathname === onboardingBasicPath;
     const onProfile = location.pathname === onboardingProfilePath;
@@ -94,6 +119,7 @@ export function SignedIn() {
     const onMedia = location.pathname === onboardingMediaPath;
     const onReview = location.pathname === onboardingReviewPath;
     const onSettings = onSettingsPath(location.pathname);
+    const onCalendar = location.pathname === calendarPath;
     if (user.status === 'new' && !onAccountType) {
         return <Navigate to={onboardingAccountTypePath} replace />;
     }
@@ -109,10 +135,10 @@ export function SignedIn() {
     if (user.status === 'media' && !onMedia) {
         return <Navigate to={onboardingMediaPath} replace />;
     }
-    if (user.status === 'review' && !onReview && !onSettings) {
+    if (user.status === 'review' && !onReview && !onSettings && !onCalendar) {
         return <Navigate to={onboardingReviewPath} replace />;
     }
-    if (user.status === 'admin-review' && !onReview && !onSettings) {
+    if (user.status === 'admin-review' && !onReview && !onSettings && !onCalendar) {
         return <Navigate to={onboardingReviewPath} replace />;
     }
     if (
@@ -125,7 +151,7 @@ export function SignedIn() {
         && user.status !== 'admin-review'
         && (onAccountType || onBasic || onProfile || onExperience || onMedia || onReview)
     ) {
-        return <Navigate to="/" replace />;
+        return <Navigate to={profilePath} replace />;
     }
 
     return <Outlet />;

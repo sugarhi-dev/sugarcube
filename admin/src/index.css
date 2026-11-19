@@ -365,6 +365,7 @@ button {
 .user-approve,
 .user-changes,
 .user-back,
+.user-reactivate,
 .user-reject,
 .user-view,
 .users-bulk button,
@@ -379,6 +380,7 @@ button {
 .user-approve,
 .user-changes,
 .user-back,
+.user-reactivate,
 .user-reject,
 .user-view {
     display: inline-flex;
@@ -388,7 +390,8 @@ button {
     background: #fff;
 }
 
-.user-approve {
+.user-approve,
+.user-reactivate {
     border: 1px solid #b7e4c7;
     color: #1f8a4c;
 }
@@ -411,6 +414,7 @@ button {
 .user-approve:disabled,
 .user-changes:disabled,
 .user-back:disabled,
+.user-reactivate:disabled,
 .user-reject:disabled,
 .users-bulk button:disabled,
 .users-pager button:disabled {
@@ -421,6 +425,7 @@ button {
 .user-approve:focus,
 .user-changes:focus,
 .user-back:focus,
+.user-reactivate:focus,
 .user-reject:focus,
 .user-view:focus,
 .users-bulk button:focus,
@@ -431,6 +436,7 @@ button {
 .user-approve:focus-visible,
 .user-changes:focus-visible,
 .user-back:focus-visible,
+.user-reactivate:focus-visible,
 .user-reject:focus-visible,
 .user-view:focus-visible,
 .users-bulk button:focus-visible,

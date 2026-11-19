@@ -2,6 +2,7 @@ import { Spin } from 'antd';
 import { useEffect, useRef } from 'react';
 import { Navigate } from 'react-router';
 import { beginSignIn } from '../auth/oidc.ts';
+import { profilePath } from './profile/ProfilePage.tsx';
 import { useSession } from '../store/hooks.ts';
 
 export function SignInPage() {
@@ -18,7 +19,7 @@ export function SignInPage() {
     }, [signedIn]);
 
     if (signedIn) {
-        return <Navigate to="/" replace />;
+        return <Navigate to={profilePath} replace />;
     }
 
     return <Spin size="large" description="Redirecting to sign in…" fullscreen />;

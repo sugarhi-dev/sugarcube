@@ -1,6 +1,6 @@
 import { Context, Logic } from '@sugarcube/server-core';
 import { ulid } from 'ulidx';
-import type { UserAvailability } from '../entities/userAvailability.js';
+import type { ProfileUnavailability, UserAvailability } from '../entities/userAvailability.js';
 import { UserAvailabilityRepo } from '../repositories/userAvailabilityRepo.js';
 import { constraintFailure } from './pgError.js';
 
@@ -8,6 +8,7 @@ const rangeLimit = 3660;
 
 const availabilityConstraints = {
     user_availability_user_account_id_fkey: { statusCode: 404, message: 'Profile not found.' },
+    user_availability_user_work_profile_id_fkey: { statusCode: 404, message: 'Profile not found.' },
     user_availability_code_check: { statusCode: 400, message: 'Availability is not allowed.' },
     user_availability_date_range_check: { statusCode: 400, message: 'The end date must be on or after the start date.' },
 };
@@ -22,6 +23,10 @@ export class UserAvailabilityLogic extends Logic {
 
     listUserAvailability(ctx: Context, userAccountId: string): Promise<UserAvailability[]> {
         return this.userAvailabilityRepo.listUserAvailability(ctx, userAccountId);
+    }
+
+    listProfileUnavailability(ctx: Context, userAccountId: string): Promise<ProfileUnavailability[]> {
+        return this.userAvailabilityRepo.listProfileUnavailability(ctx, userAccountId);
     }
 
     async saveUnavailable(ctx: Context, userAccountId: string, dates: string[]): Promise<UserAvailability[] | null> {
@@ -41,6 +46,42 @@ export class UserAvailabilityLogic extends Logic {
         const ranges = mergeDates(unique).map((range) => ({ id: ulid(), ...range }));
         try {
             return await this.userAvailabilityRepo.replaceUnavailable(ctx, userAccountId, ranges);
+        } catch (error) {
+            const failure = constraintFailure(error, availabilityConstraints);
+            if (!failure) {
+                throw error;
+            }
+            ctx.error(failure.message, failure.statusCode);
+            return null;
+        }
+    }
+
+    async saveProfileUnavailable(
+        ctx: Context,
+        userAccountId: string,
+        workProfileId: string,
+        dates: string[],
+    ): Promise<UserAvailability[] | null> {
+        const unique = [...new Set(dates)].sort();
+        if (unique.length > rangeLimit) {
+            ctx.error('Choose fewer days.', 400);
+            return null;
+        }
+
+        const current = await this.userAvailabilityRepo.listWorkProfileAvailability(ctx, userAccountId, workProfileId);
+        if (!current) {
+            ctx.error('Profile not found.', 404);
+            return null;
+        }
+        const booked = bookedDays(current);
+        if (unique.some((date) => booked.has(date))) {
+            ctx.error('Booked days stay booked.', 409);
+            return null;
+        }
+
+        const ranges = mergeDates(unique).map((range) => ({ id: ulid(), ...range }));
+        try {
+            return await this.userAvailabilityRepo.replaceProfileUnavailable(ctx, userAccountId, workProfileId, ranges);
         } catch (error) {
             const failure = constraintFailure(error, availabilityConstraints);
             if (!failure) {

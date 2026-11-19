@@ -1,6 +1,6 @@
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
-import type { UserAvailability } from '@sugarcube/schema';
-import { App as AntdApp, Button, Calendar, Modal } from 'antd';
+import type { ProfileUnavailability, UserAvailability, WorkProfileChoice } from '@sugarcube/schema';
+import { App as AntdApp, Button, Calendar, Modal, Select } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { saveUnavailable } from '../../api/availability.ts';
@@ -313,7 +313,178 @@ function AvailabilityDay({
     );
 }
 
-function unavailableDays(rows: UserAvailability[]): Set<string> {
+export function ProfileUnavailableDialog({
+    open,
+    profiles,
+    blocks,
+    profileId,
+    accessToken,
+    onClose,
+    onSaved,
+}: {
+    open: boolean;
+    profiles: WorkProfileChoice[];
+    blocks: ProfileUnavailability[];
+    profileId: string;
+    accessToken: string;
+    onClose: () => void;
+    onSaved: () => void;
+}) {
+    const { message } = AntdApp.useApp();
+    const [chosen, setChosen] = useState(profileId);
+    const [month, setMonth] = useState(() => dayjs());
+    const [draft, setDraft] = useState<Set<string>>(() => new Set());
+    const [saving, setSaving] = useState(false);
+    const drag = useRef<{ blocking: boolean } | null>(null);
+    const rows = useMemo(
+        () => blocks.filter((row) => row.work_profile_id === chosen),
+        [blocks, chosen],
+    );
+    const booked = useMemo(() => bookedDays(rows), [rows]);
+    const options = useMemo(
+        () => profiles.map((profile) => ({ value: profile.id, label: choiceLabel(profile) })),
+        [profiles],
+    );
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+        setChosen(profileId);
+        setMonth(dayjs());
+        drag.current = null;
+    }, [open, profileId]);
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+        setDraft(unavailableDays(rows));
+    }, [open, rows]);
+
+    useEffect(() => {
+        function stop(): void {
+            drag.current = null;
+        }
+        window.addEventListener('pointerup', stop);
+        window.addEventListener('pointercancel', stop);
+        return () => {
+            window.removeEventListener('pointerup', stop);
+            window.removeEventListener('pointercancel', stop);
+        };
+    }, []);
+
+    function paint(day: string, blocking: boolean): void {
+        if (booked.has(day)) {
+            return;
+        }
+        setDraft((current) => {
+            const next = new Set(current);
+            if (blocking) {
+                next.add(day);
+            } else {
+                next.delete(day);
+            }
+            return next;
+        });
+    }
+
+    async function onSave(): Promise<void> {
+        if (!chosen) {
+            return;
+        }
+        setSaving(true);
+        try {
+            await saveUnavailable(accessToken, [...draft], chosen);
+            onSaved();
+        } catch (error: unknown) {
+            message.error(error instanceof Error ? error.message : 'Could not save your availability.');
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    const days = useMemo(() => {
+        const marked = new Map<string, UserAvailability['code']>();
+        for (const day of booked) {
+            marked.set(day, 'booked');
+        }
+        for (const day of draft) {
+            if (!marked.has(day)) {
+                marked.set(day, 'unavailable');
+            }
+        }
+        return marked;
+    }, [booked, draft]);
+
+    return (
+        <Modal
+            title="Set your availability"
+            open={open}
+            okText="Save availability"
+            cancelText="Cancel"
+            confirmLoading={saving}
+            destroyOnHidden
+            width={440}
+            onOk={() => void onSave()}
+            onCancel={() => {
+                if (!saving) {
+                    onClose();
+                }
+            }}
+        >
+            <p className="availability-note">
+                Drag across days to block them out. Booked days come from confirmed projects.
+            </p>
+            <p className="availability-applies">Applies to</p>
+            <Select
+                className="availability-profile-select"
+                value={chosen || undefined}
+                options={options}
+                aria-label="Work profile"
+                disabled={saving || options.length === 0}
+                popupMatchSelectWidth={false}
+                onChange={setChosen}
+            />
+            <div className="availability-dialog">
+                <MonthCalendar
+                    month={month}
+                    onMonth={setMonth}
+                    days={days}
+                    onPointerDown={(day, blocked) => {
+                        if (blocked) {
+                            return;
+                        }
+                        const blocking = !draft.has(day);
+                        drag.current = { blocking };
+                        paint(day, blocking);
+                    }}
+                    onPointerEnter={(day, blocked) => {
+                        if (!drag.current || blocked) {
+                            return;
+                        }
+                        paint(day, drag.current.blocking);
+                    }}
+                />
+            </div>
+            <ul className="availability-legend">
+                <li><span className="availability-swatch" /> Available</li>
+                <li><span className="availability-swatch is-blocked" /> Blocked</li>
+                <li><span className="availability-swatch is-booked" /> Booked</li>
+            </ul>
+        </Modal>
+    );
+}
+
+function choiceLabel(profile: WorkProfileChoice): string {
+    const title = profile.title?.trim();
+    if (title) {
+        return title;
+    }
+    return [profile.position, profile.city].filter((part): part is string => Boolean(part)).join(' · ') || 'Your profile';
+}
+
+function unavailableDays(rows: AvailabilitySpan[]): Set<string> {
     const days = new Set<string>();
     for (const [day, code] of daysInRange(rows)) {
         if (code === 'unavailable') {
@@ -323,7 +494,7 @@ function unavailableDays(rows: UserAvailability[]): Set<string> {
     return days;
 }
 
-function bookedDays(rows: UserAvailability[]): Set<string> {
+function bookedDays(rows: AvailabilitySpan[]): Set<string> {
     const days = new Set<string>();
     for (const [day, code] of daysInRange(rows)) {
         if (code === 'booked') {
@@ -333,7 +504,13 @@ function bookedDays(rows: UserAvailability[]): Set<string> {
     return days;
 }
 
-function daysInRange(rows: UserAvailability[]): Map<string, UserAvailability['code']> {
+type AvailabilitySpan = {
+    from_date: string;
+    to_date: string;
+    code: UserAvailability['code'];
+};
+
+function daysInRange(rows: AvailabilitySpan[]): Map<string, UserAvailability['code']> {
     const days = new Map<string, UserAvailability['code']>();
     for (const row of rows) {
         let cursor = dayjs(row.from_date);

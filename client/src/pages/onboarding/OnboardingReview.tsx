@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router';
 import { Frame } from '../../components/Frame.tsx';
 import { useAppSelector } from '../../store/hooks.ts';
 import { onboardingTheme } from '../../theme.ts';
-import { ProfilePage } from '../profile/ProfilePage.tsx';
+import { ProfilePage, profilePath } from '../profile/ProfilePage.tsx';
 
 export const onboardingReviewPath = '/onboarding/review';
 
@@ -49,7 +49,7 @@ export function OnboardingReview() {
                         <span className="review-step">STEP 5 OF 6</span>
                         <span className="review-step-name">Review & go live</span>
                     </div>
-                    <Button htmlType="button" type="text" className="review-exit" onClick={() => navigate('/')}>
+                    <Button htmlType="button" type="text" className="review-exit" onClick={() => navigate(profilePath)}>
                         Save & exit
                     </Button>
                 </header>

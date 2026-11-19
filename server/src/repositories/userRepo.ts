@@ -4,7 +4,7 @@ import { AccountTypeSchema, AdminUserSchema, UserSchema, UserStatusSchema, type 
 import type { UserLocale } from '../entities/userLocale.js';
 import { UnionStatusSchema, type UnionStatus } from '../entities/userWorkProfile.js';
 
-const userColumns = 'id, first_name, last_name, email, phone, bio, title, photo, keycloak_id, status, account_type';
+const userColumns = 'id, first_name, last_name, email, phone, photo, keycloak_id, status, account_type';
 
 type UserRow = {
     id: string;
@@ -12,8 +12,6 @@ type UserRow = {
     last_name: string;
     email: string;
     phone: string | null;
-    bio: string | null;
-    title: string | null;
     photo: string | null;
     keycloak_id: string;
     status: string;
@@ -78,11 +76,13 @@ export class UserRepo extends Repository {
                     account.updated_at,
                     discipline.name AS discipline,
                     city.name AS city,
-                    CASE WHEN work.position_id IS NOT NULL THEN 1 ELSE 0 END AS profile_count
+                    (SELECT COUNT(*)::int
+                     FROM user_work_profile counted
+                     WHERE counted.user_account_id = account.id) AS profile_count
              FROM user_account account
-             LEFT JOIN user_work_profile work ON work.user_account_id = account.id
+             LEFT JOIN user_work_profile work ON work.id = account.viewing_work_profile_id
              LEFT JOIN disciplines discipline ON discipline.id = work.discipline_id
-             LEFT JOIN user_locale locale ON locale.user_account_id = account.id AND locale.home_city
+             LEFT JOIN user_locale locale ON locale.user_work_profile_id = work.id AND locale.home_city
              LEFT JOIN production_cities city ON city.id = locale.production_city_id
              ORDER BY account.created_at DESC, account.id DESC`,
         );
@@ -105,15 +105,15 @@ export class UserRepo extends Repository {
                     work.day_rate,
                     TRIM(currency.code) AS currency_code,
                     work.union_status,
-                    (SELECT COUNT(*) FROM projects WHERE user_account_id = account.id) AS credit_count,
-                    (SELECT COUNT(*) FROM user_media WHERE user_account_id = account.id) AS media_count,
+                    (SELECT COUNT(*) FROM projects WHERE user_work_profile_id = work.id) AS credit_count,
+                    (SELECT COUNT(*) FROM user_media WHERE user_work_profile_id = work.id) AS media_count,
                     account.updated_at
              FROM user_account account
-             LEFT JOIN user_work_profile work ON work.user_account_id = account.id
+             LEFT JOIN user_work_profile work ON work.id = account.viewing_work_profile_id
              LEFT JOIN positions position ON position.id = work.position_id
              LEFT JOIN disciplines discipline ON discipline.id = work.discipline_id
              LEFT JOIN currency ON currency.id = work.currency_id
-             LEFT JOIN user_locale locale ON locale.user_account_id = account.id AND locale.home_city
+             LEFT JOIN user_locale locale ON locale.user_work_profile_id = work.id AND locale.home_city
              LEFT JOIN production_cities city ON city.id = locale.production_city_id
              WHERE account.status IN ('review', 'admin-review')
              ORDER BY account.updated_at DESC, account.id DESC`,
@@ -123,39 +123,145 @@ export class UserRepo extends Repository {
 
     async returnToReview(ctx: Context, id: string): Promise<AdminUser | null> {
         this.log.trace(`${ctx.traceId} return user_account ${id} to review`);
-        const result = await this.database.query<AdminUser>(
-            `UPDATE user_account
-             SET status = 'review',
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status = 'admin-review'
-             RETURNING id, first_name, last_name, email, phone, status, account_type, created_at, updated_at`,
-            [id],
-        );
-        const row = result.rows[0];
-        return row ? AdminUserSchema.parse(row) : null;
+        return this.database.transaction(async (query) => {
+            const result = await query<AdminUser>(
+                `UPDATE user_account
+                 SET status = 'review',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1 AND status = 'admin-review'
+                 RETURNING id, first_name, last_name, email, phone, status, account_type, created_at, updated_at`,
+                [id],
+            );
+            const row = result.rows[0];
+            if (!row) {
+                return null;
+            }
+            await query(
+                `UPDATE user_work_profile
+                 SET status = 'draft',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = (SELECT viewing_work_profile_id FROM user_account WHERE id = $1)
+                   AND status = 'admin-review'`,
+                [id],
+            );
+            return AdminUserSchema.parse(row);
+        });
     }
 
     async backToReview(ctx: Context, id: string): Promise<AdminUser | null> {
         this.log.trace(`${ctx.traceId} set user_account ${id} back to review`);
-        const result = await this.database.query<AdminUser>(
-            `UPDATE user_account
-             SET status = 'review',
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status <> 'review'
-             RETURNING id, first_name, last_name, email, phone, status, account_type, created_at, updated_at`,
-            [id],
-        );
-        const row = result.rows[0];
-        return row ? AdminUserSchema.parse(row) : null;
+        return this.database.transaction(async (query) => {
+            const result = await query<AdminUser>(
+                `UPDATE user_account
+                 SET status = 'review',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1 AND status <> 'review'
+                 RETURNING id, first_name, last_name, email, phone, status, account_type, created_at, updated_at`,
+                [id],
+            );
+            const row = result.rows[0];
+            if (!row) {
+                return null;
+            }
+            await query(
+                `UPDATE user_work_profile
+                 SET status = 'draft',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = (SELECT viewing_work_profile_id FROM user_account WHERE id = $1)`,
+                [id],
+            );
+            return AdminUserSchema.parse(row);
+        });
     }
 
     async returnToAdminReview(ctx: Context, id: string): Promise<AdminUser | null> {
         this.log.trace(`${ctx.traceId} return user_account ${id} to admin-review`);
+        return this.database.transaction(async (query) => {
+            const result = await query<AdminUser>(
+                `UPDATE user_account
+                 SET status = 'admin-review',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1 AND status = 'review'
+                 RETURNING id, first_name, last_name, email, phone, status, account_type, created_at, updated_at`,
+                [id],
+            );
+            const row = result.rows[0];
+            if (!row) {
+                return null;
+            }
+            await query(
+                `UPDATE user_work_profile
+                 SET status = 'admin-review',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = (SELECT viewing_work_profile_id FROM user_account WHERE id = $1)
+                   AND status = 'draft'`,
+                [id],
+            );
+            return AdminUserSchema.parse(row);
+        });
+    }
+
+    async deactivateAccount(ctx: Context, userId: string): Promise<User | null> {
+        this.log.trace(`${ctx.traceId} deactivate user_account ${userId}`);
+        const result = await this.database.query<UserRow>(
+            `UPDATE user_account
+             SET status = 'deactivated',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND status <> 'deactivated'
+             RETURNING ${userColumns}`,
+            [userId],
+        );
+        const row = result.rows[0];
+        return row ? UserSchema.parse(row) : null;
+    }
+
+    async deleteAccount(ctx: Context, userId: string): Promise<string[] | null> {
+        this.log.trace(`${ctx.traceId} delete user_account ${userId}`);
+        return this.database.transaction(async (query) => {
+            const account = await query<{ photo: string | null }>(
+                `SELECT photo FROM user_account WHERE id = $1 FOR UPDATE`,
+                [userId],
+            );
+            const photo = account.rows[0]?.photo;
+            if (!account.rows[0]) {
+                return null;
+            }
+
+            const media = await query<{ ref: string; thumbnail: string | null; media_type: string }>(
+                `SELECT ref, thumbnail, media_type
+                 FROM user_media
+                 WHERE user_account_id = $1`,
+                [userId],
+            );
+
+            await query(
+                `DELETE FROM project_project_type
+                 WHERE project_id IN (SELECT id FROM projects WHERE user_account_id = $1)`,
+                [userId],
+            );
+            await query(`DELETE FROM projects WHERE user_account_id = $1`, [userId]);
+            await query(`DELETE FROM user_media WHERE user_account_id = $1`, [userId]);
+            await query(`DELETE FROM user_availability WHERE user_account_id = $1`, [userId]);
+            await query(`DELETE FROM user_locale WHERE user_account_id = $1`, [userId]);
+            await query(
+                `UPDATE user_account SET viewing_work_profile_id = NULL WHERE id = $1`,
+                [userId],
+            );
+            await query(`DELETE FROM user_work_profile WHERE user_account_id = $1`, [userId]);
+            await query(`DELETE FROM user_settings WHERE user_account_id = $1`, [userId]);
+            await query(`DELETE FROM user_account WHERE id = $1`, [userId]);
+
+            return storedBinaryIds(photo ?? null, media.rows);
+        });
+    }
+
+    async reactivateUser(ctx: Context, id: string): Promise<AdminUser | null> {
+        this.log.trace(`${ctx.traceId} reactivate user_account ${id}`);
         const result = await this.database.query<AdminUser>(
             `UPDATE user_account
-             SET status = 'admin-review',
+             SET status = 'live',
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status = 'review'
+             WHERE id = $1 AND status = 'deactivated'
              RETURNING id, first_name, last_name, email, phone, status, account_type, created_at, updated_at`,
             [id],
         );
@@ -165,16 +271,25 @@ export class UserRepo extends Repository {
 
     async approveUser(ctx: Context, id: string): Promise<AdminUser | null> {
         this.log.trace(`${ctx.traceId} approve user_account ${id}`);
-        const result = await this.database.query<AdminUser>(
-            `UPDATE user_account
-             SET status = 'live',
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status IN ('review', 'admin-review')
-             RETURNING id, first_name, last_name, email, phone, status, account_type, created_at, updated_at`,
-            [id],
-        );
-        const row = result.rows[0];
-        return row ? AdminUserSchema.parse(row) : null;
+        return this.database.transaction(async (query) => {
+            await query(
+                `UPDATE user_work_profile
+                 SET status = 'live',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = (SELECT viewing_work_profile_id FROM user_account WHERE id = $1)`,
+                [id],
+            );
+            const result = await query<AdminUser>(
+                `UPDATE user_account
+                 SET status = 'live',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1 AND status IN ('review', 'admin-review')
+                 RETURNING id, first_name, last_name, email, phone, status, account_type, created_at, updated_at`,
+                [id],
+            );
+            const row = result.rows[0];
+            return row ? AdminUserSchema.parse(row) : null;
+        });
     }
 
     async chooseAccountType(ctx: Context, userId: string, accountType: AccountType): Promise<User | null> {
@@ -192,21 +307,55 @@ export class UserRepo extends Repository {
         return row ? UserSchema.parse(row) : null;
     }
 
-    async saveBasic(ctx: Context, userId: string, input: BasicWrite): Promise<User | null> {
+    async saveBasic(ctx: Context, userId: string, input: BasicWrite, workProfileId: string): Promise<User | null> {
         this.log.trace(`${ctx.traceId} save basic profile ${userId}`);
-        const result = await this.database.query<UserRow>(
-            `UPDATE user_account
-             SET phone = $2,
-                 bio = $3,
-                 title = $4,
-                 status = CASE WHEN status = 'basic' THEN 'setup' ELSE status END,
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status IN ('basic', 'media', 'review', 'admin-review')
-             RETURNING ${userColumns}`,
-            [userId, input.phone, input.bio, input.title],
-        );
-        const row = result.rows[0];
-        return row ? UserSchema.parse(row) : null;
+        return this.database.transaction(async (query) => {
+            const updated = await query<UserRow>(
+                `UPDATE user_account
+                 SET phone = $2,
+                     status = CASE WHEN status = 'basic' THEN 'setup' ELSE status END,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1 AND status IN ('basic', 'media', 'review', 'admin-review')
+                 RETURNING ${userColumns}`,
+                [userId, input.phone],
+            );
+            const row = updated.rows[0];
+            if (!row) {
+                return null;
+            }
+
+            const existing = await query<{ id: string | null }>(
+                `SELECT viewing_work_profile_id AS id FROM user_account WHERE id = $1`,
+                [userId],
+            );
+            const existingId = existing.rows[0]?.id;
+            if (existingId) {
+                await query(
+                    `UPDATE user_work_profile
+                     SET bio = $2,
+                         title = $3,
+                         updated_at = CURRENT_TIMESTAMP
+                     WHERE id = $1`,
+                    [existingId, input.bio, input.title],
+                );
+            } else {
+                // Bio and title are collected before setup. union_status is required, and setup replaces this placeholder.
+                await query(
+                    `INSERT INTO user_work_profile (id, user_account_id, union_status, flat_fee, bio, title, status)
+                     VALUES ($1, $2, 'either', false, $3, $4, 'draft')`,
+                    [workProfileId, userId, input.bio, input.title],
+                );
+                await query(
+                    `UPDATE user_account
+                     SET viewing_work_profile_id = $2,
+                         updated_at = CURRENT_TIMESTAMP
+                     WHERE id = $1`,
+                    [userId, workProfileId],
+                );
+            }
+
+            return UserSchema.parse(row);
+        });
     }
     
     async savePhoto(ctx: Context, userId: string, photo: string): Promise<User | null> {
@@ -242,11 +391,11 @@ export class UserRepo extends Repository {
                 return null;
             }
 
-            const existingRate = await query<{ id: string }>(
-                `SELECT id FROM user_work_profile WHERE user_account_id = $1`,
+            const existingRate = await query<{ id: string | null }>(
+                `SELECT viewing_work_profile_id AS id FROM user_account WHERE id = $1`,
                 [userId],
             );
-            const rateId = existingRate.rows[0]?.id;
+            let rateId = existingRate.rows[0]?.id ?? null;
             if (rateId) {
                 await query(
                     `UPDATE user_work_profile
@@ -269,13 +418,15 @@ export class UserRepo extends Repository {
                     ],
                 );
             } else {
+                rateId = input.rate_id;
                 await query(
                     `INSERT INTO user_work_profile (
-                         id, user_account_id, day_rate, currency_id, union_status, flat_fee, discipline_id, position_id
+                         id, user_account_id, day_rate, currency_id, union_status, flat_fee,
+                         discipline_id, position_id, status
                      )
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft')`,
                     [
-                        input.rate_id,
+                        rateId,
                         userId,
                         input.day_rate,
                         input.currency_id,
@@ -285,18 +436,25 @@ export class UserRepo extends Repository {
                         input.position_id,
                     ],
                 );
+                await query(
+                    `UPDATE user_account
+                     SET viewing_work_profile_id = $2,
+                         updated_at = CURRENT_TIMESTAMP
+                     WHERE id = $1`,
+                    [userId, rateId],
+                );
             }
 
             await query(
                 `DELETE FROM user_locale
-                 WHERE user_account_id = $1`,
-                [userId],
+                 WHERE user_work_profile_id = $1`,
+                [rateId],
             );
             for (const locale of input.locales) {
                 await query(
-                    `INSERT INTO user_locale (id, user_account_id, production_city_id, home_city)
-                     VALUES ($1, $2, $3, $4)`,
-                    [locale.id, locale.user_account_id, locale.production_city_id, locale.home_city],
+                    `INSERT INTO user_locale (id, user_account_id, production_city_id, home_city, user_work_profile_id)
+                     VALUES ($1, $2, $3, $4, $5)`,
+                    [locale.id, locale.user_account_id, locale.production_city_id, locale.home_city, rateId],
                 );
             }
 
@@ -347,7 +505,7 @@ export class UserRepo extends Repository {
                      years_in_business = $3,
                      response_time_hours = $4,
                      updated_at = CURRENT_TIMESTAMP
-                 WHERE user_account_id = $1`,
+                 WHERE id = (SELECT viewing_work_profile_id FROM user_account WHERE id = $1)`,
                 [userId, stats.projects_completed, stats.years_in_business, stats.response_time_hours],
             );
             if ((rates.rowCount ?? 0) === 0) {
@@ -405,13 +563,20 @@ export class UserRepo extends Repository {
             const counted = await query<{ count: number }>(
                 `SELECT COUNT(*)::int AS count
                  FROM user_media
-                 WHERE user_account_id = $1`,
+                 WHERE user_work_profile_id = (SELECT viewing_work_profile_id FROM user_account WHERE id = $1)`,
                 [userId],
             );
             if (Number(counted.rows[0]?.count ?? 0) < 2) {
                 return { status: 'incomplete' };
             }
 
+            await query(
+                `UPDATE user_work_profile
+                 SET status = 'admin-review',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = (SELECT viewing_work_profile_id FROM user_account WHERE id = $1)`,
+                [userId],
+            );
             const updated = await query<UserRow>(
                 `UPDATE user_account
                  SET status = 'admin-review',
@@ -423,6 +588,58 @@ export class UserRepo extends Repository {
             const row = updated.rows[0];
             return row ? { status: 'ok', user: UserSchema.parse(row) } : { status: 'unavailable' };
         });
+    }
+
+    async startWorkProfile(ctx: Context, userId: string, workProfileId: string): Promise<User | null> {
+        this.log.trace(`${ctx.traceId} start another user_work_profile ${userId}`);
+        return this.database.transaction(async (query) => {
+            const locked = await query<{ status: string }>(
+                `SELECT status FROM user_account WHERE id = $1 FOR UPDATE`,
+                [userId],
+            );
+            if (locked.rows[0]?.status !== 'live') {
+                return null;
+            }
+
+            await query(
+                `INSERT INTO user_work_profile (id, user_account_id, union_status, flat_fee, status)
+                 VALUES ($1, $2, 'either', false, 'draft')`,
+                [workProfileId, userId],
+            );
+            const updated = await query<UserRow>(
+                `UPDATE user_account
+                 SET status = 'basic',
+                     viewing_work_profile_id = $2,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1 AND status = 'live'
+                 RETURNING ${userColumns}`,
+                [userId, workProfileId],
+            );
+            const row = updated.rows[0];
+            return row ? UserSchema.parse(row) : null;
+        });
+    }
+
+    async viewWorkProfile(ctx: Context, userId: string, workProfileId: string): Promise<User | null> {
+        this.log.trace(`${ctx.traceId} view user_work_profile ${userId} ${workProfileId}`);
+        const result = await this.database.query<UserRow>(
+            `UPDATE user_account
+             SET viewing_work_profile_id = $2,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1
+               AND status = 'live'
+               AND EXISTS (
+                   SELECT 1
+                   FROM user_work_profile
+                   WHERE id = $2
+                     AND user_account_id = $1
+                     AND status = 'live'
+               )
+             RETURNING ${userColumns}`,
+            [userId, workProfileId],
+        );
+        const row = result.rows[0];
+        return row ? UserSchema.parse(row) : null;
     }
 }
 
@@ -497,3 +714,24 @@ export type SetupWrite = {
     rate_id: string;
     locales: UserLocale[];
 };
+
+const binaryKey = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+
+function storedBinaryIds(
+    photo: string | null,
+    media: Array<{ ref: string; thumbnail: string | null; media_type: string }>,
+): string[] {
+    const ids = new Set<string>();
+    if (photo && binaryKey.test(photo)) {
+        ids.add(photo);
+    }
+    for (const item of media) {
+        if (item.thumbnail && binaryKey.test(item.thumbnail)) {
+            ids.add(item.thumbnail);
+        }
+        if ((item.media_type === 'upload' || item.media_type === 'photo') && binaryKey.test(item.ref)) {
+            ids.add(item.ref);
+        }
+    }
+    return [...ids];
+}

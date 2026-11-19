@@ -10,6 +10,7 @@ export const UserStatusSchema = z.enum([
     'admin-review',
     'live',
     'invisible',
+    'deactivated',
 ]);
 
 export type UserStatus = z.infer<typeof UserStatusSchema>;
@@ -25,8 +26,6 @@ export const CurrentUserSchema = z.object({
     last_name: z.string().max(255),
     email: z.email().max(255),
     phone: z.string().nullable(),
-    bio: z.string().max(300).nullable(),
-    title: z.string().max(120).nullable(),
     photo: z.ulid().nullable(),
     status: UserStatusSchema,
     account_type: AccountTypeSchema.nullable(),
