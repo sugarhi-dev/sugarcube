@@ -78,28 +78,7 @@ services:
       - ../../config/test/cloudflare_origins.key:/etc/nginx/certs/cloudflare_origins.key:ro,z
     depends_on:
       - keycloak
-      - seaweedfs
       - server
-    networks:
-      - sugarcube-test
-
-  seaweedfs:
-    image: chrislusf/seaweedfs:4.51
-    container_name: sugarcube-seaweedfs-test
-    restart: unless-stopped
-    environment:
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      S3_BUCKET: ${S3_BUCKET}
-    command: ["mini", "-dir=/data"]
-    volumes:
-      - seaweedfs_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9333/cluster/status"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
     networks:
       - sugarcube-test
 
@@ -126,8 +105,6 @@ services:
       PORT: ${PORT:-3000}
     depends_on:
       postgres:
-        condition: service_healthy      
-      seaweedfs:
         condition: service_healthy
       keycloak:
         condition: service_started
@@ -140,4 +117,3 @@ networks:
 
 volumes:
   postgres_data:
-  seaweedfs_data:
