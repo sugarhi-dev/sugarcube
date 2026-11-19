@@ -29,19 +29,23 @@ export class Binary extends Base {
         super();
         const endpoint = config.get('S3_ENDPOINT');
         const bucket = config.get('S3_BUCKET');
-        const accessKeyId = config.get('AWS_ACCESS_KEY_ID');
-        const secretAccessKey = config.get('AWS_SECRET_ACCESS_KEY');
+        const accessKeyId = config.optional('AWS_ACCESS_KEY_ID', '');
+        const secretAccessKey = config.optional('AWS_SECRET_ACCESS_KEY', '');
+        const aws = awsS3Target(endpoint);
 
         this.endpoint = endpoint;
         this.bucket = bucket;
         this.client = new S3Client({
-            endpoint,
-            region: 'us-east-1',
-            forcePathStyle: true,
+            region: aws?.region ?? 'us-east-1',
+            // Seaweed is a path-style endpoint. Real S3 uses the virtual-hosted
+            // bucket hostname, which the SDK builds from the region.
+            ...(aws ? { forcePathStyle: false } : { endpoint, forcePathStyle: true }),
             useDualstackEndpoint: false,
             requestChecksumCalculation: 'WHEN_REQUIRED',
             responseChecksumValidation: 'WHEN_REQUIRED',
-            credentials: { accessKeyId, secretAccessKey },
+            ...(accessKeyId && secretAccessKey
+                ? { credentials: { accessKeyId, secretAccessKey } }
+                : {}),
         });
     }
 
@@ -142,10 +146,29 @@ export class Binary extends Base {
 function signedObjectPath(signedUrl: string, bucket: string): string {
     const url = new URL(signedUrl);
     const prefix = `/${bucket}/`;
-    if (!url.pathname.startsWith(prefix) || url.search.length === 0) {
+    const pathStyle = url.pathname.startsWith(prefix);
+    const virtualHost = url.hostname.startsWith(`${bucket}.s3.`) || url.hostname.startsWith(`${bucket}.s3-`);
+    if ((!pathStyle && !virtualHost) || url.search.length === 0) {
         throw new Error('S3 sign returned an unexpected URL.');
     }
     return `${url.pathname}${url.search}`;
+}
+
+function awsS3Target(endpoint: string): { region: string } | null {
+    let hostname: string;
+    try {
+        hostname = new URL(endpoint).hostname;
+    } catch {
+        return null;
+    }
+    if (hostname === 's3.amazonaws.com' || hostname.endsWith('.s3.amazonaws.com')) {
+        return { region: 'us-east-1' };
+    }
+    const match = hostname.match(/(?:^|\.)s3[.-]([a-z0-9-]+)\.amazonaws\.com$/);
+    if (!match) {
+        return null;
+    }
+    return { region: match[1] };
 }
 
 function assertKey(id: string): void {

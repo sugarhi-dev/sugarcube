@@ -19,8 +19,6 @@ const requiredEnv = [
     'DATABASE_URL',
     'S3_ENDPOINT',
     'S3_BUCKET',
-    'AWS_ACCESS_KEY_ID',
-    'AWS_SECRET_ACCESS_KEY',
     'OAUTH_CLIENT_ID',
     'OAUTH_CLIENT_SECRET',
     'KEYCLOAK_ISSUER',
