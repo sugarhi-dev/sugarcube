@@ -7,6 +7,7 @@
  *
  * Loads server/config/<env>/.env (default local). ENV_FILE wins over the argument.
  * Running again replaces accounts whose keycloak id starts with mock-crew-.
+ * Every fifth account has a second work profile. Each profile has its own title.
  */
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -93,14 +94,9 @@ type ProjectType = {
     discipline_id: string;
 };
 
-type CrewDraft = {
-    index: number;
-    first: string;
-    last: string;
-    email: string;
-    phone: string;
-    keycloakId: string;
+type ProfileDraft = {
     position: Position;
+    title: string;
     home: City;
     cities: City[];
     currency: Currency;
@@ -125,6 +121,16 @@ type CrewDraft = {
         to: string;
         code: 'booked' | 'unavailable';
     }>;
+};
+
+type CrewDraft = {
+    index: number;
+    first: string;
+    last: string;
+    email: string;
+    phone: string;
+    keycloakId: string;
+    profiles: ProfileDraft[];
 };
 
 async function main(): Promise<void> {
@@ -167,6 +173,7 @@ async function main(): Promise<void> {
         const drafts = chosen.map((position, index) => buildCrew(
             index,
             position,
+            positions,
             cities,
             currencies,
             projectTypes,
@@ -175,8 +182,9 @@ async function main(): Promise<void> {
         const previousIds = await loadMockAccountIds(database);
         const previousFiles = await loadMockFiles(database, previousIds);
 
+        const profilePositions = drafts.flatMap((draft) => draft.profiles.map((profile) => profile.position));
         console.log(`Seeding ${drafts.length} crew from ${path.relative(repoRoot, envFile)}`);
-        console.log(`Positions in the database: ${positions.length}. Using ${new Set(chosen.map((row) => row.id)).size} kinds.`);
+        console.log(`Positions in the database: ${positions.length}. Using ${new Set(profilePositions.map((row) => row.id)).size} kinds.`);
 
         const profileIds = await mapPool(profiles, 8, (file) => binary.store(file, 'image/jpeg'));
         uploaded.push(...profileIds);
@@ -199,10 +207,13 @@ async function main(): Promise<void> {
         });
 
         await removeFiles(binary, previousFiles);
-        const byDiscipline = countBy(chosen, (row) => row.discipline);
+        const byDiscipline = countBy(profilePositions, (row) => row.discipline);
+        const multi = drafts.filter((draft) => draft.profiles.length > 1).length;
+        const videos = drafts.flatMap((draft) => draft.profiles.map((profile) => profile.videoCount));
         console.log(`Inserted ${drafts.length} live crew (${formatCounts(byDiscipline)}).`);
+        console.log(`${multi} accounts have a second work profile, each with its own title.`);
         console.log(`Profile photos: ${path.relative(repoRoot, profileDir)}`);
-        console.log(`Each account has photo.jpg and ${drafts[0]?.videoCount ?? 1}–${Math.max(...drafts.map((row) => row.videoCount))} YouTube videos.`);
+        console.log(`Each work profile has photo.jpg and ${Math.min(...videos)}–${Math.max(...videos)} YouTube videos.`);
     } catch (error) {
         await removeFiles(binary, uploaded);
         throw error;
@@ -325,14 +336,16 @@ async function deleteMockRows(
     await query(`DELETE FROM user_account WHERE id = ANY($1::varchar[])`, [accountIds]);
 }
 
+type Query = <R extends { [key: string]: unknown }>(text: string, values?: unknown[]) => Promise<{ rows: R[] }>;
+
 async function insertCrew(
-    query: <R extends { [key: string]: unknown }>(text: string, values?: unknown[]) => Promise<{ rows: R[] }>,
+    query: Query,
     draft: CrewDraft,
     profilePhotoId: string,
     galleryPhotoId: string,
 ): Promise<void> {
     const accountId = ulid();
-    const workProfileId = ulid();
+    const viewingId = ulid();
     await query(
         `INSERT INTO user_account (
              id, first_name, last_name, email, phone, photo, keycloak_id, status, account_type
@@ -349,6 +362,27 @@ async function insertCrew(
         ],
     );
 
+    for (let slot = 0; slot < draft.profiles.length; slot += 1) {
+        const profile = draft.profiles[slot];
+        if (!profile) {
+            throw new Error(`Missing work profile ${slot} for ${draft.keycloakId}.`);
+        }
+        await insertWorkProfile(query, accountId, slot === 0 ? viewingId : ulid(), profile, galleryPhotoId);
+    }
+
+    await query(
+        `UPDATE user_account SET viewing_work_profile_id = $2 WHERE id = $1`,
+        [accountId, viewingId],
+    );
+}
+
+async function insertWorkProfile(
+    query: Query,
+    accountId: string,
+    workProfileId: string,
+    profile: ProfileDraft,
+    galleryPhotoId: string,
+): Promise<void> {
     await query(
         `INSERT INTO user_work_profile (
              id, user_account_id, day_rate, currency_id, union_status, flat_fee,
@@ -359,30 +393,25 @@ async function insertCrew(
         [
             workProfileId,
             accountId,
-            draft.dayRate,
-            draft.currency.id,
-            draft.unionStatus,
-            draft.flatFee,
-            draft.projectsCompleted,
-            draft.years,
-            draft.responseHours,
-            draft.position.discipline_id,
-            draft.position.id,
-            draft.bio,
-            draft.position.name,
+            profile.dayRate,
+            profile.currency.id,
+            profile.unionStatus,
+            profile.flatFee,
+            profile.projectsCompleted,
+            profile.years,
+            profile.responseHours,
+            profile.position.discipline_id,
+            profile.position.id,
+            profile.bio,
+            profile.title,
         ],
     );
 
-    await query(
-        `UPDATE user_account SET viewing_work_profile_id = $2 WHERE id = $1`,
-        [accountId, workProfileId],
-    );
-
-    for (const city of draft.cities) {
+    for (const city of profile.cities) {
         await query(
             `INSERT INTO user_locale (id, user_account_id, production_city_id, home_city, user_work_profile_id)
              VALUES ($1, $2, $3, $4, $5)`,
-            [ulid(), accountId, city.id, city.id === draft.home.id, workProfileId],
+            [ulid(), accountId, city.id, city.id === profile.home.id, workProfileId],
         );
     }
 
@@ -391,7 +420,7 @@ async function insertCrew(
          VALUES ($1, $2, 'photo', $3, NULL, 0, NULL, $4)`,
         [ulid(), accountId, galleryPhotoId, workProfileId],
     );
-    for (let video = 0; video < draft.videoCount; video += 1) {
+    for (let video = 0; video < profile.videoCount; video += 1) {
         await query(
             `INSERT INTO user_media (id, user_account_id, media_type, ref, thumbnail, sort_order, status, user_work_profile_id)
              VALUES ($1, $2, 'youtube', $3, NULL, $4, NULL, $5)`,
@@ -399,7 +428,7 @@ async function insertCrew(
         );
     }
 
-    for (const project of draft.projects) {
+    for (const project of profile.projects) {
         const projectId = ulid();
         await query(
             `INSERT INTO projects (
@@ -411,7 +440,7 @@ async function insertCrew(
                 projectId,
                 accountId,
                 project.name,
-                draft.position.id,
+                profile.position.id,
                 project.producer,
                 project.producerEmail,
                 project.date,
@@ -428,7 +457,7 @@ async function insertCrew(
         }
     }
 
-    for (const block of draft.availability) {
+    for (const block of profile.availability) {
         await query(
             `INSERT INTO user_availability (id, user_account_id, from_date, to_date, code, user_work_profile_id)
              VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -464,38 +493,78 @@ function assignPositions(positions: Position[], count: number): Position[] {
 function buildCrew(
     index: number,
     position: Position,
+    positions: Position[],
     cities: City[],
     currencies: Currency[],
     projectTypes: ProjectType[],
 ): CrewDraft {
     const serial = String(index + 1).padStart(3, '0');
     const name = crewName(index);
-    const home = at(cities, (index * 5 + 2) % cities.length);
-    const extraCount = index % 3;
-    const travel = pickDistinct(cities, extraCount, index + 11, home.id);
+    const count = index % 5 === 0 ? 2 : 1;
+    const used = new Set<string>();
+    const profiles: ProfileDraft[] = [];
+    for (let slot = 0; slot < count; slot += 1) {
+        const role = slot === 0 ? position : otherPosition(positions, index, slot, used);
+        used.add(role.id);
+        profiles.push(buildProfile(index, slot, role, name, cities, currencies, projectTypes));
+    }
+
+    return {
+        index,
+        first: name.first,
+        last: name.last,
+        email: `${slug(name.first)}.${slug(name.last)}.${serial}@${mockEmailDomain}`,
+        phone: `+1 213 555 ${String(1000 + index).padStart(4, '0')}`,
+        keycloakId: `${mockKeycloakPrefix}${serial}`,
+        profiles,
+    };
+}
+
+function otherPosition(positions: Position[], index: number, slot: number, used: Set<string>): Position {
+    for (let step = 0; step < positions.length; step += 1) {
+        const candidate = positions[(index + slot * 19 + step) % positions.length];
+        if (candidate && !used.has(candidate.id)) {
+            return candidate;
+        }
+    }
+    throw new Error('Could not find another position for a work profile.');
+}
+
+function buildProfile(
+    index: number,
+    slot: number,
+    position: Position,
+    name: { first: string; last: string },
+    cities: City[],
+    currencies: Currency[],
+    projectTypes: ProjectType[],
+): ProfileDraft {
+    const seed = index + slot * 13;
+    const home = at(cities, (seed * 5 + 2) % cities.length);
+    const travel = pickDistinct(cities, seed % 3, seed + 11, home.id);
     const currency = currencyFor(home.country_code, currencies);
-    const years = 3 + (index % 20);
-    const responseHours = at([1, 2, 4, 8, 12, 24], index % 6);
-    const videoCount = 1 + (index % 3);
-    const projectCount = 2 + (index % 3);
+    const years = 3 + (seed % 20);
+    const responseHours = at([1, 2, 4, 8, 12, 24], seed % 6);
+    const videoCount = 1 + (seed % 3);
+    const projectCount = 2 + (seed % 3);
     const projects = Array.from({ length: projectCount }, (_, projectIndex) => {
-        const title = at(credits, (index + projectIndex * 3) % credits.length);
-        const company = at(companies, (index + projectIndex) % companies.length);
-        const producer = at(producers, (index + projectIndex * 2) % producers.length);
-        const year = 2017 + ((index + projectIndex) % 9);
-        const month = String(((index + projectIndex) % 12) + 1).padStart(2, '0');
+        const credit = at(credits, (seed + projectIndex * 3) % credits.length);
+        const company = at(companies, (seed + projectIndex) % companies.length);
+        const producer = at(producers, (seed + projectIndex * 2) % producers.length);
+        const year = 2017 + ((seed + projectIndex) % 9);
+        const month = String(((seed + projectIndex) % 12) + 1).padStart(2, '0');
         const types = projectTypes.filter((row) => row.discipline_id === position.discipline_id);
         const typeIds = types.length === 0
             ? []
-            : [at(types, (index + projectIndex) % types.length).id];
+            : [at(types, (seed + projectIndex) % types.length).id];
         if (types.length > 1 && projectIndex % 2 === 0) {
-            const extra = at(types, (index + projectIndex + 3) % types.length).id;
+            const extra = at(types, (seed + projectIndex + 3) % types.length).id;
             if (!typeIds.includes(extra)) {
                 typeIds.push(extra);
             }
         }
         return {
-            name: projectIndex === 0 ? title : `${title} ${projectIndex + 1}`,
+            name: projectIndex === 0 ? credit : `${credit} ${projectIndex + 1}`,
             date: `${year}-${month}-12`,
             company,
             producer,
@@ -503,7 +572,7 @@ function buildCrew(
             typeIds,
         };
     });
-    const unionStatus = at(['union', 'non_union', 'either'] as const, index % 3);
+    const title = position.name.slice(0, 120);
     const bio = buildBio({
         name: `${name.first} ${name.last}`,
         position: position.name,
@@ -515,26 +584,21 @@ function buildCrew(
     });
 
     return {
-        index,
-        first: name.first,
-        last: name.last,
-        email: `${slug(name.first)}.${slug(name.last)}.${serial}@${mockEmailDomain}`,
-        phone: `+1 213 555 ${String(1000 + index).padStart(4, '0')}`,
-        keycloakId: `${mockKeycloakPrefix}${serial}`,
         position,
+        title,
         home,
         cities: [home, ...travel],
         currency,
-        unionStatus,
-        flatFee: index % 4 === 0,
-        dayRate: dayRate(index, currency.code),
+        unionStatus: at(['union', 'non_union', 'either'] as const, seed % 3),
+        flatFee: seed % 4 === 0,
+        dayRate: dayRate(seed, currency.code),
         years,
-        projectsCompleted: projectCount + 6 + (index % 28),
+        projectsCompleted: projectCount + 6 + (seed % 28),
         responseHours,
         bio,
         videoCount,
         projects,
-        availability: availability(index),
+        availability: availability(seed),
     };
 }
 
@@ -561,14 +625,14 @@ function buildBio(parts: {
     return shorter.slice(0, 300);
 }
 
-function availability(index: number): CrewDraft['availability'] {
+function availability(index: number): ProfileDraft['availability'] {
     const blocks = index % 4;
     if (blocks === 0) {
         return [];
     }
     const today = new Date();
     const start = 14 + (index % 40);
-    const rows: CrewDraft['availability'] = [];
+    const rows: ProfileDraft['availability'] = [];
     for (let block = 0; block < blocks; block += 1) {
         const from = start + block * 21;
         rows.push({
