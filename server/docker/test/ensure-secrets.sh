@@ -17,8 +17,6 @@ mkdir -p "$(dirname "$env_file")"
 
 postgres_password="$(rand)"
 keycloak_admin_password="$(rand)"
-aws_access_key_id="sc$(rand | cut -c1-20)"
-aws_secret_access_key="$(rand)"
 oauth_client_secret="$(rand)"
 oauth_admin_client_secret="$(rand)"
 
@@ -29,10 +27,10 @@ POSTGRES_PASSWORD=${postgres_password}
 POSTGRES_DB=sugarcube
 KEYCLOAK_ADMIN=admin
 KEYCLOAK_ADMIN_PASSWORD=${keycloak_admin_password}
-AWS_ACCESS_KEY_ID=${aws_access_key_id}
-AWS_SECRET_ACCESS_KEY=${aws_secret_access_key}
-S3_BUCKET=sugarcube
-S3_ENDPOINT=http://seaweedfs:8333
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+S3_BUCKET=sugarcube-test
+S3_ENDPOINT=https://sugarcube-test.s3.us-east-2.amazonaws.com
 OAUTH_CLIENT_ID=sugarcube
 OAUTH_CLIENT_SECRET=${oauth_client_secret}
 OAUTH_ADMIN_CLIENT_SECRET=${oauth_admin_client_secret}
