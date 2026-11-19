@@ -165,10 +165,11 @@ function awsS3Target(endpoint: string): { region: string } | null {
         return { region: 'us-east-1' };
     }
     const match = hostname.match(/(?:^|\.)s3[.-]([a-z0-9-]+)\.amazonaws\.com$/);
-    if (!match) {
+    const region = match?.[1];
+    if (!region) {
         return null;
     }
-    return { region: match[1] };
+    return { region };
 }
 
 function assertKey(id: string): void {

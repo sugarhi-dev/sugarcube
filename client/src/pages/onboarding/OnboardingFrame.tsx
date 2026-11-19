@@ -1,6 +1,6 @@
 import { CheckOutlined } from '@ant-design/icons';
 import { ConfigProvider, Layout } from 'antd';
-import type { ReactNode } from 'react';
+import { type CSSProperties, type ReactNode } from 'react';
 import { onboardingTheme } from '../../theme.ts';
 
 const { Content, Sider } = Layout;
@@ -47,7 +47,7 @@ export function OnboardingFrame({
                         <p className="onboarding-note">{note}</p>
                     </div>
                 </Sider>
-                <Content className="onboarding-main" style={{ '--onboarding-progress': step - 1 }}>
+                <Content className="onboarding-main" style={{ '--onboarding-progress': step - 1 } as CSSProperties}>
                     <div className="onboarding-main-inner" style={{ width: `min(${contentWidth}px, 100%)` }}>
                         {children}
                     </div>
