@@ -52,6 +52,13 @@ export function chooseAccountType(accessToken: string, accountType: AccountType)
     });
 }
 
+export function finishClientAccount(accessToken: string, productionCityId: string): Promise<CurrentUser> {
+    return readUser(accessToken, '/api/me/client', {
+        method: 'PUT',
+        body: JSON.stringify({ production_city_id: productionCityId }),
+    });
+}
+
 export function saveBasic(accessToken: string, input: BasicProfileInput): Promise<CurrentUser> {
     return readUser(accessToken, '/api/me/basic', {
         method: 'PUT',

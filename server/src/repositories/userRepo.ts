@@ -307,6 +307,21 @@ export class UserRepo extends Repository {
         return row ? UserSchema.parse(row) : null;
     }
 
+    async finishClient(ctx: Context, userId: string, productionCityId: string): Promise<User | null> {
+        this.log.trace(`${ctx.traceId} finish client account ${userId}`);
+        const result = await this.database.query<UserRow>(
+            `UPDATE user_account
+             SET production_city_id = $2,
+                 status = 'live',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND account_type = 'client' AND status = 'basic'
+             RETURNING ${userColumns}`,
+            [userId, productionCityId],
+        );
+        const row = result.rows[0];
+        return row ? UserSchema.parse(row) : null;
+    }
+
     async saveBasic(ctx: Context, userId: string, input: BasicWrite, workProfileId: string): Promise<User | null> {
         this.log.trace(`${ctx.traceId} save basic profile ${userId}`);
         return this.database.transaction(async (query) => {

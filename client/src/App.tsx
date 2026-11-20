@@ -3,6 +3,10 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { RequireSession } from './components/RequireSession.tsx';
 import { SignedIn } from './components/SignedIn.tsx';
 import { CallbackPage } from './pages/CallbackPage.tsx';
+import { ClientAccount } from './pages/client/ClientAccount.tsx';
+import { ClientHome } from './pages/client/ClientHome.tsx';
+import { ClientSettings } from './pages/client/ClientSettings.tsx';
+import { clientAccountPath, clientHomePath, clientSettingsPath, clientSettingsSectionPath } from './pages/client/paths.ts';
 import { OnboardingAccountType, onboardingAccountTypePath } from './pages/onboarding/OnboardingAccountType.tsx';
 import { OnboardingBasic, onboardingBasicPath } from './pages/onboarding/OnboardingBasic.tsx';
 import { OnboardingExperience, onboardingExperiencePath } from './pages/onboarding/OnboardingExperience.tsx';
@@ -36,6 +40,10 @@ export function App() {
                             <Route path={calendarPath} element={<CalendarPage />} />
                             <Route path={settingsPath} element={<Navigate to={settingsSectionPath('personal')} replace />} />
                             <Route path={`${settingsPath}/:section`} element={<SettingsPage />} />
+                            <Route path={clientHomePath} element={<ClientHome />} />
+                            <Route path={clientSettingsPath} element={<Navigate to={clientSettingsSectionPath('profile')} replace />} />
+                            <Route path={`${clientSettingsPath}/:section`} element={<ClientSettings />} />
+                            <Route path={clientAccountPath} element={<ClientAccount />} />
                             <Route path={onboardingAccountTypePath} element={<OnboardingAccountType />} />
                             <Route path={onboardingBasicPath} element={<OnboardingBasic />} />
                             <Route path={onboardingProfilePath} element={<OnboardingProfile />} />

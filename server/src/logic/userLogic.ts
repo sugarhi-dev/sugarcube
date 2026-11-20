@@ -11,6 +11,11 @@ const accountTypeConstraints = {
     user_account_account_type_check: { statusCode: 400, message: 'Account type is not allowed.' },
 };
 
+const clientConstraints = {
+    user_account_production_city_id_fkey: { statusCode: 400, message: 'City not found.' },
+    user_account_status_check: { statusCode: 400, message: 'Account status is not allowed.' },
+};
+
 const basicConstraints = {
     user_account_status_check: { statusCode: 400, message: 'Account status is not allowed.' },
     user_work_profile_bio_check: { statusCode: 400, message: 'Bio must be 300 characters or fewer.' },
@@ -268,6 +273,24 @@ export class UserLogic extends Logic {
             return user;
         } catch (error) {
             const failure = constraintFailure(error, accountTypeConstraints);
+            if (!failure) {
+                throw error;
+            }
+            ctx.error(failure.message, failure.statusCode);
+            return null;
+        }
+    }
+
+    async finishClient(ctx: Context, userId: string, productionCityId: string): Promise<User | null> {
+        try {
+            const user = await this.userRepo.finishClient(ctx, userId, productionCityId);
+            if (!user) {
+                ctx.error('Client details can only be saved while you are creating your client account.', 409);
+                return null;
+            }
+            return user;
+        } catch (error) {
+            const failure = constraintFailure(error, clientConstraints);
             if (!failure) {
                 throw error;
             }

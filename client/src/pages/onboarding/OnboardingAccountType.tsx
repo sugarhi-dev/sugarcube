@@ -8,6 +8,7 @@ import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { sessionCleared } from '../../store/sessionSlice.ts';
 import { copyThat, onboardingTheme } from '../../theme.ts';
+import { clientAccountPath } from '../client/paths.ts';
 import { onboardingBasicPath } from './OnboardingBasic.tsx';
 
 const { Content } = Layout;
@@ -79,6 +80,10 @@ export function OnboardingAccountType() {
         try {
             const user = await chooseAccountType(session.accessToken, accountType);
             dispatch(profileLoaded({ user, forSubject: session.profile.subject }));
+            if (user.account_type === 'client') {
+                navigate(clientAccountPath, { replace: true });
+                return;
+            }
             navigate(user.status === 'basic' ? onboardingBasicPath : '/', { replace: true });
         } catch (error) {
             message.error(error instanceof Error ? error.message : 'Could not save your account type.');
@@ -140,7 +145,12 @@ export function OnboardingAccountType() {
                                                 role="radio"
                                                 aria-checked={selected}
                                                 tabIndex={0}
-                                                onClick={() => selectRole(role.value)}
+                                                // onClick={() => selectRole(role.value)}
+                                                onClick={
+                                                    role.value === 'client'
+                                                        ? undefined
+                                                        : () => selectRole(role.value)
+                                                }
                                                 onKeyDown={(event) => onKeyDown(event, role.value)}
                                                 style={cardStyle(selected)}
                                                 styles={{ body: { padding: '20px 20px 18px' } }}

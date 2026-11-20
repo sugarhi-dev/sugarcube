@@ -33,6 +33,10 @@ const ChooseAccountTypeRequestSchema = z.object({
     account_type: AccountTypeSchema.meta({ description: 'Whether the user is hiring crew or getting booked.' }),
 });
 
+const FinishClientRequestSchema = z.object({
+    production_city_id: z.ulid().meta({ description: 'City where the client is based.' }),
+});
+
 const BasicProfileRequestSchema = z.object({
     phone: z.string().trim().min(1).max(40).meta({ description: 'Phone number clients and productions can use.' }),
     bio: z.string().trim().min(1).max(300).meta({ description: 'Short bio shown on the profile.' }),
@@ -116,6 +120,7 @@ export const userRequestSchemas = {
     UserLocaleId: UserLocaleIdSchema,
     ReturnToStepRequest: ReturnToStepRequestSchema,
     ChooseAccountTypeRequest: ChooseAccountTypeRequestSchema,
+    FinishClientRequest: FinishClientRequestSchema,
     BasicProfileRequest: BasicProfileRequestSchema,
     SetupProfileRequest: SetupProfileRequestSchema,
     CompleteExperienceRequest: CompleteExperienceRequestSchema,
@@ -142,6 +147,7 @@ export class UserController extends Controller {
         this.userWorkProfileLogic = userWorkProfileLogic;
         this.get('/api/me', this.GET_me.bind(this));
         this.put('/api/me/account-type', this.PUT_account_type.bind(this));
+        this.put('/api/me/client', this.PUT_client.bind(this));
         this.put('/api/me/basic', this.PUT_basic.bind(this));
         this.get('/api/me/photo', this.GET_photo.bind(this));
         this.get('/api/me/photo/url', this.GET_photo_url.bind(this));
@@ -185,6 +191,18 @@ export class UserController extends Controller {
 
         const body = parseBody(ChooseAccountTypeRequestSchema, req.body);
         const updated = await this.userLogic.chooseAccountType(ctx, user.id, body.account_type);
+        this.checkAndRespond(ctx, res, updated);
+    }
+
+    protected async PUT_client(ctx: Context, req: Request, res: Response): Promise<void> {
+        const user = await this.currentUser(ctx, req);
+        if (!user) {
+            this.checkAndRespond(ctx, res);
+            return;
+        }
+
+        const body = parseBody(FinishClientRequestSchema, req.body);
+        const updated = await this.userLogic.finishClient(ctx, user.id, body.production_city_id);
         this.checkAndRespond(ctx, res, updated);
     }
 

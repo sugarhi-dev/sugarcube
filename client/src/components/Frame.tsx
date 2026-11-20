@@ -291,7 +291,12 @@ function MenuButton({
             type="button"
             className={itemClass(item, current)}
             aria-current={current ? 'page' : undefined}
-            onClick={() => onSelect(item.key)}
+            // onClick={() => onSelect(item.key)}
+            onClick={
+                item.key === 'calendar' || item.key === 'new-profile'
+                    ? undefined
+                    : () => onSelect(item.key)
+            }
         >
             <span className="account-menu-icon" aria-hidden="true">{item.icon}</span>
             <span>{item.label}</span>

@@ -4,6 +4,7 @@ import { Navigate, Outlet, useLocation } from 'react-router';
 import { ApiError } from '../api/http.ts';
 import { getMe } from '../api/me.ts';
 import { beginSignIn } from '../auth/oidc.ts';
+import { clientAccountPath, clientHomePath, onClientSettingsPath } from '../pages/client/paths.ts';
 import { onboardingAccountTypePath } from '../pages/onboarding/OnboardingAccountType.tsx';
 import { onboardingBasicPath } from '../pages/onboarding/OnboardingBasic.tsx';
 import { onboardingExperiencePath } from '../pages/onboarding/OnboardingExperience.tsx';
@@ -113,7 +114,11 @@ export function SignedIn() {
     }
 
     const onAccountType = location.pathname === onboardingAccountTypePath;
+    const onClientAccount = location.pathname === clientAccountPath;
+    const onClientHome = location.pathname === clientHomePath;
+    const onClientSettings = onClientSettingsPath(location.pathname);
     const onBasic = location.pathname === onboardingBasicPath;
+    const client = user.account_type === 'client';
     const onProfile = location.pathname === onboardingProfilePath;
     const onExperience = location.pathname === onboardingExperiencePath;
     const onMedia = location.pathname === onboardingMediaPath;
@@ -123,8 +128,14 @@ export function SignedIn() {
     if (user.status === 'new' && !onAccountType) {
         return <Navigate to={onboardingAccountTypePath} replace />;
     }
-    if (user.status === 'basic' && !onBasic && !onAccountType) {
-        return <Navigate to={onboardingBasicPath} replace />;
+    if (user.status === 'basic' && !onAccountType) {
+        if (client) {
+            if (!onClientAccount) {
+                return <Navigate to={clientAccountPath} replace />;
+            }
+        } else if (!onBasic) {
+            return <Navigate to={onboardingBasicPath} replace />;
+        }
     }
     if (user.status === 'setup' && !onProfile) {
         return <Navigate to={onboardingProfilePath} replace />;
@@ -140,6 +151,12 @@ export function SignedIn() {
     }
     if (user.status === 'admin-review' && !onReview && !onSettings && !onCalendar) {
         return <Navigate to={onboardingReviewPath} replace />;
+    }
+    if (client && user.status === 'live' && !onClientHome && !onClientSettings) {
+        return <Navigate to={clientHomePath} replace />;
+    }
+    if (!client && (onClientAccount || onClientHome || onClientSettings)) {
+        return <Navigate to={profilePath} replace />;
     }
     if (
         user.status !== 'new'
