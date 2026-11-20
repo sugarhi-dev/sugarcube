@@ -15,6 +15,9 @@ import { Config } from './config.js';
 
 const keyPattern = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
+// Matches the lifetime of the presigned URL handed to the browser.
+export const storedObjectMaxAgeSeconds = 15 * 60;
+
 export type BinaryObject = {
     data: Uint8Array;
     contentType: string;
@@ -57,6 +60,7 @@ export class Binary extends Base {
                 Body: data.slice(),
                 ContentType: type,
                 ContentLength: data.byteLength,
+                CacheControl: `public, max-age=${storedObjectMaxAgeSeconds}`,
             }));
         } catch (error) {
             throw failure(error, 'upload');

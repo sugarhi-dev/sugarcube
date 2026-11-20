@@ -46,7 +46,7 @@ test('uploads a video and thumbnail', async ({ page }) => {
     await expect(upload).toBeHidden();
 
     const uploaded = page.getByRole('listitem', { name: /Uploaded video, cover/ });
-    await expect(uploaded.locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(uploaded.locator('img')).toHaveAttribute('src', /^https:\/\/[^/]+\//);
     await expect(uploaded.getByRole('button', { name: /^Play / })).toHaveCount(0);
     await expect(uploaded.locator('iframe')).toHaveCount(0);
     const mark = uploaded.locator('.media-mark');
@@ -55,13 +55,9 @@ test('uploads a video and thumbnail', async ({ page }) => {
     await expect(mark).toHaveCSS('color', 'rgb(217, 45, 32)');
     await expect(page.getByText('1 of 2 — add 1 more')).toBeVisible();
 
-    const reloadedThumb = page.waitForResponse((response) =>
-        response.request().method() === 'GET' && response.url().includes('/api/me/media/') && response.url().includes('/thumbnail') && response.ok());
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
-    const loaded = await reloadedThumb;
-    expect(loaded.headers()['content-type']).toContain('image/jpeg');
-    await expect(page.getByRole('listitem', { name: /Uploaded video, cover/ }).locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(page.getByRole('listitem', { name: /Uploaded video, cover/ }).locator('img')).toHaveAttribute('src', /^https:\/\/[^/]+\//);
     await expect(page.getByText('1 of 2 — add 1 more')).toBeVisible();
 });
 
@@ -89,7 +85,7 @@ test('uploads a photo', async ({ page }) => {
     await expect(upload).toBeHidden();
 
     const photo = page.getByRole('listitem', { name: /Photo, cover/ });
-    await expect(photo.locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(photo.locator('img')).toHaveAttribute('src', /^https:\/\/[^/]+\//);
     await photo.getByRole('button', { name: 'View photo' }).click();
     const viewer = page.getByRole('dialog', { name: 'Photo' });
     const viewerImage = viewer.locator('img');
@@ -120,16 +116,9 @@ test('uploads a photo', async ({ page }) => {
     await expect(photo.getByRole('button', { name: /^Edit / })).toHaveCount(0);
     await expect(page.getByText('1 of 2 — add 1 more')).toBeVisible();
 
-    const reloaded = page.waitForResponse((response) =>
-        response.request().method() === 'GET'
-        && response.url().includes('/api/me/media/')
-        && response.url().includes('/thumbnail')
-        && response.ok());
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
-    const loaded = await reloaded;
-    expect(loaded.headers()['content-type']).toContain('image/jpeg');
-    await expect(page.getByRole('listitem', { name: /Photo, cover/ }).locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(page.getByRole('listitem', { name: /Photo, cover/ }).locator('img')).toHaveAttribute('src', /^https:\/\/[^/]+\//);
 });
 
 test('enlarges a profile photo', async ({ page }) => {
@@ -207,7 +196,7 @@ test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) =>
     await storedThumb;
     await expect(upload).toBeHidden();
     const uploaded = page.getByRole('listitem', { name: /Uploaded video, cover/ });
-    await expect(uploaded.locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(uploaded.locator('img')).toHaveAttribute('src', /^https:\/\/[^/]+\//);
     await uploaded.getByRole('button', { name: /^Delete / }).click();
     await expect(page.getByText('0 of 2 — add 2 more')).toBeVisible();
 
@@ -223,7 +212,7 @@ test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) =>
 
     await addLink(page, youtubeUrl);
     const youtube = page.getByRole('listitem', { name: /YouTube video, cover/ });
-    await expect(youtube.locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(youtube.locator('img')).toHaveAttribute('src', /^https:\/\/[^/]+\//);
     await expect(youtube).toHaveCSS('width', /^33\d(\.\d+)?px$/);
     await youtube.getByRole('button', { name: 'Play YouTube video, cover' }).click();
     await expect(youtube.locator('iframe')).toHaveAttribute('src', 'https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1');
@@ -232,7 +221,7 @@ test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) =>
 
     await addLink(page, vimeoUrl);
     const vimeo = page.getByRole('listitem', { name: /Vimeo video, 2 of 2/ });
-    await expect(vimeo.locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(vimeo.locator('img')).toHaveAttribute('src', /^https:\/\/[^/]+\//);
     await vimeo.getByRole('button', { name: 'Play Vimeo video, 2 of 2' }).click();
     await expect(vimeo.locator('iframe')).toHaveAttribute('src', 'https://player.vimeo.com/video/76979871?autoplay=1');
     await expect(page.getByText('2 of 2')).toBeVisible();
@@ -255,8 +244,8 @@ test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) =>
     await expect(page.getByRole('heading', { name: 'Upload your media' })).toBeVisible();
     const reloaded = page.locator('.media-grid');
     await expect(reloaded.getByRole('listitem').nth(0)).toHaveAttribute('aria-label', /YouTube video, cover/);
-    await expect(reloaded.getByRole('listitem').nth(0).locator('img')).toHaveAttribute('src', /^blob:/);
-    await expect(reloaded.getByRole('listitem').nth(1).locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(reloaded.getByRole('listitem').nth(0).locator('img')).toHaveAttribute('src', /^https:\/\/[^/]+\//);
+    await expect(reloaded.getByRole('listitem').nth(1).locator('img')).toHaveAttribute('src', /^https:\/\/[^/]+\//);
 
     const second = reloaded.getByRole('listitem').nth(1);
     await second.getByRole('button', { name: /^Edit / }).click();
@@ -272,7 +261,7 @@ test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) =>
             response.request().method() === 'PATCH' && response.url().includes('/api/me/media/') && response.ok()),
         dialog.getByRole('button', { name: 'Save' }).click(),
     ]);
-    await expect(second.locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(second.locator('img')).toHaveAttribute('src', /^https:\/\/[^/]+\//);
 
     await Promise.all([
         page.waitForResponse((response) =>
@@ -283,7 +272,7 @@ test('shows YouTube and Vimeo thumbnails and reorders them', async ({ page }) =>
 
     await page.reload();
     await expect(page.locator('.media-grid').getByRole('listitem')).toHaveCount(1);
-    await expect(page.locator('.media-grid').locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(page.locator('.media-grid').locator('img')).toHaveAttribute('src', /^https:\/\/[^/]+\//);
 });
 
 async function dropFile(target: Locator, file: { name: string; mimeType: string; buffer: Buffer }): Promise<void> {

@@ -3,7 +3,7 @@ import { App as AntdApp, Button, Flex, Form, Input, Typography } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError } from '../../api/http.ts';
-import { getProfilePhoto, getWorkProfile, listWorkProfiles, returnToStep, saveBasic, uploadProfilePhoto } from '../../api/me.ts';
+import { getProfilePhotoUrl, getWorkProfile, listWorkProfiles, returnToStep, saveBasic, uploadProfilePhoto } from '../../api/me.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
 import { copyThat } from '../../theme.ts';
@@ -116,13 +116,10 @@ export function OnboardingBasic() {
         }
 
         let cancelled = false;
-        let url: string | null = null;
-        void getProfilePhoto(accessToken).then((blob) => {
-            if (cancelled) {
-                return;
+        void getProfilePhotoUrl(accessToken).then((link) => {
+            if (!cancelled) {
+                setPreview(link.url);
             }
-            url = URL.createObjectURL(blob);
-            setPreview(url);
         }).catch(() => {
             if (!cancelled) {
                 message.error('Could not load your profile photo.');
@@ -131,9 +128,6 @@ export function OnboardingBasic() {
 
         return () => {
             cancelled = true;
-            if (url) {
-                URL.revokeObjectURL(url);
-            }
         };
     }, [accessToken, photoFile, storedPhoto]);
 

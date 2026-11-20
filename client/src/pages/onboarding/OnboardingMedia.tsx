@@ -3,7 +3,7 @@ import { classifyMediaLink, mediaUrl, type UserMedia } from '@sugarcube/schema';
 import { App as AntdApp, Button, Flex, Input, Modal, Progress, Result, Spin, Typography } from 'antd';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { createMedia, deleteMedia, getMediaThumbnail, listMedia, reorderMedia, updateMedia, uploadMedia, uploadPhoto } from '../../api/media.ts';
+import { createMedia, deleteMedia, listMedia, reorderMedia, updateMedia, uploadMedia, uploadPhoto } from '../../api/media.ts';
 import { completeMedia, returnToStep } from '../../api/me.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
@@ -716,7 +716,6 @@ export function OnboardingMedia() {
                                         <MediaStage
                                             item={item}
                                             label={label}
-                                            accessToken={session.accessToken}
                                             onViewPhoto={() => {
                                                 if (canViewPhoto(item)) {
                                                     setPhotoId(item.id);
@@ -1065,9 +1064,8 @@ export function OnboardingMedia() {
                     {session ? (
                         <PhotoLightbox
                             fullscreen
-                            accessToken={session.accessToken}
-                            id={enlargedPhotoId}
-                            path={enlargedPhotoId ? `/api/me/media/${encodeURIComponent(enlargedPhotoId)}/thumbnail` : null}
+                            open={enlargedPhotoId !== null}
+                            src={enlargedPhotoId ? enlarged?.image_url ?? null : null}
                             onClose={() => setPhotoId(null)}
                         />
                     ) : null}
@@ -1110,12 +1108,10 @@ export function OnboardingMedia() {
 function MediaStage({
     item,
     label,
-    accessToken,
     onViewPhoto,
 }: {
     item: UserMedia;
     label: string;
-    accessToken: string;
     onViewPhoto: () => void;
 }) {
     const [playing, setPlaying] = useState(false);
@@ -1126,7 +1122,7 @@ function MediaStage({
     }, [embed]);
 
     if (item.status === 'pending') {
-        return <MediaPreview item={item} accessToken={accessToken} />;
+        return <MediaPreview item={item} />;
     }
 
     if (playing && embed) {
@@ -1145,7 +1141,7 @@ function MediaStage({
     if (embed) {
         return (
             <button type="button" className="media-card-open" aria-label={`Play ${label}`} onClick={() => setPlaying(true)}>
-                <MediaPreview item={item} accessToken={accessToken} />
+                <MediaPreview item={item} />
                 <span className="media-card-play" aria-hidden="true">
                     <CaretRightFilled />
                 </span>
@@ -1156,51 +1152,31 @@ function MediaStage({
     if (item.media_type === 'photo') {
         return (
             <button type="button" className="media-card-open" aria-label="View photo" onClick={onViewPhoto}>
-                <MediaPreview item={item} accessToken={accessToken} />
+                <MediaPreview item={item} />
             </button>
         );
     }
 
-    return <MediaPreview item={item} accessToken={accessToken} />;
+    return <MediaPreview item={item} />;
 }
 
-function MediaPreview({ item, accessToken }: { item: UserMedia; accessToken: string }) {
-    const [src, setSrc] = useState<string | null>(null);
+function MediaPreview({ item }: { item: UserMedia }) {
+    const [failed, setFailed] = useState(false);
 
     useEffect(() => {
-        let active = true;
-        let url: string | null = null;
-        setSrc(null);
-        void getMediaThumbnail(accessToken, item.id).then((blob) => {
-            if (!active) {
-                return;
-            }
-            url = URL.createObjectURL(blob);
-            setSrc(url);
-        }).catch(() => {
-            if (active) {
-                setSrc(null);
-            }
-        });
+        setFailed(false);
+    }, [item.image_url]);
 
-        return () => {
-            active = false;
-            if (url) {
-                URL.revokeObjectURL(url);
-            }
-        };
-    }, [accessToken, item.id]);
-
-    if (!src) {
+    if (!item.image_url || failed) {
         return <span className="media-card-fallback">{mediaFallback(item)}</span>;
     }
 
     return (
         <img
-            src={src}
+            src={item.image_url}
             alt=""
             draggable={false}
-            onError={() => setSrc(null)}
+            onError={() => setFailed(true)}
         />
     );
 }

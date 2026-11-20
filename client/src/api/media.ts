@@ -1,5 +1,5 @@
 import { UserMediaSchema, type UserMedia } from '@sugarcube/schema';
-import { apiBlob, apiJson, apiUpload } from './http.ts';
+import { apiJson, apiUpload } from './http.ts';
 import { parseResponse, parseResponseList } from './parse.ts';
 
 export type { UserMedia };
@@ -57,14 +57,6 @@ export async function uploadPhoto(
 ): Promise<UserMedia> {
     const body = await apiUpload(accessToken, '/api/me/media/photo', photo, contentType, onProgress, signal);
     return parseResponse(UserMediaSchema, body, 'Media response was not valid.');
-}
-
-export function getMediaThumbnail(
-    accessToken: string,
-    id: string,
-    path = `/api/me/media/${encodeURIComponent(id)}/thumbnail`,
-): Promise<Blob> {
-    return apiBlob(accessToken, path);
 }
 
 export function reorderMedia(accessToken: string, ids: string[]): Promise<UserMedia[]> {

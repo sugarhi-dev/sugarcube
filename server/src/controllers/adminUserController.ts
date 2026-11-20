@@ -150,15 +150,15 @@ export class AdminUserController extends Controller {
             return;
         }
 
-        const objectPath = await this.userLogic.profilePhotoUrl(ctx, user.photo);
-        if (!objectPath) {
+        const url = await this.userLogic.profilePhotoUrl(ctx, user.photo);
+        if (!url) {
             ctx.error('Profile photo not found.', 404);
             this.checkAndRespond(ctx, res);
             return;
         }
 
         this.checkAndRespond(ctx, res, {
-            url: contentPath(objectPath),
+            url,
             expires_in: profilePhotoTtlSeconds,
         });
     }
@@ -275,8 +275,7 @@ export class AdminUserController extends Controller {
             return null;
         }
         try {
-            const objectPath = await this.userLogic.profilePhotoUrl(ctx, photo);
-            return objectPath ? contentPath(objectPath) : null;
+            return await this.userLogic.profilePhotoUrl(ctx, photo);
         } catch {
             return null;
         }
@@ -333,11 +332,4 @@ function toProfile(user: User) {
         status: user.status,
         account_type: user.account_type,
     };
-}
-
-function contentPath(objectPath: string): string {
-    if (!objectPath.startsWith('/') || objectPath.startsWith('//')) {
-        throw new Error('Profile photo path is not valid.');
-    }
-    return `/content${objectPath}`;
 }

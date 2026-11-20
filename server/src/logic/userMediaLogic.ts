@@ -6,6 +6,7 @@ import { UserMediaSchema, type UserMedia } from '../entities/userMedia.js';
 import { UserMediaRepo } from '../repositories/userMediaRepo.js';
 import { CloudflareStream, isStreamUid, streamEmbedUrl } from './cloudflareStream.js';
 import { constraintFailure } from './pgError.js';
+import { profilePhotoTtlSeconds } from './userLogic.js';
 
 const ulidPattern = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
@@ -36,8 +37,9 @@ export class UserMediaLogic extends Logic {
         this.cloudflareStream = cloudflareStream;
     }
 
-    listUserMedia(ctx: Context, userAccountId: string): Promise<UserMedia[]> {
-        return this.userMediaRepo.listUserMedia(ctx, userAccountId);
+    async listUserMedia(ctx: Context, userAccountId: string): Promise<UserMedia[]> {
+        const media = await this.userMediaRepo.listUserMedia(ctx, userAccountId);
+        return this.withImageUrls(ctx, media);
     }
 
     async createUserMedia(ctx: Context, userAccountId: string, url: string): Promise<UserMedia | null> {
@@ -55,7 +57,8 @@ export class UserMediaLogic extends Logic {
             thumbnail: null,
         });
         try {
-            return await this.userMediaRepo.createUserMedia(ctx, media);
+            const created = await this.userMediaRepo.createUserMedia(ctx, media);
+            return await this.withImageUrl(ctx, created);
         } catch (error) {
             return this.rejectConstraint(ctx, error);
         }
@@ -81,7 +84,8 @@ export class UserMediaLogic extends Logic {
             status: 'pending',
         });
         try {
-            return await this.userMediaRepo.createUserMedia(ctx, media);
+            const created = await this.userMediaRepo.createUserMedia(ctx, media);
+            return await this.withImageUrl(ctx, created);
         } catch (error) {
             await this.discardBinary(ref);
             return this.rejectConstraint(ctx, error);
@@ -107,7 +111,8 @@ export class UserMediaLogic extends Logic {
             thumbnail: null,
         });
         try {
-            return await this.userMediaRepo.createUserMedia(ctx, media);
+            const created = await this.userMediaRepo.createUserMedia(ctx, media);
+            return await this.withImageUrl(ctx, created);
         } catch (error) {
             await this.discardBinary(ref);
             return this.rejectConstraint(ctx, error);
@@ -121,7 +126,7 @@ export class UserMediaLogic extends Logic {
                 ctx.error('Media order does not match your items.', 400);
                 return null;
             }
-            return media;
+            return await this.withImageUrls(ctx, media);
         } catch (error) {
             return this.rejectConstraint(ctx, error);
         }
@@ -155,7 +160,7 @@ export class UserMediaLogic extends Logic {
             if (previousFile) {
                 await this.discardBinary(previousFile);
             }
-            return updated;
+            return await this.withImageUrl(ctx, updated);
         } catch (error) {
             return this.rejectConstraint(ctx, error);
         }
@@ -197,7 +202,7 @@ export class UserMediaLogic extends Logic {
             if (current.thumbnail && current.thumbnail !== thumbnail) {
                 await this.discardBinary(current.thumbnail);
             }
-            return updated;
+            return await this.withImageUrl(ctx, updated);
         } catch (error) {
             await this.discardBinary(thumbnail);
             return this.rejectConstraint(ctx, error);
@@ -354,6 +359,27 @@ export class UserMediaLogic extends Logic {
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             this.log.error(`Could not remove binary ${id}: ${message}`);
+        }
+    }
+
+    private async withImageUrls(ctx: Context, media: UserMedia[]): Promise<UserMedia[]> {
+        return Promise.all(media.map((item) => this.withImageUrl(ctx, item)));
+    }
+
+    private async withImageUrl(ctx: Context, media: UserMedia): Promise<UserMedia> {
+        const imageId = displayImage(media);
+        if (!imageId) {
+            return { ...media, image_url: null };
+        }
+
+        this.log.trace(`${ctx.traceId} sign media image ${imageId}`);
+        try {
+            const imageUrl = await this.binary.presignGetAbsolute(imageId, profilePhotoTtlSeconds);
+            return { ...media, image_url: imageUrl };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log.error(`${ctx.traceId} media image url failed: ${message}`);
+            return { ...media, image_url: null };
         }
     }
 

@@ -1,4 +1,4 @@
-import { Binary, Config, Context, Logic, type BinaryObject } from '@sugarcube/server-core';
+import { Binary, Config, Context, Logic, storedObjectMaxAgeSeconds, type BinaryObject } from '@sugarcube/server-core';
 import { ulid } from 'ulidx';
 import type { AccountType, AdminUser, User, UserStatus } from '../entities/user.js';
 import { UserLocaleSchema } from '../entities/userLocale.js';
@@ -27,7 +27,7 @@ const photoConstraints = {
     user_account_photo_check: { statusCode: 400, message: 'Profile photo is not valid.' },
 };
 
-export const profilePhotoTtlSeconds = 15 * 60;
+export const profilePhotoTtlSeconds = storedObjectMaxAgeSeconds;
 
 const setupConstraints = {
     user_work_profile_discipline_id_fkey: { statusCode: 400, message: 'Discipline not found.' },
@@ -353,7 +353,7 @@ export class UserLogic extends Logic {
 
     profilePhotoUrl(ctx: Context, id: string): Promise<string | null> {
         this.log.trace(`${ctx.traceId} profile photo url ${id}`);
-        return this.binary.presignGet(id, profilePhotoTtlSeconds);
+        return this.binary.presignGetAbsolute(id, profilePhotoTtlSeconds);
     }
 
     async completeSetup(ctx: Context, userId: string, input: SetupProfileInput): Promise<User | null> {

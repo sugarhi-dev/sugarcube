@@ -1,57 +1,26 @@
-import { Modal, Spin } from 'antd';
+import { Modal } from 'antd';
 import { useEffect, useState } from 'react';
-import { getMediaThumbnail } from '../../api/media.ts';
 
 export function PhotoLightbox({
-    accessToken,
-    id,
-    path,
+    open,
+    src,
     onClose,
     fullscreen = false,
 }: {
-    accessToken: string;
-    id: string | null;
-    path: string | null;
+    open: boolean;
+    src: string | null;
     onClose: () => void;
     fullscreen?: boolean;
 }) {
-    const [src, setSrc] = useState<string | null>(null);
     const [failed, setFailed] = useState(false);
 
     useEffect(() => {
-        if (!id || !path) {
-            setSrc(null);
-            setFailed(false);
-            return;
-        }
-
-        let active = true;
-        let url: string | null = null;
-        setSrc(null);
         setFailed(false);
-        void getMediaThumbnail(accessToken, id, path).then((blob) => {
-            if (!active) {
-                return;
-            }
-            url = URL.createObjectURL(blob);
-            setSrc(url);
-        }).catch(() => {
-            if (active) {
-                setFailed(true);
-            }
-        });
-
-        return () => {
-            active = false;
-            if (url) {
-                URL.revokeObjectURL(url);
-            }
-        };
-    }, [accessToken, id, path]);
+    }, [src]);
 
     return (
         <Modal
-            open={id !== null}
+            open={open}
             title="Photo"
             footer={null}
             centered={!fullscreen}
@@ -66,12 +35,10 @@ export function PhotoLightbox({
             styles={fullscreen ? { wrapper: { padding: 0 } } : undefined}
             onCancel={onClose}
         >
-            {src ? (
-                <img src={src} alt="" />
-            ) : failed ? (
-                <p className="photo-lightbox-status">Could not load that photo.</p>
+            {src && !failed ? (
+                <img src={src} alt="" onError={() => setFailed(true)} />
             ) : (
-                <Spin />
+                <p className="photo-lightbox-status">Could not load that photo.</p>
             )}
         </Modal>
     );

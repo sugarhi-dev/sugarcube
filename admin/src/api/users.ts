@@ -146,6 +146,10 @@ async function readJson(response: Response): Promise<unknown> {
     }
 }
 
+function isStoredPhotoUrl(url: string): boolean {
+    return /^https:\/\/[^/]+\/.+/.test(url);
+}
+
 function isDirectoryUser(value: unknown): value is DirectoryUser {
     if (!isAdminUser(value)) {
         return false;
@@ -154,7 +158,7 @@ function isDirectoryUser(value: unknown): value is DirectoryUser {
     return (row.discipline === null || typeof row.discipline === 'string')
         && (row.city === null || typeof row.city === 'string')
         && typeof row.profile_count === 'number'
-        && (row.photo_url === null || (typeof row.photo_url === 'string' && row.photo_url.startsWith('/content/')));
+        && (row.photo_url === null || (typeof row.photo_url === 'string' && isStoredPhotoUrl(row.photo_url)));
 }
 
 function isApproval(value: unknown): value is Approval {
@@ -178,7 +182,7 @@ function isApproval(value: unknown): value is Approval {
         && typeof row.credit_count === 'number'
         && typeof row.media_count === 'number'
         && typeof row.updated_at === 'string'
-        && (row.photo_url === null || (typeof row.photo_url === 'string' && row.photo_url.startsWith('/content/')));
+        && (row.photo_url === null || (typeof row.photo_url === 'string' && isStoredPhotoUrl(row.photo_url)));
 }
 
 function isAdminUser(value: unknown): value is AdminUser {

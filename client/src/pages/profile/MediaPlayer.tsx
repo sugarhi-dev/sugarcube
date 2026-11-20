@@ -8,7 +8,6 @@ import {
 import type { UserMedia } from '@sugarcube/schema';
 import { App as AntdApp } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
-import { getMediaThumbnail } from '../../api/media.ts';
 import { embedSrc, isStill, mediaKind, withAutoplay } from './mediaEmbed.ts';
 
 type MediaFilter = 'all' | 'videos' | 'stills';
@@ -16,7 +15,6 @@ type MediaFilter = 'all' | 'videos' | 'stills';
 export function MediaPlayer({
     media,
     mediaId,
-    accessToken,
     name,
     role,
     captionTitle,
@@ -26,7 +24,6 @@ export function MediaPlayer({
 }: {
     media: UserMedia[];
     mediaId: string;
-    accessToken: string;
     name: string;
     role: string;
     captionTitle: string | null;
@@ -162,7 +159,7 @@ export function MediaPlayer({
                         </button>
                         <div className="media-player-frame">
                             {current ? (
-                                <PlayerStage item={current} accessToken={accessToken} />
+                                <PlayerStage item={current} />
                             ) : (
                                 <p className="media-player-empty">Nothing in this view.</p>
                             )}
@@ -204,7 +201,7 @@ export function MediaPlayer({
                             aria-current={item.id === mediaId ? 'true' : undefined}
                             onClick={() => onSelect(item.id)}
                         >
-                            <PlayerImage id={item.id} accessToken={accessToken} />
+                            <PlayerImage src={item.image_url} />
                             <span className="media-player-thumb-badge">
                                 {isStill(item) ? 'Still' : <CaretRightFilled aria-hidden />}
                             </span>
@@ -241,7 +238,7 @@ function FilterChip({
     );
 }
 
-function PlayerStage({ item, accessToken }: { item: UserMedia; accessToken: string }) {
+function PlayerStage({ item }: { item: UserMedia }) {
     const embed = embedSrc(item);
     if (embed) {
         return (
@@ -257,58 +254,19 @@ function PlayerStage({ item, accessToken }: { item: UserMedia; accessToken: stri
         );
     }
     if (item.media_type === 'photo') {
-        return <PlayerImage id={item.id} accessToken={accessToken} cover />;
+        return <PlayerImage src={item.image_url} cover />;
     }
     return (
         <div className="media-player-hold">
-            <PlayerImage id={item.id} accessToken={accessToken} cover />
+            <PlayerImage src={item.image_url} cover />
             <p>{item.status === 'pending' ? 'The media is being prepared.' : 'Playback for uploaded videos isn\'t available here yet.'}</p>
         </div>
     );
 }
 
-function PlayerImage({
-    id,
-    accessToken,
-    cover = false,
-}: {
-    id: string;
-    accessToken: string;
-    cover?: boolean;
-}) {
-    const src = useMediaSrc(accessToken, id);
+function PlayerImage({ src, cover = false }: { src: string | null; cover?: boolean }) {
     if (!src) {
         return <span className="media-player-fallback" />;
     }
     return <img src={src} alt="" className={cover ? 'is-cover' : undefined} />;
-}
-
-function useMediaSrc(accessToken: string, id: string): string | null {
-    const [src, setSrc] = useState<string | null>(null);
-
-    useEffect(() => {
-        let active = true;
-        let url: string | null = null;
-        setSrc(null);
-        void getMediaThumbnail(accessToken, id).then((blob) => {
-            if (!active) {
-                return;
-            }
-            url = URL.createObjectURL(blob);
-            setSrc(url);
-        }).catch(() => {
-            if (active) {
-                setSrc(null);
-            }
-        });
-
-        return () => {
-            active = false;
-            if (url) {
-                URL.revokeObjectURL(url);
-            }
-        };
-    }, [accessToken, id]);
-
-    return src;
 }

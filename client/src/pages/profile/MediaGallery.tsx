@@ -10,7 +10,6 @@ import { profileMediaItemPath } from './paths.ts';
 export function MediaGallery({
     readOnly,
     media,
-    accessToken,
     removingId,
     onEdit,
     onRemove,
@@ -20,7 +19,6 @@ export function MediaGallery({
 }: {
     readOnly: boolean;
     media: UserMedia[];
-    accessToken: string;
     removingId: string | null;
     onEdit: (item: UserMedia) => void;
     onRemove: (id: string) => void;
@@ -30,6 +28,7 @@ export function MediaGallery({
 }) {
     const navigate = useNavigate();
     const [enlargedPhotoId, setEnlargedPhotoId] = useState<string | null>(null);
+    const enlarged = media.find((item) => item.id === enlargedPhotoId) ?? null;
     const mosaic = media.slice(0, 5);
     const overflow = media.length > mosaic.length;
     const first = media[0];
@@ -58,7 +57,6 @@ export function MediaGallery({
                                 item={item}
                                 index={index}
                                 total={media.length}
-                                accessToken={accessToken}
                                 readOnly={readOnly}
                                 removing={removingId === item.id}
                                 showAll={overflow && index === mosaic.length - 1}
@@ -78,9 +76,8 @@ export function MediaGallery({
                 <div className="crew-media-empty">No media yet</div>
             )}
             <PhotoLightbox
-                accessToken={accessToken}
-                id={enlargedPhotoId}
-                path={enlargedPhotoId ? `/api/me/media/${encodeURIComponent(enlargedPhotoId)}/thumbnail` : null}
+                open={enlargedPhotoId !== null}
+                src={enlarged?.image_url ?? null}
                 onClose={() => setEnlargedPhotoId(null)}
             />
         </>

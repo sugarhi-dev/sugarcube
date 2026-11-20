@@ -254,15 +254,15 @@ export class UserController extends Controller {
             return;
         }
 
-        const objectPath = await this.userLogic.profilePhotoUrl(ctx, user.photo);
-        if (!objectPath) {
+        const url = await this.userLogic.profilePhotoUrl(ctx, user.photo);
+        if (!url) {
             ctx.error('Profile photo not found.', 404);
             this.checkAndRespond(ctx, res);
             return;
         }
 
         this.checkAndRespond(ctx, res, {
-            url: contentPath(objectPath),
+            url,
             expires_in: profilePhotoTtlSeconds,
         });
     }
@@ -504,13 +504,6 @@ export class UserController extends Controller {
 
         return this.userLogic.requireByKeycloakId(ctx, subject);
     }
-}
-
-function contentPath(objectPath: string): string {
-    if (!objectPath.startsWith('/') || objectPath.startsWith('//')) {
-        throw new Error('Profile photo path is not valid.');
-    }
-    return `/content${objectPath}`;
 }
 
 function photoContentType(header: string | undefined): 'image/jpeg' | 'image/png' | null {

@@ -546,7 +546,6 @@ export function ProfilePage({ onboarding = false, framed = true }: ProfilePagePr
                 <MediaPlayer
                     media={data?.media ?? []}
                     mediaId={playerItem.id}
-                    accessToken={session.accessToken}
                     name={displayName}
                     role={playerRole}
                     captionTitle={playerCaption}

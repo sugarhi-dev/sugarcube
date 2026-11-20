@@ -13,7 +13,7 @@ import {
     type WorkProfileChoice,
 } from '@sugarcube/schema';
 import { z } from 'zod';
-import { apiBlob, apiJson } from './http.ts';
+import { apiJson } from './http.ts';
 import { parseResponse, parseResponseList } from './parse.ts';
 
 export type { AccountType, CurrentUser, ProfilePhotoUrl, UserStatus, WorkProfileChoice };
@@ -72,10 +72,6 @@ export function uploadProfilePhoto(accessToken: string, file: File): Promise<Cur
         body: file,
         headers: { 'Content-Type': file.type },
     });
-}
-
-export function getProfilePhoto(accessToken: string): Promise<Blob> {
-    return apiBlob(accessToken, '/api/me/photo');
 }
 
 export function getProfilePhotoUrl(accessToken: string, path = '/api/me/photo/url'): Promise<ProfilePhotoUrl> {

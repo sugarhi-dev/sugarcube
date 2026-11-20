@@ -2,7 +2,6 @@ import { AppstoreOutlined, CaretRightFilled, DeleteOutlined, EditOutlined } from
 import { mediaUrl, type UserMedia } from '@sugarcube/schema';
 import { App as AntdApp } from 'antd';
 import { useEffect, useState } from 'react';
-import { getMediaThumbnail } from '../../api/media.ts';
 import { MediaMark } from '../../components/MediaMark.tsx';
 import { embedSrc, withAutoplay } from './mediaEmbed.ts';
 
@@ -10,7 +9,6 @@ export function MediaTile({
     item,
     index,
     total,
-    accessToken,
     readOnly,
     removing,
     onOpenPhoto,
@@ -22,7 +20,6 @@ export function MediaTile({
     item: UserMedia;
     index: number;
     total: number;
-    accessToken: string;
     readOnly: boolean;
     removing: boolean;
     onOpenPhoto: () => void;
@@ -40,8 +37,7 @@ export function MediaTile({
             {embed ? (
                 <MediaEmbed
                     src={embed}
-                    id={item.id}
-                    accessToken={accessToken}
+                    imageUrl={item.image_url}
                     label={label}
                     status={item.status}
                     hideMark={showAll}
@@ -53,7 +49,7 @@ export function MediaTile({
                     aria-label="View photo"
                     onClick={onOpenPhoto}
                 >
-                    <MediaThumb id={item.id} accessToken={accessToken} fallback="Photo" />
+                    <MediaThumb src={item.image_url} fallback="Photo" />
                     {showAll ? null : <MediaMark media={item} />}
                 </button>
             ) : (
@@ -63,7 +59,7 @@ export function MediaTile({
                     aria-label={index === 0 ? 'Play video' : 'Open video'}
                     onClick={() => openMedia(item, message)}
                 >
-                    <MediaThumb id={item.id} accessToken={accessToken} />
+                    <MediaThumb src={item.image_url} />
                     {showAll ? null : <MediaMark media={item} />}
                     {index === 0 ? (
                         <span className="crew-play" aria-hidden="true">
@@ -108,15 +104,13 @@ export function MediaTile({
 
 function MediaEmbed({
     src,
-    id,
-    accessToken,
+    imageUrl,
     label,
     status,
     hideMark,
 }: {
     src: string;
-    id: string;
-    accessToken: string;
+    imageUrl: string | null;
     label: string;
     status: UserMedia['status'];
     hideMark: boolean;
@@ -130,7 +124,7 @@ function MediaEmbed({
     if (!playing) {
         return (
             <button type="button" className="crew-tile-open" aria-label={`Play ${label}`} onClick={() => setPlaying(true)}>
-                <MediaThumb id={id} accessToken={accessToken} />
+                <MediaThumb src={imageUrl} />
                 {hideMark ? null : <MediaMark media={{ media_type: 'youtube', status }} />}
                 <span className="crew-play" aria-hidden="true">
                     <CaretRightFilled />
@@ -151,34 +145,14 @@ function MediaEmbed({
     );
 }
 
-function MediaThumb({ id, accessToken, fallback = 'Video' }: { id: string; accessToken: string; fallback?: string }) {
-    const [src, setSrc] = useState<string | null>(null);
+function MediaThumb({ src, fallback = 'Video' }: { src: string | null; fallback?: string }) {
+    const [failed, setFailed] = useState(false);
 
     useEffect(() => {
-        let active = true;
-        let url: string | null = null;
-        setSrc(null);
-        void getMediaThumbnail(accessToken, id).then((blob) => {
-            if (!active) {
-                return;
-            }
-            url = URL.createObjectURL(blob);
-            setSrc(url);
-        }).catch(() => {
-            if (active) {
-                setSrc(null);
-            }
-        });
+        setFailed(false);
+    }, [src]);
 
-        return () => {
-            active = false;
-            if (url) {
-                URL.revokeObjectURL(url);
-            }
-        };
-    }, [accessToken, id]);
-
-    if (!src) {
+    if (!src || failed) {
         return <span className="crew-tile-fallback">{fallback}</span>;
     }
 
@@ -192,6 +166,7 @@ function MediaThumb({ id, accessToken, fallback = 'Video' }: { id: string; acces
                 }
             }}
             onLoad={(event) => applyMediaAspect(event.currentTarget)}
+            onError={() => setFailed(true)}
         />
     );
 }

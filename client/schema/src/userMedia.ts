@@ -7,12 +7,14 @@ export type MediaType = z.infer<typeof MediaTypeSchema>;
 // Media the browser may keep. The owner, sort position, thumbnail, and Stream video id stay on the server.
 // ref is a YouTube or Vimeo URL, or the ULID of a self-uploaded video or photo.
 // stream_url is the Cloudflare Stream iframe when an upload is ready.
+// image_url is a short-lived S3 URL for the thumbnail or photo.
 export const UserMediaSchema = z.object({
     id: z.ulid(),
     media_type: MediaTypeSchema,
     ref: z.string().min(1).max(2048),
     status: z.enum(['pending', 'ready']).nullable(),
     stream_url: z.string().min(1).max(2048).nullable(),
+    image_url: z.string().regex(/^https:\/\/[^/]+\/.+/).nullable(),
 }).strip();
 
 export type UserMedia = z.infer<typeof UserMediaSchema>;

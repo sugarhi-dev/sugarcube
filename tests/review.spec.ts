@@ -40,7 +40,7 @@ test('reviews the crew profile and submits it', async ({ page }) => {
     expect((await advanced).status()).toBe(200);
     await expectReview(page);
     const avatar = page.locator('.crew-avatar img');
-    await expect(avatar).toHaveAttribute('src', /^\/content\//);
+    await expect(avatar).toHaveAttribute('src', /^https:\/\/[^/]+\//);
     await expect(avatar).toHaveJSProperty('naturalWidth', 400);
     await expect(page.getByRole('heading', { name: 'On-set storyteller', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Dev Sugarhi' })).toBeVisible();
@@ -127,7 +127,7 @@ async function expectWait(page: Page): Promise<void> {
     await expect(page.getByRole('heading', { name: 'On-set storyteller', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Dev Sugarhi' })).toBeVisible();
     const avatar = page.locator('.crew-avatar img');
-    await expect(avatar).toHaveAttribute('src', /^\/content\//);
+    await expect(avatar).toHaveAttribute('src', /^https:\/\/[^/]+\//);
     await expect(avatar).toHaveJSProperty('naturalWidth', 400);
     await expect(page.getByRole('button', { name: 'Edit profile' })).toHaveCount(0);
     await expect(page.getByText('Pending review')).toBeVisible();

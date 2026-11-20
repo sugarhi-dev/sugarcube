@@ -3,7 +3,7 @@ import { App as AntdApp, Button, Flex, Form, Input, Select, Typography } from 'a
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { listProductionCities, type ProductionCity } from '../../api/catalog.ts';
-import { finishClientAccount, getProfilePhoto, returnToStep, uploadProfilePhoto } from '../../api/me.ts';
+import { finishClientAccount, getProfilePhotoUrl, returnToStep, uploadProfilePhoto } from '../../api/me.ts';
 import { beginSignOut } from '../../auth/oidc.ts';
 import { useAppDispatch, useAppSelector, useSession } from '../../store/hooks.ts';
 import { profileLoaded } from '../../store/profileSlice.ts';
@@ -76,13 +76,10 @@ export function ClientAccount() {
         }
 
         let cancelled = false;
-        let url: string | null = null;
-        void getProfilePhoto(accessToken).then((blob) => {
-            if (cancelled) {
-                return;
+        void getProfilePhotoUrl(accessToken).then((link) => {
+            if (!cancelled) {
+                setPreview(link.url);
             }
-            url = URL.createObjectURL(blob);
-            setPreview(url);
         }).catch(() => {
             if (!cancelled) {
                 message.error('Could not load your profile photo.');
@@ -91,9 +88,6 @@ export function ClientAccount() {
 
         return () => {
             cancelled = true;
-            if (url) {
-                URL.revokeObjectURL(url);
-            }
         };
     }, [accessToken, message, photoFile, storedPhoto]);
 

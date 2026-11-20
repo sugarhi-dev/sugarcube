@@ -365,7 +365,6 @@ export function ProfileMedia({
             <MediaGallery
                 readOnly={readOnly}
                 media={media}
-                accessToken={accessToken}
                 removingId={removingMediaId}
                 onEdit={onEditMedia}
                 onRemove={onRemoveMedia}

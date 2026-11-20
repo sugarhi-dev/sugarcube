@@ -1,5 +1,5 @@
 export { Controller } from './controller.js';
-export { Binary } from './binary.js';
+export { Binary, storedObjectMaxAgeSeconds } from './binary.js';
 export type { BinaryObject } from './binary.js';
 export { Database } from './database.js';
 export { Base } from './base.js';
