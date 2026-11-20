@@ -2,8 +2,10 @@ import { LinkOutlined, PictureOutlined, UploadOutlined } from '@ant-design/icons
 import type { UserMedia } from '@sugarcube/schema';
 import { Button } from 'antd';
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 import { PhotoLightbox } from './PhotoLightbox.tsx';
 import { MediaTile } from './MediaTile.tsx';
+import { profileMediaItemPath } from './paths.ts';
 
 export function MediaGallery({
     readOnly,
@@ -26,9 +28,11 @@ export function MediaGallery({
     onAddPhoto: () => void;
     onAddLink: () => void;
 }) {
+    const navigate = useNavigate();
     const [enlargedPhotoId, setEnlargedPhotoId] = useState<string | null>(null);
     const mosaic = media.slice(0, 5);
-    const more = media.slice(5);
+    const overflow = media.length > mosaic.length;
+    const first = media[0];
 
     return (
         <>
@@ -57,30 +61,18 @@ export function MediaGallery({
                                 accessToken={accessToken}
                                 readOnly={readOnly}
                                 removing={removingId === item.id}
+                                showAll={overflow && index === mosaic.length - 1}
+                                onShowAll={() => {
+                                    if (first) {
+                                        navigate(profileMediaItemPath(first.id));
+                                    }
+                                }}
                                 onOpenPhoto={() => setEnlargedPhotoId(item.id)}
                                 onEdit={() => onEdit(item)}
                                 onRemove={() => onRemove(item.id)}
                             />
                         ))}
                     </div>
-                    {more.length > 0 ? (
-                        <div className="crew-media-more">
-                            {more.map((item, index) => (
-                                <MediaTile
-                                    key={item.id}
-                                    item={item}
-                                    index={index + mosaic.length}
-                                    total={media.length}
-                                    accessToken={accessToken}
-                                    readOnly={readOnly}
-                                    removing={removingId === item.id}
-                                    onOpenPhoto={() => setEnlargedPhotoId(item.id)}
-                                    onEdit={() => onEdit(item)}
-                                    onRemove={() => onRemove(item.id)}
-                                />
-                            ))}
-                        </div>
-                    ) : null}
                 </div>
             ) : (
                 <div className="crew-media-empty">No media yet</div>

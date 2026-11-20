@@ -1,9 +1,10 @@
-import { CaretRightFilled, DeleteOutlined, EditOutlined } from '@ant-design/icons';
-import { classifyMediaLink, mediaUrl, type UserMedia } from '@sugarcube/schema';
+import { AppstoreOutlined, CaretRightFilled, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { mediaUrl, type UserMedia } from '@sugarcube/schema';
 import { App as AntdApp } from 'antd';
 import { useEffect, useState } from 'react';
 import { getMediaThumbnail } from '../../api/media.ts';
 import { MediaMark } from '../../components/MediaMark.tsx';
+import { embedSrc, withAutoplay } from './mediaEmbed.ts';
 
 export function MediaTile({
     item,
@@ -15,6 +16,8 @@ export function MediaTile({
     onOpenPhoto,
     onEdit,
     onRemove,
+    showAll = false,
+    onShowAll,
 }: {
     item: UserMedia;
     index: number;
@@ -25,6 +28,8 @@ export function MediaTile({
     onOpenPhoto: () => void;
     onEdit: () => void;
     onRemove: () => void;
+    showAll?: boolean;
+    onShowAll?: () => void;
 }) {
     const { message } = AntdApp.useApp();
     const label = mediaLabel(item, index, total);
@@ -39,6 +44,7 @@ export function MediaTile({
                     accessToken={accessToken}
                     label={label}
                     status={item.status}
+                    hideMark={showAll}
                 />
             ) : photo ? (
                 <button
@@ -48,7 +54,7 @@ export function MediaTile({
                     onClick={onOpenPhoto}
                 >
                     <MediaThumb id={item.id} accessToken={accessToken} fallback="Photo" />
-                    <MediaMark media={item} />
+                    {showAll ? null : <MediaMark media={item} />}
                 </button>
             ) : (
                 <button
@@ -58,7 +64,7 @@ export function MediaTile({
                     onClick={() => openMedia(item, message)}
                 >
                     <MediaThumb id={item.id} accessToken={accessToken} />
-                    <MediaMark media={item} />
+                    {showAll ? null : <MediaMark media={item} />}
                     {index === 0 ? (
                         <span className="crew-play" aria-hidden="true">
                             <CaretRightFilled />
@@ -67,6 +73,12 @@ export function MediaTile({
                 </button>
             )}
             {index === 0 ? <span className="crew-cover">Cover · autoplays</span> : null}
+            {showAll ? (
+                <button type="button" className="crew-show-all" onClick={onShowAll}>
+                    <AppstoreOutlined aria-hidden />
+                    Show all media
+                </button>
+            ) : null}
             {readOnly ? null : (
                 <div className="crew-tile-tools">
                     {photo ? null : (
@@ -100,12 +112,14 @@ function MediaEmbed({
     accessToken,
     label,
     status,
+    hideMark,
 }: {
     src: string;
     id: string;
     accessToken: string;
     label: string;
     status: UserMedia['status'];
+    hideMark: boolean;
 }) {
     const [playing, setPlaying] = useState(false);
 
@@ -117,7 +131,7 @@ function MediaEmbed({
         return (
             <button type="button" className="crew-tile-open" aria-label={`Play ${label}`} onClick={() => setPlaying(true)}>
                 <MediaThumb id={id} accessToken={accessToken} />
-                <MediaMark media={{ media_type: 'youtube', status }} />
+                {hideMark ? null : <MediaMark media={{ media_type: 'youtube', status }} />}
                 <span className="crew-play" aria-hidden="true">
                     <CaretRightFilled />
                 </span>
@@ -188,26 +202,6 @@ function applyMediaAspect(image: HTMLImageElement): void {
         return;
     }
     tile.style.setProperty('--media-aspect', `${image.naturalWidth} / ${image.naturalHeight}`);
-}
-
-function withAutoplay(src: string): string {
-    const url = new URL(src);
-    url.searchParams.set('autoplay', '1');
-    return url.toString();
-}
-
-function embedSrc(item: UserMedia): string | null {
-    if (item.media_type === 'upload' || item.media_type === 'photo') {
-        return null;
-    }
-    const link = classifyMediaLink(item.ref);
-    if (!link) {
-        return null;
-    }
-    if (link.media_type === 'youtube') {
-        return `https://www.youtube.com/embed/${link.videoId}`;
-    }
-    return `https://player.vimeo.com/video/${link.videoId}`;
 }
 
 function openMedia(item: UserMedia, message: ReturnType<typeof AntdApp.useApp>['message']): void {

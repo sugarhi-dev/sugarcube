@@ -39,7 +39,10 @@ KEYCLOAK_JWKS_URL=http://keycloak:8080/idp/realms/sugarcube/protocol/openid-conn
 PORT=3000
 DATABASE_URL=postgresql://sugarcube:${postgres_password}@postgres:5432/sugarcube
 RESEND_API_KEY=
-EMAIL_FROM=admin@sugarcube.tv
+EMAIL_FROM="Sugarcube <admin@email.sugarcube.tv>"
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_API_TOKEN=
+CLOUDFLARE_STREAM_WEBHOOK_SECRET=
 EOF
 
 echo "Generated test secrets at $env_file"

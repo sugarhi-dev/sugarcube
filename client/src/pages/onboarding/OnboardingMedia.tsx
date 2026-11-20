@@ -1210,8 +1210,11 @@ function canViewPhoto(item: UserMedia): boolean {
 }
 
 function embedSrc(item: UserMedia): string | null {
-    if (item.status === 'pending' || item.media_type === 'upload' || item.media_type === 'photo') {
+    if (item.status === 'pending' || item.media_type === 'photo') {
         return null;
+    }
+    if (item.media_type === 'upload') {
+        return item.stream_url;
     }
     const link = classifyMediaLink(item.ref);
     if (!link) {

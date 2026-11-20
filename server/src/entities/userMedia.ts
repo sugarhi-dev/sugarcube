@@ -13,6 +13,7 @@ export const UserMediaSchema = z.object({
     sort_order: z.number().int().nonnegative(),
     status: UserMediaStatusSchema.nullable().default(null),
     stream_url: z.string().min(1).max(2048).nullable().default(null),
+    stream_uid: z.string().regex(/^[0-9a-f]{32}$/).nullable().default(null),
 }).strip();
 
 export type UserMedia = z.infer<typeof UserMediaSchema>;

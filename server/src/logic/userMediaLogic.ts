@@ -4,6 +4,7 @@ import { ulid } from 'ulidx';
 import { z } from 'zod';
 import { UserMediaSchema, type UserMedia } from '../entities/userMedia.js';
 import { UserMediaRepo } from '../repositories/userMediaRepo.js';
+import { CloudflareStream, isStreamUid, streamEmbedUrl } from './cloudflareStream.js';
 import { constraintFailure } from './pgError.js';
 
 const ulidPattern = /^[0-9A-HJKMNP-TV-Z]{26}$/;
@@ -15,6 +16,8 @@ const mediaConstraints = {
     user_media_thumbnail_check: { statusCode: 400, message: 'Thumbnail is not valid.' },
     user_media_status_check: { statusCode: 400, message: 'Media status is not allowed.' },
     user_media_stream_url_check: { statusCode: 400, message: 'Stream URL is not valid.' },
+    user_media_stream_uid_check: { statusCode: 400, message: 'Stream video id is not valid.' },
+    user_media_stream_uid_key: { statusCode: 409, message: 'That video is already linked.' },
 };
 
 export const streamShareTtlSeconds = 12 * 60 * 60;
@@ -24,11 +27,13 @@ const StreamUrlSchema = z.string().trim().min(1).max(2048).startsWith('https://'
 export class UserMediaLogic extends Logic {
     private readonly userMediaRepo: UserMediaRepo;
     private readonly binary: Binary;
+    private readonly cloudflareStream: CloudflareStream;
 
-    constructor(userMediaRepo: UserMediaRepo, binary: Binary) {
+    constructor(userMediaRepo: UserMediaRepo, binary: Binary, cloudflareStream: CloudflareStream) {
         super();
         this.userMediaRepo = userMediaRepo;
         this.binary = binary;
+        this.cloudflareStream = cloudflareStream;
     }
 
     listUserMedia(ctx: Context, userAccountId: string): Promise<UserMedia[]> {
@@ -247,15 +252,48 @@ export class UserMediaLogic extends Logic {
         }
     }
 
-    async markStreamReady(ctx: Context, id: string, streamUrl: string): Promise<UserMedia | null> {
-        const url = StreamUrlSchema.safeParse(streamUrl);
-        if (!url.success) {
+    async submitPendingUploads(ctx: Context): Promise<void> {
+        if (!this.cloudflareStream.configured()) {
+            this.log.error(`${ctx.traceId} cloudflare stream copy skipped: CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN is not set`);
+            return;
+        }
+
+        let pending: UserMedia[];
+        try {
+            pending = await this.userMediaRepo.listUploadsAwaitingStream(ctx);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log.error(`${ctx.traceId} cloudflare stream list failed: ${message}`);
+            return;
+        }
+
+        this.log.info(`${ctx.traceId} cloudflare stream sending ${pending.length} upload(s)`);
+        for (const media of pending) {
+            await this.submitUpload(ctx, media);
+        }
+    }
+
+    async markStreamReadyByUid(ctx: Context, uid: string, userMediaId: string | null): Promise<UserMedia | null> {
+        if (!isStreamUid(uid)) {
+            ctx.error('Stream video id is not valid.', 400);
+            return null;
+        }
+
+        const embed = StreamUrlSchema.safeParse(streamEmbedUrl(uid));
+        if (!embed.success) {
             ctx.error('Stream URL is not valid.', 400);
             return null;
         }
 
+        const linked = await this.userMediaRepo.findByStreamUid(ctx, uid);
+        const id = linked?.id ?? (userMediaId && ulidPattern.test(userMediaId) ? userMediaId : null);
+        if (!id) {
+            ctx.error('Media not found.', 404);
+            return null;
+        }
+
         try {
-            const media = await this.userMediaRepo.markStreamReady(ctx, id, url.data);
+            const media = await this.userMediaRepo.markStreamReady(ctx, id, embed.data, uid);
             if (!media) {
                 ctx.error('Media not found.', 404);
                 return null;
@@ -263,6 +301,39 @@ export class UserMediaLogic extends Logic {
             return media;
         } catch (error) {
             return this.rejectConstraint(ctx, error);
+        }
+    }
+
+    private async submitUpload(ctx: Context, media: UserMedia): Promise<void> {
+        if (media.media_type !== 'upload' || media.stream_uid) {
+            return;
+        }
+
+        const fileUrl = await this.uploadedVideoShareUrl(ctx, media);
+        if (!fileUrl) {
+            this.log.error(`${ctx.traceId} cloudflare stream skipped ${media.id}: no source url`);
+            return;
+        }
+
+        this.log.info(`${ctx.traceId} cloudflare stream copy ${media.id}`);
+        const copied = await this.cloudflareStream.copyVideo(fileUrl, media.id);
+        if (!copied.ok) {
+            this.log.error(`${ctx.traceId} cloudflare stream copy failed for ${media.id}: ${copied.message}`);
+            return;
+        }
+
+        try {
+            const stored = copied.readyToStream
+                ? await this.userMediaRepo.markStreamReady(ctx, media.id, streamEmbedUrl(copied.uid), copied.uid)
+                : await this.userMediaRepo.attachStreamUid(ctx, media.id, copied.uid);
+            if (!stored) {
+                this.log.error(`${ctx.traceId} cloudflare stream result not stored for ${media.id}`);
+                return;
+            }
+            this.log.info(`${ctx.traceId} cloudflare stream ${copied.readyToStream ? 'ready' : 'accepted'} ${media.id} ${copied.uid}`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log.error(`${ctx.traceId} cloudflare stream store failed for ${media.id}: ${message}`);
         }
     }
 

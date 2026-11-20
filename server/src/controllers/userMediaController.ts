@@ -143,24 +143,12 @@ export class UserMediaController extends Controller {
         }
 
         const media = await this.userMediaLogic.createUploadedMedia(ctx, user.id, body, contentType);
-        if (media) {
-            const fileUrl = await this.userMediaLogic.uploadedVideoShareUrl(ctx, media);
-            // TODO Cloudflare Stream Callout
-            // await fetch('https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/copy', {
-            //     method: 'POST',
-            //     headers: {
-            //         Authorization: 'Bearer <API_TOKEN>',
-            //         'Content-Type': 'application/json',
-            //     },
-            //     body: JSON.stringify({
-            //         url: fileUrl,
-            //         meta: { user_media_id: media.id },
-            //     }),
-            // });
-            if (fileUrl) {
-                this.log.trace(`${ctx.traceId} cloudflare stream copy not sent for ${media.id}`);
-            }
+        if (!media) {
+            this.checkAndRespond(ctx, res);
+            return;
         }
+
+        await this.userMediaLogic.submitPendingUploads(ctx);
         this.checkAndRespond(ctx, res, media, 201);
     }
 

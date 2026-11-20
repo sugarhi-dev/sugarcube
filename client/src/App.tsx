@@ -12,7 +12,7 @@ import { OnboardingReview, onboardingReviewPath } from './pages/onboarding/Onboa
 import { LandingPage } from './landing/LandingPage.tsx';
 import { CalendarPage } from './pages/calendar/CalendarPage.tsx';
 import { calendarPath } from './pages/calendar/paths.ts';
-import { ProfilePage, profilePath } from './pages/profile/ProfilePage.tsx';
+import { ProfilePage, profileMediaPath, profilePath } from './pages/profile/ProfilePage.tsx';
 import { settingsPath, settingsSectionPath } from './pages/settings/paths.ts';
 import { SettingsPage } from './pages/settings/SettingsPage.tsx';
 import { SignInPage } from './pages/SignInPage.tsx';
@@ -28,7 +28,11 @@ export function App() {
                     <Routes>
                         <Route path="/" element={<LandingPage />} />
                         <Route element={<RequireSession><SignedIn /></RequireSession>}>
-                            <Route path={profilePath} element={<ProfilePage />} />
+                            <Route element={<ProfilePage />}>
+                                <Route path={profilePath} element={null} />
+                                <Route path={profileMediaPath} element={null} />
+                                <Route path={`${profileMediaPath}/:mediaId`} element={null} />
+                            </Route>
                             <Route path={calendarPath} element={<CalendarPage />} />
                             <Route path={settingsPath} element={<Navigate to={settingsSectionPath('personal')} replace />} />
                             <Route path={`${settingsPath}/:section`} element={<SettingsPage />} />

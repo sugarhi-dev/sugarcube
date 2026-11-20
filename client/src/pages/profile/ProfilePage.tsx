@@ -1,8 +1,8 @@
 import { ArrowLeftOutlined, ArrowRightOutlined, SendOutlined } from '@ant-design/icons';
 import type { Project, UserMedia, WorkProfileChoice } from '@sugarcube/schema';
 import { App as AntdApp, Button, ConfigProvider, Result, Spin, Typography } from 'antd';
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import {
     listCurrencies,
     listDisciplines,
@@ -35,6 +35,8 @@ import { PastExperience } from './PastExperience.tsx';
 import { ProfileAbout, ProfileStats } from './ProfileIdentity.tsx';
 import { ProfileEditor } from './ProfileEditor.tsx';
 import { ProfileHeader } from './ProfileHeader.tsx';
+import { MediaPlayer } from './MediaPlayer.tsx';
+import { profileMediaItemPath, profileMediaPath, profilePath } from './paths.ts';
 import { ProfileMedia } from './ProfileMedia.tsx';
 import {
     cityLine,
@@ -48,7 +50,7 @@ import {
     type ReviewData,
 } from './profileModel.ts';
 
-export const profilePath = '/profile';
+export { profileMediaItemPath, profileMediaPath, profilePath };
 
 export type ProfilePageProps = {
     onboarding?: boolean;
@@ -57,6 +59,9 @@ export type ProfilePageProps = {
 
 export function ProfilePage({ onboarding = false, framed = true }: ProfilePageProps = {}) {
     const navigate = useNavigate();
+    const location = useLocation();
+    const playerId = readPlayerId(location.pathname);
+    const playerOpen = playerId !== undefined;
     const dispatch = useAppDispatch();
     const session = useSession();
     const user = useAppSelector((state) => state.profile.user);
@@ -321,9 +326,66 @@ export function ProfilePage({ onboarding = false, framed = true }: ProfilePagePr
         }
     }
 
+    useEffect(() => {
+        if (!playerOpen || !data) {
+            return;
+        }
+        if (data.media.length === 0) {
+            navigate(profilePath, { replace: true });
+            return;
+        }
+        if (playerId && data.media.some((item) => item.id === playerId)) {
+            return;
+        }
+        const first = data.media[0];
+        if (first) {
+            navigate(profileMediaItemPath(first.id), { replace: true });
+        }
+    }, [data, navigate, playerId, playerOpen]);
+
+    const closePlayer = useCallback((): void => {
+        const index = historyIndex();
+        if (index !== null && index > 0) {
+            navigate(-1);
+            return;
+        }
+        navigate(profilePath, { replace: true });
+    }, [navigate]);
+
+    const selectPlayer = useCallback((id: string): void => {
+        navigate(profileMediaItemPath(id), { replace: true });
+    }, [navigate]);
+
+    useEffect(() => {
+        if (!playerOpen) {
+            return;
+        }
+        const bar = document.querySelector('.app-bar');
+        if (!(bar instanceof HTMLElement)) {
+            return;
+        }
+        bar.inert = true;
+        return () => {
+            bar.inert = false;
+        };
+    }, [playerOpen]);
+
     const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Your profile';
     const heading = data?.title?.trim() || displayName;
     const positionName = data ? data.positions.find((position) => position.id === data.positionId)?.name ?? null : null;
+    const disciplineName = data ? data.disciplines.find((discipline) => discipline.id === data.disciplineId)?.name ?? null : null;
+    const playerRole = [positionName, disciplineName].filter((part): part is string => Boolean(part)).join(' — ');
+    const soleProject = data?.projects.length === 1 ? data.projects[0] ?? null : null;
+    const projectPosition = soleProject
+        ? data?.positions.find((position) => position.id === soleProject.position_id)?.name ?? null
+        : null;
+    const playerCaption = soleProject?.name ?? null;
+    const playerDetail = soleProject
+        ? [projectPosition, monthYear(soleProject.date)].filter((part): part is string => Boolean(part)).join(' · ')
+        : null;
+    const playerItem = playerOpen && data && playerId
+        ? data.media.find((item) => item.id === playerId) ?? null
+        : null;
     const subtitle = data ? workedOn(data.projects.map((project) => project.name)) : null;
     const currency = data?.currencies.find((row) => row.id === data.currencyId);
     const rateLabel = data ? formatPerDay(data.dayRate, currency) : null;
@@ -356,7 +418,10 @@ export function ProfilePage({ onboarding = false, framed = true }: ProfilePagePr
             ) : !data || !user || !session ? (
                 <Spin size="large" description="Loading your profile…" />
             ) : (
-                <div className={readOnly ? 'crew-profile is-review is-readonly' : 'crew-profile is-review'}>
+                <div
+                    className={readOnly ? 'crew-profile is-review is-readonly' : 'crew-profile is-review'}
+                    inert={playerOpen ? true : undefined}
+                >
                     <div className="crew-main">
                         <ProfileHeader
                             readOnly={readOnly}
@@ -477,6 +542,19 @@ export function ProfilePage({ onboarding = false, framed = true }: ProfilePagePr
                     </div>
                 </div>
             )}
+            {playerItem && session ? (
+                <MediaPlayer
+                    media={data?.media ?? []}
+                    mediaId={playerItem.id}
+                    accessToken={session.accessToken}
+                    name={displayName}
+                    role={playerRole}
+                    captionTitle={playerCaption}
+                    captionDetail={playerDetail}
+                    onClose={closePlayer}
+                    onSelect={selectPlayer}
+                />
+            ) : null}
 
             {onboarding ? (
                 <Typography.Paragraph className="review-footnote">
@@ -496,4 +574,33 @@ export function ProfilePage({ onboarding = false, framed = true }: ProfilePagePr
         </ConfigProvider>
     );
     return framed ? <Frame>{sheet}</Frame> : sheet;
+}
+
+function readPlayerId(pathname: string): string | null | undefined {
+    if (pathname === profileMediaPath) {
+        return null;
+    }
+    const prefix = `${profileMediaPath}/`;
+    if (!pathname.startsWith(prefix)) {
+        return undefined;
+    }
+    try {
+        const id = decodeURIComponent(pathname.slice(prefix.length).split('/')[0] ?? '');
+        return id || null;
+    } catch {
+        return null;
+    }
+}
+
+function monthYear(iso: string): string | null {
+    const date = new Date(`${iso}T00:00:00`);
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+function historyIndex(): number | null {
+    const state = window.history.state as { idx?: unknown } | null;
+    return typeof state?.idx === 'number' ? state.idx : null;
 }

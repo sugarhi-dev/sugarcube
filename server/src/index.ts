@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { Config, Database } from '@sugarcube/server-core';
+import { cloudflareStreamCallbackPath } from './controllers/cloudflareStreamController.js';
 import { resolveEnvFile } from './envFile.js';
 import { ApiService } from './services/apiService.js';
 
@@ -32,7 +33,15 @@ async function start(): Promise<void> {
     config.requireAll(requiredEnv);
 
     const app = express();
-    app.use(express.json());
+    app.use(express.json({
+        verify(req, _res, buf) {
+            const candidate = req as typeof req & { originalUrl?: string };
+            const url = candidate.originalUrl ?? candidate.url;
+            if (url?.split('?')[0] === cloudflareStreamCallbackPath) {
+                Object.assign(req, { rawBody: Buffer.from(buf) });
+            }
+        },
+    }));
     const database = new Database(config);
     const apiService = new ApiService(config, app, database);
     await apiService.start();

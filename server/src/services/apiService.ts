@@ -14,6 +14,7 @@ import { UserAvailabilityController } from '../controllers/userAvailabilityContr
 import { UserController } from '../controllers/userController.js';
 import { UserMediaController } from '../controllers/userMediaController.js';
 import { UserSettingsController } from '../controllers/userSettingsController.js';
+import { CloudflareStream } from '../logic/cloudflareStream.js';
 import { CurrencyLogic } from '../logic/currencyLogic.js';
 import { DisciplineLogic } from '../logic/disciplineLogic.js';
 import { PositionLogic } from '../logic/positionLogic.js';
@@ -73,6 +74,7 @@ export class ApiService extends RestService {
         const userWorkProfileRepo = new UserWorkProfileRepo(this.database);
 
         const binary = new Binary(this.config);
+        const cloudflareStream = new CloudflareStream(this.config);
         const userLogic = new UserLogic(userRepo, binary, this.config);
         const currencyLogic = new CurrencyLogic(currencyRepo);
         const productionCityLogic = new ProductionCityLogic(productionCityRepo);
@@ -83,7 +85,7 @@ export class ApiService extends RestService {
         const projectTypeLogic = new ProjectTypeLogic(projectTypeRepo);
         const userAvailabilityLogic = new UserAvailabilityLogic(userAvailabilityRepo);
         const userLocaleLogic = new UserLocaleLogic(userLocaleRepo);
-        const userMediaLogic = new UserMediaLogic(userMediaRepo, binary);
+        const userMediaLogic = new UserMediaLogic(userMediaRepo, binary, cloudflareStream);
         const userSettingsLogic = new UserSettingsLogic(userSettingsRepo);
         const userWorkProfileLogic = new UserWorkProfileLogic(userWorkProfileRepo);
 
@@ -109,6 +111,6 @@ export class ApiService extends RestService {
         this.addController(new UserAvailabilityController(this.app, userLogic, userAvailabilityLogic));
         this.addController(new UserMediaController(this.app, userLogic, userMediaLogic));
         this.addController(new UserSettingsController(this.app, userLogic, userSettingsLogic));
-        this.addController(new CloudflareStreamController(this.app, userMediaLogic));
+        this.addController(new CloudflareStreamController(this.app, userMediaLogic, cloudflareStream));
     }
 }
