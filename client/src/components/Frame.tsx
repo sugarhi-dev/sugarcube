@@ -17,7 +17,7 @@ import {
 import { App as AntdApp, Input } from 'antd';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { createWorkProfile, getProfilePhotoUrl } from '../api/me.ts';
+import { createWorkProfile, getProfilePhotoUrl, listWorkProfiles } from '../api/me.ts';
 import { beginSignOut } from '../auth/oidc.ts';
 import { calendarPath } from '../pages/calendar/paths.ts';
 import { profilePath } from '../pages/profile/ProfilePage.tsx';
@@ -61,6 +61,8 @@ const menuSections: Array<{ label: string; items: AccountItem[] }> = [
     },
 ];
 
+const workProfileLimit = 2;
+
 const menuFooter: AccountItem[] = [
     { key: 'help', label: 'Help & Support', icon: <QuestionCircleOutlined /> },
     { key: 'sign-out', label: 'Log out', icon: <LogoutOutlined />, tone: 'danger' },
@@ -73,6 +75,7 @@ export function Frame({ children }: { children: ReactNode }) {
     const session = useSession();
     const user = useAppSelector((state) => state.profile.user);
     const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+    const [profileCount, setProfileCount] = useState<number | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const creatingProfile = useRef(false);
     const { message } = AntdApp.useApp();
@@ -80,6 +83,7 @@ export function Frame({ children }: { children: ReactNode }) {
     const menuId = useId();
     const accessToken = session?.accessToken ?? null;
     const photoId = user?.photo ?? null;
+    const profileLimitReached = profileCount !== null && profileCount >= workProfileLimit;
 
     useEffect(() => {
         if (!accessToken || !photoId) {
@@ -103,6 +107,28 @@ export function Frame({ children }: { children: ReactNode }) {
             active = false;
         };
     }, [accessToken, photoId]);
+
+    useEffect(() => {
+        if (!accessToken) {
+            setProfileCount(null);
+            return;
+        }
+
+        let active = true;
+        void listWorkProfiles(accessToken).then((profiles) => {
+            if (active) {
+                setProfileCount(profiles.length);
+            }
+        }).catch(() => {
+            if (active) {
+                setProfileCount(null);
+            }
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [accessToken, menuOpen, user?.status]);
 
     useEffect(() => {
         if (!menuOpen) {
@@ -169,6 +195,9 @@ export function Frame({ children }: { children: ReactNode }) {
         if (!session || creatingProfile.current) {
             return;
         }
+        if (profileLimitReached) {
+            return;
+        }
         if (user?.status !== 'live') {
             message.info('You can add another profile after this one is approved.');
             return;
@@ -176,7 +205,15 @@ export function Frame({ children }: { children: ReactNode }) {
 
         creatingProfile.current = true;
         try {
+            const profiles = await listWorkProfiles(session.accessToken);
+            setProfileCount(profiles.length);
+            if (profiles.length >= workProfileLimit) {
+                message.info('You can have two profiles.');
+                return;
+            }
+
             const updated = await createWorkProfile(session.accessToken);
+            setProfileCount(profiles.length + 1);
             dispatch(profileLoaded({ user: updated, forSubject: session.profile.subject }));
         } catch (error) {
             message.error(error instanceof Error ? error.message : 'Could not start a new profile.');
@@ -255,6 +292,7 @@ export function Frame({ children }: { children: ReactNode }) {
                                                             || (item.key === 'settings' && onSettings && !onNotifications)
                                                             || (item.key === 'notifications' && onNotifications)
                                                         }
+                                                        disabled={item.key === 'new-profile' && profileLimitReached}
                                                         onSelect={onItem}
                                                     />
                                                 ))}
@@ -280,10 +318,12 @@ export function Frame({ children }: { children: ReactNode }) {
 function MenuButton({
     item,
     current = false,
+    disabled = false,
     onSelect,
 }: {
     item: AccountItem;
     current?: boolean;
+    disabled?: boolean;
     onSelect: (key: string) => void;
 }) {
     return (
@@ -291,12 +331,9 @@ function MenuButton({
             type="button"
             className={itemClass(item, current)}
             aria-current={current ? 'page' : undefined}
-            // onClick={() => onSelect(item.key)}
-            onClick={
-                item.key === 'calendar' || item.key === 'new-profile'
-                    ? undefined
-                    : () => onSelect(item.key)
-            }
+            disabled={disabled}
+            title={disabled ? 'You can have two profiles.' : undefined}
+            onClick={item.key === 'calendar' || disabled ? undefined : () => onSelect(item.key)}
         >
             <span className="account-menu-icon" aria-hidden="true">{item.icon}</span>
             <span>{item.label}</span>

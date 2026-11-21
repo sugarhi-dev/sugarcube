@@ -2172,6 +2172,24 @@ button.review-viewing-menu:disabled {
     background: #ececec;
 }
 
+.account-menu-item:disabled,
+.account-menu-item:disabled .account-menu-icon {
+    color: #b5aea7;
+    cursor: not-allowed;
+    opacity: 1;
+}
+
+.account-menu-item:disabled:hover,
+.account-menu-item.is-create:disabled,
+.account-menu-item.is-create:disabled:hover {
+    background: #f3f3f3;
+    color: #b5aea7;
+}
+
+.account-menu-item.is-create:disabled .account-menu-icon {
+    color: #b5aea7;
+}
+
 .account-menu-foot {
     display: flex;
     flex: 0 0 auto;
